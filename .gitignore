@@ -1,3 +1,6 @@
+# Source book (large binary, kept in working dir but not in git history)
+/*.pdf
+
 # Python
 __pycache__/
 *.pyc
