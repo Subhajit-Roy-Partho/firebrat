@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.venv/
+
+# Generated book packages (large binary output, regenerable from source PDF)
+backend/output/
+*.wav
+*.m4a
+*.mp3
+!backend/voice/narrator_ref.wav
+
+# HuggingFace / model caches if ever pointed inside repo
+.cache/
+hf_cache/
+
+# Flutter / Dart
+frontend/firebrat_app/.dart_tool/
+frontend/firebrat_app/.flutter-plugins
+frontend/firebrat_app/.flutter-plugins-dependencies
+frontend/firebrat_app/build/
+frontend/firebrat_app/android/.gradle/
+frontend/firebrat_app/android/local.properties
+frontend/firebrat_app/**/GeneratedPluginRegistrant.*
+frontend/firebrat_app/.pub-cache/
+frontend/firebrat_app/.pub/
+frontend/firebrat_app/*.iml
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Logs
+*.log
