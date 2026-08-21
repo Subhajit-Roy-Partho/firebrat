@@ -49,6 +49,7 @@ def parse_args():
     p.add_argument("--skip-compilation", action="store_true", help="Reuse existing compiled.json")
     p.add_argument("--skip-tts", action="store_true", help="Skip TTS/audio assembly stage")
     p.add_argument("--skip-formulas", action="store_true", help="Skip LaTeX->PNG rendering")
+    p.add_argument("--skip-package", action="store_true", help="Skip building the portable .tar.gz")
     p.add_argument("--voice-ref", default=None, help="Path to narrator reference wav for Chatterbox")
     return p.parse_args()
 
@@ -308,6 +309,23 @@ def main():
         log.exception("Manifest build failed")
         send_telegram(f"❌ Manifest failed for *{book_id}*: {e}", parse_mode="Markdown")
         sys.exit(1)
+
+    # ── Portable package (.tar.gz) ───────────────────────────────
+    # A single file the Flutter app can import directly (no backend server
+    # needed) — copy it to a device via USB/sideload/messaging and use the
+    # app's "Import from file" picker.
+    if not args.skip_package:
+        try:
+            from firebrat.pipeline.package import package_book
+            archive_path = package_book(pkg_dir)
+            archive_mb = os.path.getsize(archive_path) / (1024 * 1024)
+            log.info("Packaged: %s (%.1f MB)", archive_path, archive_mb)
+            send_telegram(f"📦 Firebrat packaged *{book_id}*: `{archive_path}` ({archive_mb:.0f} MB)",
+                          parse_mode="Markdown")
+        except Exception as e:
+            log.exception("Packaging failed (non-fatal — book package on disk is still complete)")
+            send_telegram(f"⚠️ Firebrat packaging failed for *{book_id}* (book itself is fine): {e}",
+                          parse_mode="Markdown")
 
 if __name__ == "__main__":
     main()
