@@ -212,6 +212,16 @@ def run_compilation(raw_pages_path: str, output_dir: str, book_id: str | None = 
                 "title": f"Section {len(all_sections)+1} — needs review",
             })
 
+        # Checkpoint after every chunk — nano-gpt latency has been variable
+        # enough in practice (routine 120s+ responses) that losing an hour
+        # of already-compiled sections to an interrupted run is a real cost,
+        # not a theoretical one. This write is cheap relative to the LLM call
+        # that precedes it.
+        _checkpoint = {"book_id": book_id, "sections": all_sections, "formulas": all_formulas}
+        _checkpoint_path = os.path.join(os.path.dirname(raw_pages_path), "compiled.json")
+        with open(_checkpoint_path, "w", encoding="utf-8") as f:
+            json.dump(_checkpoint, f, ensure_ascii=False, indent=2)
+
         if (chunk["chunk_idx"] + 1) % 5 == 0:
             send_telegram(f"Firebrat compilation: {chunk['chunk_idx']+1}/{len(chunks)} chunks done for {book_id}")
 

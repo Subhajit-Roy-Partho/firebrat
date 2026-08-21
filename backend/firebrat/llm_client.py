@@ -27,8 +27,16 @@ def chat_completion(
     response_format_json: bool = False,
     retries: int = 4,
     backoff_base: float = 2.0,
+    timeout: int = 240,
 ) -> dict[str, Any]:
-    """Call /v1/chat/completions, retry on 429/5xx with exponential backoff."""
+    """Call /v1/chat/completions, retry on 429/5xx with exponential backoff.
+
+    timeout defaults to 240s, not requests' usual short default — observed
+    latency for both the flash and thinking-tier models on this endpoint
+    routinely runs 120-150s+ under load, and a too-tight timeout just burns
+    a full retry cycle (another ~timeout seconds) for a request that would
+    have succeeded if given a bit longer.
+    """
     url = f"{NANO_API_URL.rstrip('/')}/chat/completions"
     payload: dict[str, Any] = {
         "model": model,
@@ -42,7 +50,7 @@ def chat_completion(
     last_err: Exception | None = None
     for attempt in range(retries + 1):
         try:
-            resp = requests.post(url, headers=_headers(), json=payload, timeout=120)
+            resp = requests.post(url, headers=_headers(), json=payload, timeout=timeout)
             if resp.status_code == 429 or resp.status_code >= 500:
                 raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:500]}")
             resp.raise_for_status()
