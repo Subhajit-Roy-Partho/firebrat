@@ -96,6 +96,29 @@ def _build_user_message(chunk: dict) -> str:
 
 
 _REF_PATTERN_RE = re.compile(r"^(fig|formula|tbl)_\d{4}$")
+_WRAPPER_KEYS = ("data", "result", "response", "output", "content")
+
+
+def _normalize_wrapper(parsed: dict) -> dict:
+    """LLMs given a JSON-schema-shaped prompt sometimes echo a schema-style
+    envelope instead of the content directly — observed in practice from
+    deepseek-v4-pro:thinking: {"type": "object", "data": {"sections": [...]}}
+    instead of just {"sections": [...]}. Unwrap any of a few common envelope
+    key names, and the older singular-"section" variant, before validation.
+    """
+    if not isinstance(parsed, dict):
+        return parsed
+    if "sections" in parsed:
+        return parsed
+    if "section" in parsed:
+        return {"sections": parsed["section"] if isinstance(parsed["section"], list) else [parsed["section"]]}
+    for key in _WRAPPER_KEYS:
+        inner = parsed.get(key)
+        if isinstance(inner, dict) and "sections" in inner:
+            return inner
+        if isinstance(inner, dict) and "section" in inner:
+            return {"sections": inner["section"] if isinstance(inner["section"], list) else [inner["section"]]}
+    return parsed
 
 
 def _sanitize_refs(parsed: dict) -> dict:
@@ -165,9 +188,7 @@ def run_compilation(raw_pages_path: str, output_dir: str, book_id: str | None = 
         try:
             parsed, used_model = chat_json(messages, model, temperature=0.2, max_tokens=7000,
                                            retries_parse=3, fallback_model=fallback)
-            # Normalize: LLM should return {"sections": [...]} but tolerate wrapper variations
-            if "sections" not in parsed and "section" in parsed:
-                parsed = {"sections": parsed["section"] if isinstance(parsed["section"], list) else [parsed["section"]]}
+            parsed = _normalize_wrapper(parsed)
             parsed = _sanitize_refs(parsed)
             output = LLMOutput.model_validate(parsed)
             errs = output.validate_refs(known_ids)

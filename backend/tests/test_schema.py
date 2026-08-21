@@ -16,6 +16,34 @@ def test_llm_ref_validation_ok():
     assert out.validate_refs({"fig_0001"}) == []
     assert len(out.validate_refs(set())) == 1
 
+def test_normalize_wrapper_schema_envelope():
+    """Regression test for a real production failure: deepseek-v4-pro:thinking
+    sometimes echoes a JSON-schema-style envelope instead of the content
+    directly. Two of the first five chunks on the real full-book run failed
+    this way before the fix."""
+    from firebrat.pipeline.compile_llm import _normalize_wrapper
+    envelope = {
+        "type": "object",
+        "data": {
+            "sections": [{
+                "title": "X", "source_pages": [1],
+                "segments": [{"type": "prose", "text": "hi", "ref": None, "visually_essential": False}],
+            }],
+        },
+    }
+    result = _normalize_wrapper(envelope)
+    assert "sections" in result
+    assert result["sections"][0]["title"] == "X"
+
+def test_normalize_wrapper_passthrough_and_singular():
+    from firebrat.pipeline.compile_llm import _normalize_wrapper
+    already_correct = {"sections": [{"title": "Y", "source_pages": [], "segments": []}]}
+    assert _normalize_wrapper(already_correct) is already_correct
+
+    singular = {"section": {"title": "Z", "source_pages": [], "segments": []}}
+    result = _normalize_wrapper(singular)
+    assert result["sections"] == [{"title": "Z", "source_pages": [], "segments": []}]
+
 def test_manifest_roundtrip(tmp_path=None):
     import json, os, tempfile
     from firebrat.pipeline.manifest import build_manifest
