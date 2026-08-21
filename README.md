@@ -2,6 +2,8 @@
 
 An audiobook generator and reader built specifically for technical books — the kind with formulas, circuit diagrams, register tables, and figures that a plain text-to-speech reading destroys.
 
+**[subhajit-roy-partho.github.io/firebrat](https://subhajit-roy-partho.github.io/firebrat/)** — project site, with a longer writeup of the accessibility mission and how the pipeline works.
+
 ## Why this exists
 
 Most audiobook tools treat a PDF as a wall of text to flatten into speech. That works for a novel. It falls apart the moment a book says "as shown in Figure 6.65" or writes out an equation — the audio either skips the thing you actually need to see, or reads a LaTeX expression aloud as noise.
