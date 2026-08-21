@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accessibility mission — Firebrat</title>
+<meta name="description" content="Why Firebrat exists: built by a dyslexic developer for readers who find sustained silent reading of technical material genuinely difficult.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<nav class="site-nav">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><path fill="url(#navg2)" d="M32 4c2 10-8 12-8 22 0 6 4 9 8 9s8-3 8-9c0-4-2-6-3-9 6 3 12 11 12 20 0 12-9 22-19 22S12 51 12 39c0-9 5-15 9-20-1 5 1 8 4 8 2 0 4-2 4-5 0-6-3-9-3-14 2 0 5-2 6-4z"/><defs><linearGradient id="navg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB238"/><stop offset="1" stop-color="#C4432B"/></linearGradient></defs></svg>
+      Firebrat
+    </a>
+    <ul class="nav-links" id="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="architecture.html">How it works</a></li>
+      <li><a href="about.html" aria-current="page">Accessibility mission</a></li>
+      <li><a href="https://github.com/Subhajit-Roy-Partho/firebrat">GitHub</a></li>
+    </ul>
+    <div class="nav-actions">
+      <button class="icon-btn" id="theme-toggle" aria-label="Toggle theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+      <button class="icon-btn nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <a class="btn btn-primary" href="https://github.com/Subhajit-Roy-Partho/firebrat/releases/latest">Get the app</a>
+    </div>
+  </div>
+</nav>
+
+<header class="page-header">
+  <div class="wrap">
+    <span class="eyebrow">Why this project exists</span>
+    <h1>Built for readers who find reading itself the hardest part</h1>
+    <p>Firebrat is for anyone who'd rather listen than stare at a page for hours — but it was designed first for people who find sustained reading of technical material genuinely difficult.</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="grid grid-2" style="align-items:start">
+      <div class="prose">
+        <h2>A personal starting point</h2>
+        <p>I'm dyslexic. Sustained silent reading — the kind a 600-page technical textbook demands — is exhausting and genuinely painful for me in a way it isn't for most people. Words swim. Lines get lost. A single dense paragraph about, say, SDRAM timing parameters can take several passes to actually land.</p>
+        <p>Listening is different. Spoken language is something I process well, fluently, for hours. It's how I actually get through dense material — podcasts, audiobooks, lectures. The problem is that technical books were never written to be read aloud. They lean on diagrams, register tables, and equations that a plain text-to-speech pass either skips entirely or reads out as meaningless noise ("t sub C K equals one over f...").</p>
+        <p>So the book stayed unread, or I read it slowly and painfully, or I found some workaround that lost half of what mattered. Firebrat exists because none of those were good enough.</p>
+
+        <div class="person-note">
+          <p>The goal was never "add text-to-speech to a PDF reader." It was: let the narration carry the reading load I struggle with, while the figure or formula the narration is currently describing stays right in front of me, highlighted, exactly when it's relevant — and let me freely look at anything else on the page without breaking that flow.</p>
+        </div>
+
+        <h2>Who this is for</h2>
+        <p>Dyslexic readers, first and specifically. But the same design choices help a much wider set of people:</p>
+        <ul>
+          <li>People with low vision, who benefit from audio as the primary channel and adjustable, high-contrast text as the secondary one.</li>
+          <li>People with ADHD, for whom short narrated segments with a visible, tappable structure are easier to stay engaged with than a wall of unbroken text.</li>
+          <li>Anyone who processes spoken language more fluently than dense printed technical writing — which, it turns out, is a lot of people, whether or not they'd describe themselves as having a reading difficulty.</li>
+          <li>Anyone who just wants to get through a technical book on a commute, a walk, or while doing something else with their hands, without losing the diagrams that make the book worth reading in the first place.</li>
+        </ul>
+
+        <h2>What "accessible by design" actually meant here</h2>
+        <p>Concretely, in the app itself, not as an afterthought:</p>
+        <ul>
+          <li><strong>Adjustable text size is a first-class setting</strong>, reachable from the reader screen itself, not buried in a system-wide accessibility menu.</li>
+          <li><strong>Segments are short — one sentence at a time</strong> — so the highlighted text on screen never becomes another wall to parse; it's always a small, current, matched-to-what-you're-hearing chunk.</li>
+          <li><strong>High-contrast highlighting</strong> for the segment currently being spoken and the formula currently being described, not a subtle color shift that's easy to miss.</li>
+          <li><strong>Manual navigation always works</strong>, regardless of autoplay state — nothing about the reading flow is a one-way street you can get stuck in or have to "catch up" with.</li>
+          <li><strong>Figures never disappear.</strong> The one being talked about is emphasized, but every other diagram for the section stays visible and tappable — because sometimes you want to compare two figures, or you already know which one you need, and a rigid one-at-a-time flow would fight you.</li>
+        </ul>
+
+        <h2>An invitation, not a lecture</h2>
+        <p>I'm not trying to speak for every dyslexic reader, or every person with a different relationship to text than mine — disability and reading difficulty aren't monolithic, and what helps me won't help everyone identically. What I can say is that this is a real tool, built to solve a real, specific, personal problem, released under a permissive-enough copyleft license so that anyone who wants to point it at their own technical book — or fork it and adjust it for how <em>they</em> read best — can.</p>
+      </div>
+
+      <aside class="card" style="position:sticky; top:96px;">
+        <h3>Quick facts</h3>
+        <ul style="padding-left:20px; color:var(--text-muted); font-size:0.95rem;">
+          <li>Adjustable font scale, 0.85x–1.6x, live in the reader</li>
+          <li>Short, sentence-length narration segments throughout</li>
+          <li>High-contrast segment and formula highlighting</li>
+          <li>Manual segment/section navigation always available</li>
+          <li>Every figure/table for a section stays visible at once</li>
+          <li>Fully offline reading once a book is downloaded or imported</li>
+        </ul>
+        <a class="btn btn-primary" style="margin-top:8px; width:100%; justify-content:center;" href="https://github.com/Subhajit-Roy-Partho/firebrat/releases/latest">Try the app</a>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>Firebrat is licensed under the <a href="https://github.com/Subhajit-Roy-Partho/firebrat/blob/master/LICENSE">GNU AGPL-3.0</a>.</p>
+    <ul class="footer-links">
+      <li><a href="architecture.html">How it works</a></li>
+      <li><a href="about.html">Accessibility mission</a></li>
+      <li><a href="https://github.com/Subhajit-Roy-Partho/firebrat">GitHub</a></li>
+      <li><a href="https://github.com/Subhajit-Roy-Partho/firebrat/releases">Releases</a></li>
+    </ul>
+  </div>
+</footer>
+
+<script src="assets/main.js"></script>
+</body>
+</html>
