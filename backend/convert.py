@@ -79,29 +79,69 @@ def main():
     compiled_json = os.path.join(pkg_dir, "raw", "compiled.json")
     alt_compiled = os.path.join(pkg_dir, "compiled.json")
 
-    # For --pages testing: work on a temp copy of the pdf trimmed to N pages
-    work_pdf = pdf_path
-    tmp_pdf = None
-    if args.pages is not None:
-        import pymupdf
-        start = max(0, args.start_page)
-        tmp_pdf = os.path.join(pkg_dir, f"_tmp_{start}_{args.pages}pages.pdf")
-        src = pymupdf.open(pdf_path)
-        dst = pymupdf.open()
-        end = min(start + args.pages, len(src))
-        for i in range(start, end):
-            dst.insert_pdf(src, from_page=i, to_page=i)
-        dst.save(tmp_pdf)
-        dst.close(); src.close()
-        work_pdf = tmp_pdf
-        log.info("Testing mode: trimmed to %d pages -> %s", args.pages, tmp_pdf)
-
-    # ── Stage 1: extraction ──────────────────────────────────────
+    # ── Stage 1: extraction (batched, one subprocess per page range) ─────
+    # This session's SLURM allocation caps total RAM at 6GB, and marker
+    # batch-processes every page it's given at once — so for anything but a
+    # tiny test slice, extraction runs in EXTRACT_BATCH_PAGES-sized chunks,
+    # each a fresh subprocess, so memory is fully released between batches.
     if not args.skip_extraction:
-        log.info("Stage 1: extraction")
+        log.info("Stage 1: extraction (batched)")
         try:
-            from firebrat.pipeline.extract import run_extraction
-            stats = run_extraction(work_pdf, out_root, book_id=book_id)
+            import pymupdf
+            from firebrat.pipeline.extract_batch_cli import __file__ as _batch_cli_file
+            from firebrat.pipeline.schema import RawPagesFile
+            from firebrat.config import EXTRACT_BATCH_PAGES
+
+            total_pdf_pages = pymupdf.open(pdf_path).page_count
+            range_start = max(0, args.start_page) if args.pages is not None else 0
+            range_end = min(range_start + args.pages, total_pdf_pages) if args.pages is not None else total_pdf_pages
+            log.info("Extracting pages [%d, %d) of %d total, batch size %d",
+                     range_start, range_end, total_pdf_pages, EXTRACT_BATCH_PAGES)
+
+            all_pages: list[dict] = []
+            fig_ctr, tbl_ctr, formula_ctr = 1, 1, 1
+            marker_chars_total = 0
+            batch_starts = list(range(range_start, range_end, EXTRACT_BATCH_PAGES))
+            for bi, bstart in enumerate(batch_starts):
+                blen = min(EXTRACT_BATCH_PAGES, range_end - bstart)
+                out_json = os.path.join(pkg_dir, "raw", f"_batch_{bstart}.json")
+                os.makedirs(os.path.dirname(out_json), exist_ok=True)
+                cmd = [EXTRACT_PY, _batch_cli_file, pdf_path, pkg_dir,
+                       str(bstart), str(blen), str(fig_ctr), str(tbl_ctr), str(formula_ctr), out_json]
+                log.info("Batch %d/%d: pages [%d, %d)", bi + 1, len(batch_starts), bstart, bstart + blen)
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                if result.returncode != 0:
+                    log.error("Batch %d failed (pages [%d,%d)):\n%s", bi + 1, bstart, bstart + blen, result.stderr[-3000:])
+                    send_telegram(f"⚠️ Firebrat extraction batch pages {bstart}-{bstart+blen} failed for *{book_id}*, skipping", parse_mode="Markdown")
+                    continue
+                with open(out_json, "r", encoding="utf-8") as f:
+                    batch_result = json.load(f)
+                all_pages.extend(batch_result["pages"])
+                fig_ctr = batch_result["next_fig"]
+                tbl_ctr = batch_result["next_tbl"]
+                formula_ctr = batch_result["next_formula"]
+                marker_chars_total += batch_result["marker_chars"]
+                os.remove(out_json)
+                if (bi + 1) % 5 == 0:
+                    send_telegram(f"Firebrat extraction: {bi+1}/{len(batch_starts)} batches "
+                                  f"(pages {bstart+blen}/{range_end}) done for *{book_id}*", parse_mode="Markdown")
+
+            raw_out = {
+                "book_id": book_id,
+                "source_pdf": os.path.basename(pdf_path),
+                "page_count": len(all_pages),
+                "pages": all_pages,
+            }
+            RawPagesFile.model_validate(raw_out)
+            os.makedirs(os.path.dirname(raw_json), exist_ok=True)
+            with open(raw_json, "w", encoding="utf-8") as f:
+                json.dump(raw_out, f, ensure_ascii=False, indent=2)
+
+            stats = {
+                "book_id": book_id, "page_count": len(all_pages),
+                "figure_count": fig_ctr - 1, "formula_count": formula_ctr - 1,
+                "marker_chars": marker_chars_total,
+            }
             log.info("Stage 1 done: %s", stats)
             send_telegram(f"✅ Stage 1 extraction done for *{book_id}*: {stats['page_count']} pages, "
                           f"{stats['figure_count']} figures, {stats['formula_count']} formulas",
@@ -157,14 +197,6 @@ def main():
                 render_all_formulas(formulas_list, formulas_dir)
         except Exception as e:
             log.warning("Formula rendering encountered errors (non-fatal): %s", e)
-
-    # tmp_pdf (from --pages testing) is only needed through Stage 1 extraction;
-    # remove it now rather than at the end of main(), since the Stage 3 delegation
-    # branch below exits the process early via subprocess + sys.exit().
-    if tmp_pdf and os.path.isfile(tmp_pdf):
-        try: os.remove(tmp_pdf)
-        except OSError: pass
-        tmp_pdf = None
 
     # ── Pre-stage 3: build a minimal manifest early so we have section ids before TTS ──
     # If compiled exists but no manifest yet, create one (TTS will populate audio later)
@@ -276,10 +308,6 @@ def main():
         log.exception("Manifest build failed")
         send_telegram(f"❌ Manifest failed for *{book_id}*: {e}", parse_mode="Markdown")
         sys.exit(1)
-
-    if tmp_pdf and os.path.isfile(tmp_pdf):
-        try: os.remove(tmp_pdf)
-        except OSError: pass
 
 if __name__ == "__main__":
     main()

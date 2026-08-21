@@ -26,6 +26,12 @@ PIPELINE_VERSION = "0.1.0"
 SCHEMA_VERSION = "1.0"
 MIG_UUID = "MIG-b36117af-4e57-514f-a05d-13fb7d1c4280"
 
+# This session's SLURM allocation caps total RAM at 6GB (see AGENTS.md).
+# marker-pdf batch-processes every page of whatever file it's given at once,
+# so Stage 1 runs it in small page-range batches, each as its own subprocess,
+# to keep peak memory bounded regardless of book length.
+EXTRACT_BATCH_PAGES = 15
+
 # ── Paths ────────────────────────────────────────────────────────
 # OUTPUT_DIR is resolved relative to the backend/ directory unless absolute
 _DEFAULT_OUTPUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output")

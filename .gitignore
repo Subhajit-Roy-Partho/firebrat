@@ -25,6 +25,7 @@ frontend/firebrat_app/.flutter-plugins
 frontend/firebrat_app/.flutter-plugins-dependencies
 frontend/firebrat_app/build/
 frontend/firebrat_app/android/.gradle/
+frontend/firebrat_app/android/.kotlin/
 frontend/firebrat_app/android/local.properties
 frontend/firebrat_app/**/GeneratedPluginRegistrant.*
 frontend/firebrat_app/.pub-cache/

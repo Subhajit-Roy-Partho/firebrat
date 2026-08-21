@@ -95,6 +95,27 @@ def _build_user_message(chunk: dict) -> str:
     )
 
 
+_REF_PATTERN_RE = re.compile(r"^(fig|formula|tbl)_\d{4}$")
+
+
+def _sanitize_refs(parsed: dict) -> dict:
+    """Null out any 'ref' that doesn't match fig/formula/tbl_NNNN before strict
+    pydantic validation, so one malformed ref (e.g. the LLM writing 'fig_1.15'
+    instead of 'fig_0001') doesn't discard an otherwise-good chunk's content.
+    Unknown-but-well-formed ids are still caught later by validate_refs().
+    """
+    for sec in parsed.get("sections", []) if isinstance(parsed, dict) else []:
+        if not isinstance(sec, dict):
+            continue
+        for seg in sec.get("segments", []):
+            if not isinstance(seg, dict):
+                continue
+            ref = seg.get("ref")
+            if ref is not None and not _REF_PATTERN_RE.match(str(ref)):
+                seg["ref"] = None
+    return parsed
+
+
 FALLBACK_SECTION = {
     "title": "Unprocessed chunk",
     "source_pages": [],
@@ -147,6 +168,7 @@ def run_compilation(raw_pages_path: str, output_dir: str, book_id: str | None = 
             # Normalize: LLM should return {"sections": [...]} but tolerate wrapper variations
             if "sections" not in parsed and "section" in parsed:
                 parsed = {"sections": parsed["section"] if isinstance(parsed["section"], list) else [parsed["section"]]}
+            parsed = _sanitize_refs(parsed)
             output = LLMOutput.model_validate(parsed)
             errs = output.validate_refs(known_ids)
             if errs:
