@@ -121,6 +121,26 @@ def _normalize_wrapper(parsed: dict) -> dict:
     return parsed
 
 
+def _fill_blank_titles(parsed: dict) -> dict:
+    """The prompt explicitly permits an empty title for front-matter/bibliography
+    chunks ("you may produce an empty title..."), but the schema requires a
+    non-empty title (a blank section title would look broken in the reader UI).
+    That contradiction made every such chunk fail validation in production —
+    substitute a page-range-derived title instead of rejecting the whole chunk.
+    """
+    for sec in parsed.get("sections", []) if isinstance(parsed, dict) else []:
+        if not isinstance(sec, dict):
+            continue
+        title = sec.get("title")
+        if not title or not str(title).strip():
+            pages = sec.get("source_pages") or []
+            if pages:
+                sec["title"] = f"Pages {min(pages) + 1}–{max(pages) + 1}"
+            else:
+                sec["title"] = "Untitled section"
+    return parsed
+
+
 def _sanitize_refs(parsed: dict) -> dict:
     """Null out any 'ref' that doesn't match fig/formula/tbl_NNNN before strict
     pydantic validation, so one malformed ref (e.g. the LLM writing 'fig_1.15'
@@ -190,6 +210,7 @@ def run_compilation(raw_pages_path: str, output_dir: str, book_id: str | None = 
                                            retries_parse=3, fallback_model=fallback)
             parsed = _normalize_wrapper(parsed)
             parsed = _sanitize_refs(parsed)
+            parsed = _fill_blank_titles(parsed)
             output = LLMOutput.model_validate(parsed)
             errs = output.validate_refs(known_ids)
             if errs:
