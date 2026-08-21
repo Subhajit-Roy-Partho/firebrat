@@ -1,0 +1,14 @@
+name: firebrat-tts
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - chatterbox-tts==0.1.7
+      - pydub
+      - soundfile
+      # chatterbox's watermarker (resemble-perth) imports pkg_resources at runtime;
+      # pip's default setuptools on this env doesn't ship it unpinned. Without this,
+      # ChatterboxTTS.from_pretrained() raises "'NoneType' object is not callable".
+      - "setuptools<81"

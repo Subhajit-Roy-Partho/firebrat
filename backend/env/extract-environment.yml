@@ -1,0 +1,9 @@
+name: firebrat-extract
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - marker-pdf==2.0.0
+      - pymupdf

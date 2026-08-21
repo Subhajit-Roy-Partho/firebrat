@@ -1,0 +1,15 @@
+name: firebrat-serve
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - fastapi
+      - "uvicorn[standard]"
+      - python-multipart
+      - pydantic
+      - requests
+      - pydub
+      - pytest
+      - httpx
