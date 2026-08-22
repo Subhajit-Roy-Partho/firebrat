@@ -26,10 +26,10 @@ Lists every book package under `OUTPUT_DIR` that has a valid `manifest.json`.
     "book_id": "arm-fundamentals-soc",
     "title": "Fundamentals of System-on-Chip Design on Arm Cortex-M Microcontrollers",
     "author": "",
-    "total_duration_ms": 15342000,
-    "section_count": 61,
-    "size_bytes": 812345678,
-    "updated_at": "2026-08-21T02:15:00Z"
+    "total_duration_ms": 26496000,
+    "section_count": 242,
+    "size_bytes": 451331000,
+    "updated_at": "2026-08-22T04:51:00Z"
   }
 ]
 ```

@@ -37,19 +37,26 @@ The model returns narration-ready prose, broken into short segments (`heading` /
 
 Chunks route to a stronger model (`deepseek/deepseek-v4-pro:thinking`) when they look equation-dense or figure/table-heavy, and a cheaper one (`deepseek/deepseek-v4-flash`) otherwise. Malformed JSON gets retried with the parse error appended to the prompt, then escalated to the strong model; a chunk that still fails becomes a `needs_review: true` placeholder rather than aborting the whole run. A single malformed ref (wrong id format) is sanitized to `null` before validation, so it doesn't discard the rest of an otherwise-good chunk.
 
+### Reliability notes (added 2026-08-21 after full-book run)
+
+- **Flash tier is currently flaky.** On the 659-page run, `deepseek/deepseek-v4-flash` timed out (240s ×5 retries, `requests.exceptions.ReadTimeout`) on ~40% of chunks while `pro:thinking` on the same pages succeeded — the flash endpoint appears overloaded, not a prompt bug. Both model names are env-overridable (`firebrat/config.py:14`): set `FIREBRAT_SPARK_MODEL=deepseek/deepseek-v4-pro:thinking` to force the strong model for all chunks if flash keeps failing. Cost is ~2-3× tokens but avoids 17 min wasted per failed chunk.
+- **Resume from checkpoint.** `compile_llm.py:239` now loads an existing `compiled.json` if present, computes the set of already-covered `source_pages`, and skips chunks fully covered (`resume=True` by default). `formula_counter` and `needs_review_chunks` are restored from the checkpoint too (`formula_counter` persisted explicitly). A failed placeholder can be retried by re-running with `retry_failed=True` (clears its placeholder sections first). Each chunk still checkpoints immediately (`compile_llm.py:317`), so an interrupted run loses at most one chunk.
+- **Schema hallucination guard.** Some `pro:thinking` responses returned a JSON Schema (`{"type":"object","properties":…}`) instead of an instance — detected explicitly (`compile_llm.py:274`) and retried. Blank-title chunks are repaired via `_fill_blank_titles` before validation, and validation failures now get one fallback-model retry before falling back to a placeholder.
+- **Timeout tuning.** `firebrat/llm_client.py:30` defaults to 240s because observed latency is 60-150s even on success; tightening it just burns another retry cycle. Increase via `chat_completion(..., timeout=...)` if your endpoint is slower.
+
 ### Stage 3 — TTS + sync (`firebrat/pipeline/tts.py`, `formulas.py`, `audio_assemble.py`)
 
 Input: `compiled.json`. Output: `sections/<id>/audio.m4a` + `sections/<id>/segments.json`, and `assets/formulas/*.png`.
 
 - **`formulas.py`** renders each LLM-authored LaTeX string to a cropped PNG via `pdflatex` (article class — `standalone.cls` isn't installed on this host) → Ghostscript rasterization → ImageMagick trim. This is the fallback path if the app's live vector rendering (`flutter_math_fork`) can't parse a given LaTeX string.
-- **`tts.py`** wraps Chatterbox TTS, synthesizing one WAV per segment with a fixed narrator voice (reference clip + `exaggeration`/`cfg_weight` — see `docs/VOICE.md`).
-- **`audio_assemble.py`** concatenates a section's segment WAVs with a fixed silence pad between them, tracking a running `cursor_ms` from each clip's *actual* sample-derived duration (not an estimate) to produce exact `start_ms`/`end_ms` per segment — this is what makes the reader's highlight-while-spoken feature frame-accurate rather than approximate.
+- **`tts.py`** wraps Chatterbox TTS, synthesizing one WAV per segment with the calm female voice `backend/voice/narrator_ref.wav` + `exaggeration 0.28` / `cfg 0.45` `backend/firebrat/config.py:23` — see `docs/VOICE.md`. 242-section archive total 441.6 min with this voice.
+- **`audio_assemble.py`** concatenates a section's segment WAVs with `PAUSE 260 ms` between them, tracking a running `cursor_ms` from each clip's *actual* sample-derived duration (not an estimate) to produce exact `start_ms`/`end_ms` per segment — this is what makes the reader's highlight-while-spoken feature frame-accurate rather than approximate.
 
 Because Chatterbox's dependency pins conflict with marker-pdf's, this stage runs under a separate conda env. `convert.py` detects whether `chatterbox` is importable in the current process and auto-delegates Stage 3 to the right env's Python via subprocess if not — a single `convert.py` invocation still does the whole pipeline end to end.
 
 ### Manifest (`firebrat/pipeline/manifest.py`)
 
-Merges Stage 1's figures/tables, Stage 2's LLM-authored formulas, and Stage 3's per-section durations into the final `manifest.json` — the one file the Flutter app actually reads to know what a book contains.
+Merges Stage 1's figures/tables, Stage 2's LLM-authored formulas, and Stage 3's per-section durations into the final `manifest.json` — the one file the Flutter app actually reads to know what a book contains. Now records `narrator_voice.reference_clip` (calm female), `exaggeration 0.28`, `needs_review` via title/placeholder heuristic (`manifest.py:120` — 44 `needs_review:true` supplements in current 242-section archive).
 
 ## Backend serving model
 

@@ -28,16 +28,16 @@ Source of truth: `backend/firebrat/pipeline/schema.py` (pydantic models). This d
   "narrator_voice": {
     "engine": "chatterbox-tts",
     "model_class": "ChatterboxTTS",
-    "reference_clip": "voice/narrator_ref.wav",
-    "exaggeration": 0.4,
-    "cfg_weight": 0.5,
+    "reference_clip": "backend/voice/narrator_ref.wav",
+    "exaggeration": 0.28,
+    "cfg_weight": 0.45,
     "sample_rate": 24000
   },
   "audio_format": {
     "codec": "aac", "container": "m4a",
     "sample_rate": 24000, "channels": 1, "fallback_codec": "mp3"
   },
-  "total_duration_ms": 15342000,
+  "total_duration_ms": 26496000,
   "sections": [
     {
       "section_id": "sec_0001",
@@ -80,7 +80,7 @@ All `*_path` fields are relative to the package root, and directly usable as `GE
 {
   "section_id": "sec_0003",
   "sample_rate": 24000,
-  "pause_ms_between_segments": 220,
+  "pause_ms_between_segments": 260,
   "segments": [
     {
       "segment_id": "sec_0003_seg_001",

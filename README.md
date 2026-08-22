@@ -33,7 +33,9 @@ Full rationale for each design decision is in [docs/ARCHITECTURE.md](docs/ARCHIT
 
 ## Status
 
-See [TASK.md](TASK.md) for current build phase and what's done. Short version: backend pipeline and Flutter app are both implemented and verified end-to-end on real content from the sample book; a full-book conversion run is what actually populates the library.
+**2026-08-22 — pipeline complete.** Full 659-page book converted → `242` sections, `659/659` pages covered (104 missing pages patched as honest `needs_review` supplements), `135` figures, `73` formulas, `441.6 min` audio, calm female voice. Archive at `backend/output/arm-fundamentals-soc.tar.gz` (430.5 MB) + unpacked `backend/output/arm-fundamentals-soc/` — see [TASK.md](TASK.md) handover and `backend/full_conversion.log` for the full run log. Backend tests 7/7, `flutter analyze` clean, APK builds.
+
+Previous incremental-archive stage (204 sections, 336 MB @2026-08-22 09:26) is superseded by the calm-voice 242-section archive @04:51; 44 sections are flagged `needs_review:true` deterministic supplements that can be LLM-refined later without re-extracting.
 
 ## Repository layout
 
@@ -69,14 +71,37 @@ python convert.py path/to/book.pdf
 
 This runs all three stages and writes `backend/output/<book_id>/` — a complete, self-contained package (manifest, per-section audio, figure/formula/table images). See [docs/DATA_SCHEMA.md](docs/DATA_SCHEMA.md) for the exact shape.
 
+If `deepseek/deepseek-v4-flash` keeps timing out (seen 240s ×5 retries on ~40% of chunks in the 659-page book), force the strong model for all chunks:
+
+```bash
+FIREBRAT_SPARK_MODEL=deepseek/deepseek-v4-pro:thinking python convert.py path/to/book.pdf
+```
+
+Long runs should use `tmux` so they survive disconnects and keep telegram pings (`pipeline/notify.py:9`). Example that produced the current calm-voice archive:
+
+```bash
+tmux new -s firebrat_convert -c backend "bash -c '
+  source ~/.zshrc
+  export CUDA_VISIBLE_DEVICES=\"MIG-b36117af-4e57-514f-a05d-13fb7d1c4280\"
+  export HF_HOME=/scratch/sroy85/.cache/huggingface
+  export MODEL_API_KEY=sk-nano-...
+  export FIREBRAT_SPARK_MODEL=deepseek/deepseek-v4-pro:thinking
+  export PYTHONUNBUFFERED=1
+  PYTHONPATH=backend /scratch/sroy85/conda-envs/firebrat-extract/bin/python -u convert.py ../arm-fundamentals-soc.pdf 2>&1 | tee -a full_conversion.log
+'"
+```
+
+Interrupted Stage 2 runs resume automatically from `raw/compiled.json` — already-covered pages are skipped, so re-running the same command picks up where it left off. To retry placeholder (`needs review`) chunks: `PYTHONPATH=backend python -c "from firebrat.pipeline.compile_llm import run_compilation; run_compilation('raw/raw_pages.json','output/<book>', retry_failed=True)"`. Calm female voice now defaults via `backend/voice/narrator_ref.wav` `backend/firebrat/config.py:23` (`exaggeration 0.28` / `PAUSE 260`); delete that wav to fall back to default voice.
+
 ### 3. Serve book packages
 
 ```bash
 cd backend
-/path/to/envs/firebrat-serve/bin/python -m uvicorn server.main:app --host 0.0.0.0 --port 8000
+PYTHONPATH=/scratch/sroy85/Github/firebrat/backend /path/to/envs/firebrat-serve/bin/python -m uvicorn server.main:app --host 0.0.0.0 --port 8000
+# or: cd backend && PYTHONPATH=. pytest tests/ -v
 ```
 
-See [docs/API.md](docs/API.md) for the full route reference.
+See [docs/API.md](docs/API.md) for the full route reference. Tests require `PYTHONPATH=backend` so `firebrat` package resolves (the pipeline CLI adds it via `sys.path` at runtime, but `pytest` does not).
 
 ### 4. Run the Flutter app
 

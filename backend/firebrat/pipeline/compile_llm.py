@@ -168,10 +168,56 @@ FALLBACK_SECTION = {
 }
 
 
-def run_compilation(raw_pages_path: str, output_dir: str, book_id: str | None = None) -> dict:
+def _load_checkpoint(checkpoint_path: str) -> tuple[list[dict], list[dict], int, set[int]]:
+    """Load existing checkpoint if present. Returns (sections, formulas, formula_counter, needs_review_set)."""
+    if not os.path.isfile(checkpoint_path):
+        return [], [], 0, set()
+    try:
+        with open(checkpoint_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        sections = data.get("sections", []) if isinstance(data, dict) else []
+        formulas = data.get("formulas", []) if isinstance(data, dict) else []
+        # formula_counter is max minted id
+        fc = len(formulas)
+        # also try to parse explicit counter if present (forward compat)
+        if isinstance(data, dict) and "formula_counter" in data:
+            try:
+                fc = int(data["formula_counter"])
+            except Exception:
+                pass
+        needs = set(data.get("needs_review_chunks", [])) if isinstance(data, dict) else set()
+        # infer needs_review from placeholder titles if field missing (backward compat)
+        if not needs:
+            for sec in sections:
+                title = sec.get("title", "") if isinstance(sec, dict) else ""
+                if "needs review" in title.lower():
+                    pages = sec.get("source_pages", [])
+                    # find chunk that owns these pages (first page)
+                    if pages:
+                        needs.add(min(pages) // CHUNK_PAGES)
+        return sections, formulas, fc, needs
+    except Exception as e:
+        log.warning("Checkpoint load failed for %s: %s — starting fresh", checkpoint_path, e)
+        return [], [], 0, set()
+
+
+def _pages_covered_by_checkpoint(sections: list[dict]) -> set[int]:
+    covered: set[int] = set()
+    for sec in sections:
+        if isinstance(sec, dict):
+            for p in sec.get("source_pages", []) or []:
+                try:
+                    covered.add(int(p))
+                except Exception:
+                    pass
+    return covered
+
+
+def run_compilation(raw_pages_path: str, output_dir: str, book_id: str | None = None, resume: bool = True, retry_failed: bool = False) -> dict:
     """Run Stage 2.
 
     Reads raw_pages.json, calls LLM per chunk, writes compiled.json (LLMOutput shape).
+    If resume is True and a checkpoint exists, already-covered page ranges are skipped.
     Returns summary stats.
     """
     with open(raw_pages_path, "r", encoding="utf-8") as f:
@@ -190,13 +236,40 @@ def run_compilation(raw_pages_path: str, output_dir: str, book_id: str | None = 
         for fo in p.get("formulas", []):
             known_ids.add(fo["formula_id"])
 
-    all_sections: list[dict] = []
-    all_formulas: list[dict] = []
-    needs_review_chunks: list[int] = []
-    formula_counter = 0
+    checkpoint_path = os.path.join(os.path.dirname(raw_pages_path), "compiled.json")
+    if resume and os.path.isfile(checkpoint_path):
+        all_sections, all_formulas, formula_counter, _prev_needs = _load_checkpoint(checkpoint_path)
+        needs_review_chunks: list[int] = sorted(_prev_needs)
+        covered = _pages_covered_by_checkpoint(all_sections)
+        log.info("Resuming from checkpoint: %d sections, %d formulas, %d pages already covered, %d prior failures",
+                 len(all_sections), len(all_formulas), len(covered), len(needs_review_chunks))
+    else:
+        all_sections: list[dict] = []
+        all_formulas: list[dict] = []
+        needs_review_chunks: list[int] = []
+        formula_counter = 0
+        covered = set()
     from firebrat.utils.ids import make_formula_id
 
     for chunk in chunks:
+        # Resume: skip chunks whose pages are already fully covered by checkpoint
+        if resume:
+            chunk_pages_set = {p["page_idx"] for p in chunk["pages"]}
+            # If all pages already covered, skip unless retry_failed and this chunk was a placeholder
+            if chunk_pages_set and chunk_pages_set.issubset(covered):
+                if not retry_failed or chunk["chunk_idx"] not in needs_review_chunks:
+                    log.info("Chunk %d/%d pages=%s already in checkpoint — skipping", chunk["chunk_idx"]+1, len(chunks), chunk["page_range"])
+                    continue
+                else:
+                    # retrying a failed chunk: remove its placeholder sections first
+                    log.info("Retrying previously failed chunk %d pages=%s", chunk["chunk_idx"], chunk["page_range"])
+                    # drop placeholder sections that belong to this chunk
+                    all_sections = [s for s in all_sections if not (set(s.get("source_pages", []) or []) & chunk_pages_set and "needs review" in s.get("title","").lower())]
+                    if chunk["chunk_idx"] in needs_review_chunks:
+                        needs_review_chunks.remove(chunk["chunk_idx"])
+                    # recompute covered after removal
+                    covered = _pages_covered_by_checkpoint(all_sections)
+
         model = DEEPSEEK_MODEL if _needs_strong_model(chunk) else SPARK_MODEL
         fallback = DEEPSEEK_MODEL if model == SPARK_MODEL else None
         system = SYSTEM_PROMPT.replace("{chunk_pages}", str(CHUNK_PAGES))
@@ -211,7 +284,24 @@ def run_compilation(raw_pages_path: str, output_dir: str, book_id: str | None = 
             parsed = _normalize_wrapper(parsed)
             parsed = _sanitize_refs(parsed)
             parsed = _fill_blank_titles(parsed)
-            output = LLMOutput.model_validate(parsed)
+            # Detect schema-hallucination where LLM returns a JSON Schema instead of instance
+            # e.g. {"type":"object","properties":{"sections":{"type":"array"}},"required":["sections"]}
+            if isinstance(parsed, dict) and "properties" in parsed and "sections" not in parsed:
+                raise ValueError(f"LLM returned JSON Schema hallucination instead of instance: keys={list(parsed.keys())}")
+            try:
+                output = LLMOutput.model_validate(parsed)
+            except Exception as ve:
+                # Validation failure (e.g. blank title edge case missed, or schema envelope)
+                # retry once with fallback stronger model before giving up
+                if fallback and model != fallback:
+                    log.warning("Chunk %d validation failed with %s (%s), retrying with fallback %s", chunk["chunk_idx"], model, ve, fallback)
+                    parsed2, _ = chat_json(messages, fallback, temperature=0.2, max_tokens=7000, retries_parse=3, fallback_model=None)
+                    parsed2 = _normalize_wrapper(parsed2)
+                    parsed2 = _sanitize_refs(parsed2)
+                    parsed2 = _fill_blank_titles(parsed2)
+                    output = LLMOutput.model_validate(parsed2)
+                else:
+                    raise
             errs = output.validate_refs(known_ids)
             if errs:
                 log.warning("Chunk %d had invalid refs: %s — demoting bad refs to null", chunk["chunk_idx"], errs)
@@ -245,6 +335,10 @@ def run_compilation(raw_pages_path: str, output_dir: str, book_id: str | None = 
                         seg.type = "prose"
 
             all_sections.extend([s.model_dump() for s in output.sections])
+            # update covered set with newly compiled pages
+            for sec in output.sections:
+                for p in sec.source_pages:
+                    covered.add(p)
         except Exception as e:
             log.exception("Chunk %d compilation failed: %s", chunk["chunk_idx"], e)
             needs_review_chunks.append(chunk["chunk_idx"])
@@ -253,13 +347,16 @@ def run_compilation(raw_pages_path: str, output_dir: str, book_id: str | None = 
                 "source_pages": [p["page_idx"] for p in chunk["pages"]],
                 "title": f"Section {len(all_sections)+1} — needs review",
             })
+            for p in chunk["pages"]:
+                covered.add(p["page_idx"])
 
         # Checkpoint after every chunk — nano-gpt latency has been variable
         # enough in practice (routine 120s+ responses) that losing an hour
         # of already-compiled sections to an interrupted run is a real cost,
         # not a theoretical one. This write is cheap relative to the LLM call
         # that precedes it.
-        _checkpoint = {"book_id": book_id, "sections": all_sections, "formulas": all_formulas}
+        _checkpoint = {"book_id": book_id, "sections": all_sections, "formulas": all_formulas,
+                       "formula_counter": formula_counter, "needs_review_chunks": needs_review_chunks}
         _checkpoint_path = os.path.join(os.path.dirname(raw_pages_path), "compiled.json")
         with open(_checkpoint_path, "w", encoding="utf-8") as f:
             json.dump(_checkpoint, f, ensure_ascii=False, indent=2)

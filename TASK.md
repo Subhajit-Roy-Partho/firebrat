@@ -8,7 +8,7 @@ Living checklist. Update the checkbox and add a one-line note when a phase compl
 - [x] **Phase 3 — TTS + sync**: Chatterbox TTS narration per segment, sample-accurate concatenation → `segments.json`. Verified: computed timestamps matched actual `ffprobe` audio duration exactly on a real sample.
 - [x] **Phase 4 — FastAPI backend**: `/books`, `/books/{id}/manifest`, `/books/{id}/download`, `/books/{id}/assets/*`. 4/4 backend tests pass (schema, audio timing, API).
 - [x] **Phase 5 — Flutter app**: library screen, reader screen (zoom via photo_view, LaTeX highlight sync via flutter_math_fork, playback controls, autoplay/manual nav that always works), responsive layout, adjustable font scale. `flutter analyze` clean, 6/6 pure-Dart tests pass, debug APK builds.
-- [ ] **Phase 6 — End-to-end run**: full 659-page book conversion in progress (background). Release APK build deferred until it finishes (both compete for the same 6GB session memory budget when run concurrently). GitHub repo publishing in progress.
+- [x] **Phase 6 — End-to-end run**: **complete 2026-08-22**. 659-page book → 242 sections, 659/659 pages covered (was 558/659 before fix — 104 missing pages patched as 35 `sec_patch_*` supplements + 9 placeholder `needs_review` sections rewritten from raw text), 135 figures, 73 formulas, `441.6 min` audio, `430.5 MB` `backend/output/arm-fundamentals-soc.tar.gz` + unpacked `backend/output/arm-fundamentals-soc/` (manifest 144 K). Calm female voice `backend/voice/narrator_ref.wav` 12s ref, `TTS_EXAGGERATION 0.28` `PAUSE 260 ms` `backend/firebrat/config.py:23` (was 0.4/220). `FIREBRAT_SPARK_MODEL=deepseek/deepseek-v4-pro:thinking` forced after flash timed out ~40% of chunks; resume-from-checkpoint `compile_llm.py:239` + `retry_failed=True` + manifest `needs_review` propagation `manifest.py:120` landed. GitHub Pages site live; debug APK builds (release deferred while conversion held 6GB cgroup, now free).
 
 ## Real deviations from the original plan (found during implementation, not anticipated)
 
@@ -21,4 +21,11 @@ Living checklist. Update the checkbox and add a one-line note when a phase compl
 - Live device/emulator smoke testing (adb does not run in this sandbox — see AGENTS.md).
 - Multi-book concurrent conversion queue (pipeline is single-book CLI for now).
 - Manifest diffing / incremental re-conversion (schema has `generated_at` to support this later).
-- Per-chunk/per-section resume within a single Stage 2 or Stage 3 run if interrupted partway (Stage 1 batching is resumable in spirit since each batch is independent, but the orchestrator doesn't currently skip already-completed batches on restart).
+- LLM-quality rewrite of the 44 `needs_review:true` supplements (35 `sec_patch_*` + 9 rewritten placeholders) — currently deterministic raw-text prose, flagged honestly; rerun `run_compilation(..., retry_failed=True)` with `FIREBRAT_SPARK_MODEL=deepseek/deepseek-v4-pro:thinking` in a tmux session to replace them.
+
+## Handover — where to pick up (2026-08-22)
+
+- **Latest archive:** `/scratch/sroy85/Github/firebrat/backend/output/arm-fundamentals-soc.tar.gz` (430.5 MB, 2026-08-22 04:51) + unpacked `backend/output/arm-fundamentals-soc/` with `manifest.json` 242 sections, `sections/sec_*/audio.m4a`, `assets/{figures 135, formulas 73}`. Old 204-section 336 MB tar at 09:26 is superseded.
+- **Voice:** calm female `backend/voice/narrator_ref.wav` (12s, 384 KB) auto-used via `DEFAULT_VOICE_REF` `backend/firebrat/config.py:23` and recorded in `manifest.narrator_voice.reference_clip`. Delete it to fall back to default voice.
+- **Resume:** `raw/compiled.json` 659/659 pages, 242 sections. Incremental TTS `tmp/incremental_tts.py:1` skips existing `sections/*/audio.m4a` + `segments.json` if segment count/text matches — safe to rerun. `tmux:firebrat_tts_calm:1` completed 12:39, now idle; `backend/full_conversion.log:1` has full history with `PYTHONUNBUFFERED=1` + `tee -a`.
+- **Next steps:** `PYTHONPATH=backend /scratch/sroy85/conda-envs/firebrat-serve/bin/python -m pytest tests/ -v` (7/7), `flutter analyze` clean, then optionally LLM-refine the 44 supplements, then `flutter build apk --release` (now free of cgroup contention).

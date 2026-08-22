@@ -11,14 +11,21 @@ NANO_API_KEY = os.environ.get("NANO_API_KEY") or os.environ.get("MODEL_API_KEY",
 # via direct curl, not a transient blip. Using deepseek/deepseek-v4-flash for the
 # cheap tier instead, keeping deepseek/deepseek-v4-pro:thinking for the strong tier
 # as requested. See AGENTS.md.
-SPARK_MODEL = "deepseek/deepseek-v4-flash"
-DEEPSEEK_MODEL = "deepseek/deepseek-v4-pro:thinking"
+# NOTE 2026-08-21 full-book run: flash timed out on ~40% of chunks (240s x5 retries)
+# while pro:thinking succeeded on same pages — flash endpoint appears overloaded.
+# Both models are overridable via env so a run can force pro for all chunks:
+#   FIREBRAT_SPARK_MODEL=deepseek/deepseek-v4-pro:thinking python convert.py ...
+SPARK_MODEL = os.environ.get("FIREBRAT_SPARK_MODEL", "deepseek/deepseek-v4-flash")
+DEEPSEEK_MODEL = os.environ.get("FIREBRAT_DEEPSEEK_MODEL", "deepseek/deepseek-v4-pro:thinking")
 
 # ── Audio / TTS ──────────────────────────────────────────────────
 SAMPLE_RATE = 24000
-PAUSE_MS = 220  # silence gap between segments
-TTS_EXAGGERATION = 0.4
-TTS_CFG_WEIGHT = 0.5
+PAUSE_MS = 260  # slightly longer pause for calm narration
+TTS_EXAGGERATION = 0.28  # calm female: lower than default 0.4
+TTS_CFG_WEIGHT = 0.45
+# Optional voice reference clip for calm female (place wav at backend/voice/narrator_ref.wav)
+# If file exists it will be used automatically; otherwise default voice is used.
+DEFAULT_VOICE_REF = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "voice", "narrator_ref.wav")
 
 # ── Pipeline ─────────────────────────────────────────────────────
 CHUNK_PAGES = 10           # pages per LLM chunk

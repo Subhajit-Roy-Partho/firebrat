@@ -252,7 +252,13 @@ def main():
             with open(compiled_path, "w", encoding="utf-8") as f:
                 json.dump(compiled, f, ensure_ascii=False, indent=2)
 
-            tts = FirebratTTS(voice_ref=args.voice_ref)
+            # Resolve calm female voice ref: explicit arg wins, else auto-detect backend/voice/narrator_ref.wav
+            from firebrat.config import DEFAULT_VOICE_REF as _DEFAULT_VOICE_REF
+            _auto_voice = _DEFAULT_VOICE_REF if os.path.isfile(_DEFAULT_VOICE_REF) else None
+            _eff_voice = args.voice_ref or _auto_voice
+            if _eff_voice:
+                log.info("Using voice reference clip: %s (calm female)", _eff_voice)
+            tts = FirebratTTS(voice_ref=_eff_voice)
             # Synthesize section by section so failures are isolated
             from firebrat.pipeline.audio_assemble import assemble_section
             from firebrat.pipeline.notify import send_telegram as _notify

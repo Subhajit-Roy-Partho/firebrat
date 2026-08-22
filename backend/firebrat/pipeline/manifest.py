@@ -117,6 +117,16 @@ def build_manifest(
         formula_refs = sorted({r for r in seg_refs if r.startswith("formula_")})
         table_refs = sorted({r for r in seg_refs if r.startswith("tbl_")})
 
+        # needs_review: explicit flag OR title heuristic (fallback sections have "needs review" title)
+        needs_review_flag = bool(sec.get("needs_review", False))
+        if not needs_review_flag and "needs review" in str(sec.get("title", "")).lower():
+            needs_review_flag = True
+        # Also treat placeholder text as needs_review
+        if not needs_review_flag:
+            for s in (sec.get("segments") or []):
+                if "being prepared" in str(s.get("text", "")).lower():
+                    needs_review_flag = True
+                    break
         sections_out.append({
             "section_id": sid,
             "chapter": sec.get("chapter"),
@@ -128,10 +138,16 @@ def build_manifest(
             "figure_refs": fig_refs,
             "formula_refs": formula_refs,
             "table_refs": table_refs,
-            "needs_review": sec.get("needs_review", False),
+            "needs_review": needs_review_flag,
         })
         total_duration += duration
 
+    # Resolve calm female defaults if voice file exists but not explicitly passed
+    _eff_voice_for_manifest = voice_ref
+    if not _eff_voice_for_manifest:
+        from firebrat.config import DEFAULT_VOICE_REF as _DVR
+        if os.path.isfile(_DVR):
+            _eff_voice_for_manifest = _DVR
     manifest = {
         "schema_version": SCHEMA_VERSION,
         "book_id": book_id,
@@ -143,7 +159,7 @@ def build_manifest(
         "narrator_voice": {
             "engine": "chatterbox-tts",
             "model_class": "ChatterboxTTS",
-            "reference_clip": voice_ref,
+            "reference_clip": _eff_voice_for_manifest,
             "exaggeration": TTS_EXAGGERATION,
             "cfg_weight": TTS_CFG_WEIGHT,
             "sample_rate": SAMPLE_RATE,

@@ -5,5 +5,5 @@ dependencies:
   - python=3.11
   - pip
   - pip:
-      - marker-pdf==2.0.0
+      - marker-pdf==1.9.3
       - pymupdf

@@ -6,6 +6,13 @@ Read this before touching anything. It exists so a fresh agent (or a future you)
 
 PDF → narrated, figure/formula-synced audiobook, read by a Flutter Android app. Full architecture rationale: `docs/ARCHITECTURE.md`. Data shapes: `docs/DATA_SCHEMA.md`. API surface: `docs/API.md`. Narrator voice setup: `docs/VOICE.md`. Current build status: `TASK.md`.
 
+## Current handover (2026-08-22 — what a new agent should know first)
+
+- **Latest archive is complete and at:** `/scratch/sroy85/Github/firebrat/backend/output/arm-fundamentals-soc.tar.gz` (430.5 MB, 2026-08-22 04:51) + unpacked `backend/output/arm-fundamentals-soc/` — 242 sections, 659/659 pages, 135 figs, 73 formulas, 441.6 min, calm female `backend/voice/narrator_ref.wav` (exaggeration 0.28, pause 260). Previous 204-section 336 MB tar at 09:26 is superseded; 44 sections are honest `needs_review:true` deterministic supplements (35 `sec_patch_*` + 9 fixed placeholders) that can be LLM-refined via `retry_failed=True` without re-extracting. `backend/full_conversion.log:1` holds the full 3-stage run + fix + calm TTS (PYTHONUNBUFFERED + tee -a).
+- **Background work is now idle:** `tmux:firebrat_tts_calm:1` finished 12:39 in `backend/`. To continue: `PYTHONPATH=backend /scratch/sroy85/conda-envs/firebrat-serve/bin/python -m pytest tests/ -v` (7/7), `flutter analyze` clean, then optionally LLM-refine supplements in a new tmux with `FIREBRAT_SPARK_MODEL=deepseek/deepseek-v4-pro:thinking`.
+- **Resume behaviour:** `compile_llm.py:239` `resume=True` by default — skips fully covered `source_pages`; `retry_failed=True` also redoes placeholder titles. `tmp/incremental_tts.py:1` skips existing `sections/*/audio.m4a` whose `segments.json` segment count/text already matches `compiled.json`. Safe to re-run.
+- **Voice:** `DEFAULT_VOICE_REF backend/voice/narrator_ref.wav` `backend/firebrat/config.py:23` auto-used if present; delete to revert to default voice. Manifest records `narrator_voice.reference_clip`.
+
 ## Environment gotchas (confirmed, not assumed — re-verify if anything here seems stale)
 
 - **This whole session runs inside a SLURM allocation capped at 6GB total RAM** (`scontrol show job <id>` → `mem=6000M`; check `cat /sys/fs/cgroup/memory/slurm/uid_*/job_*/memory.limit_in_bytes` to confirm the current cgroup). This is a *shared budget across every process in the job at once* — it OOM-killed a full-book marker-pdf run within seconds, and separately OOM-killed a Gradle release build that ran concurrently with the (memory-light-looking but nonzero) extraction pipeline. Consequences:
@@ -54,7 +61,7 @@ flutter test
 flutter build apk --debug    # or --release
 ```
 
-Long conversions should run via the harness's own background-process mechanism (not manual `nohup ... &`, which does not survive independent of the launching tool call in this environment) — see `backend/scripts/run_conversion.sh` for the env-var/PATH setup a background run needs.
+Long conversions must run in `tmux` (not bare `nohup ... &` which does not survive in this harness) — see `backend/scripts/run_conversion.sh` and `README.md` quick-start for the env-var/PATH/`PYTHONUNBUFFERED=1` setup a background run needs, and `tmux capture-pane -p -t <session>` + `tail -f backend/full_conversion.log` to monitor. Use `FIREBRAT_SPARK_MODEL=deepseek/deepseek-v4-pro:thinking` if flash keeps timing out.
 
 ## Where to look first
 

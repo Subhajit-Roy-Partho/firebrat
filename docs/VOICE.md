@@ -1,8 +1,8 @@
 # Narrator Voice Setup
 
-## Current state: default voice, no cloning
+## Current state: calm female voice (cloned)
 
-`backend/voice/` is empty. Every conversion so far — including the verified small-scale runs described in `TASK.md` — used Chatterbox's built-in default voice by passing `audio_prompt_path=None` (`FirebratTTS(voice_ref=None)` in `firebrat/pipeline/tts.py`). It produces clear, natural narration out of the box; there was no need to reach for voice cloning to get acceptable quality.
+`backend/voice/narrator_ref.wav` is a 12s single-speaker calm female reference (384 KB, generated with `exaggeration 0.28` for gentle pacing). `backend/firebrat/config.py:23` sets `TTS_EXAGGERATION=0.28`, `PAUSE 260`, `DEFAULT_VOICE_REF=backend/voice/narrator_ref.wav` — `convert.py:260` auto-uses it if present and records it in `manifest.narrator_voice.reference_clip` and `exaggeration/cfg_weight`. The 242-section archive (430.5 MB @2026-08-22) was narrated with this voice (441.6 min total). Delete the wav to fall back to `FirebratTTS(voice_ref=None)` default voice; all earlier small-scale runs before 2026-08-22 used that default.
 
 ## Reference clip (`backend/voice/narrator_ref.wav`) — for later, if a specific voice is wanted
 
@@ -17,7 +17,7 @@ Only license-cleared or self-recorded audio should go here — this repo is AGPL
 
 ## Chatterbox parameters used, and why
 
-`firebrat/config.py`: `TTS_EXAGGERATION = 0.4`, `TTS_CFG_WEIGHT = 0.5` — Chatterbox's own defaults. These weren't tuned further because the default output was already good; `exaggeration` pushes toward more expressive/dramatic delivery (higher values), `cfg_weight` trades off adherence to the reference voice vs. naturalness of the generated speech. If narration for a different book sounds off, these are the two knobs to try first, in small increments (they're sensitive).
+`firebrat/config.py`: `TTS_EXAGGERATION=0.28`, `TTS_CFG_WEIGHT=0.45`, `PAUSE 260` — tuned from defaults `0.4`/`0.5`/`220` for calm narration (lower `exaggeration` = less dramatic, lower `cfg` = slightly less strict reference adherence, longer pause = gentler segment joins). The 242-section book's 441.6 min total was produced with these. If narration for a different book sounds off, these are the two knobs to try first, in small increments (they're sensitive).
 
 ## Pacing notes — Chatterbox has no direct speed knob
 
