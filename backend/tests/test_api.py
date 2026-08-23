@@ -46,5 +46,15 @@ def test_api_endpoints():
             assert a.status_code == 200
             assert client.get("/books/missing/manifest").status_code == 404
             assert client.get("/books/testbook/assets/../../etc/passwd").status_code == 404
+
+            # delete: 404 for unknown/path-traversal ids, real deletion for a real one
+            assert client.delete("/books/missing").status_code == 404
+            assert client.delete("/books/../../etc").status_code == 404
+            assert os.path.isdir(os.path.join(tmpdir, "testbook"))
+            d = client.delete("/books/testbook")
+            assert d.status_code == 200 and d.json() == {"deleted": "testbook"}
+            assert not os.path.isdir(os.path.join(tmpdir, "testbook"))
+            assert client.get("/books").json() == []
+            assert client.delete("/books/testbook").status_code == 404  # already gone
         finally:
             cfg.OUTPUT_DIR = orig

@@ -20,6 +20,10 @@ backend/output/
 backend/jobs.sqlite3
 backend/uploads/
 
+# Local credentials — never commit these
+.env
+backend/.env
+
 # HuggingFace / model caches if ever pointed inside repo
 .cache/
 hf_cache/

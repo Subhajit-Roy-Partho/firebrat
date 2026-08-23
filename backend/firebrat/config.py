@@ -1,6 +1,30 @@
 """Central configuration — import-safe, no heavy deps at import time."""
 import os
 
+
+def _load_dotenv() -> None:
+    """Loads backend/.env (gitignored, local credentials only) into
+    os.environ, without overriding anything already set there — shell
+    exports (e.g. ~/.zshrc, a tmux launch command) still win. No
+    python-dotenv dependency needed across all three conda envs for
+    something this small.
+    """
+    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+    if not os.path.isfile(env_path):
+        return
+    with open(env_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            os.environ.setdefault(key, value)
+
+
+_load_dotenv()
+
 # ── LLM API ──────────────────────────────────────────────────────
 NANO_API_URL = os.environ.get("NANO_API_URL", "https://nano-gpt.com/api/v1")
 # Accept either env name; MODEL_API_KEY is set by default in this cluster

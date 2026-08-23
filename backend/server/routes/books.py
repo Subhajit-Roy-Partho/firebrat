@@ -4,7 +4,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from server.storage import (
     list_book_ids, read_manifest, resolve_asset,
-    book_summary, get_or_build_zip,
+    book_summary, get_or_build_zip, delete_book,
 )
 
 router = APIRouter()
@@ -33,6 +33,16 @@ def download_book(book_id: str):
         raise HTTPException(status_code=404, detail="book not found or not packaged yet")
     return FileResponse(zpath, media_type="application/zip",
                         filename=f"{book_id}.zip")
+
+@router.delete("/books/{book_id}")
+def remove_book(book_id: str):
+    """Permanently deletes a converted book's package (audio, assets,
+    manifest — everything) to free space on the server. Irreversible —
+    the app should confirm with the user before calling this.
+    """
+    if not delete_book(book_id):
+        raise HTTPException(status_code=404, detail="book not found")
+    return {"deleted": book_id}
 
 @router.get("/books/{book_id}/assets/{asset_path:path}")
 def get_asset(book_id: str, asset_path: str):

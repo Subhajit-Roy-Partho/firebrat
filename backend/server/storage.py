@@ -3,6 +3,7 @@ import os
 import json
 import time
 import hashlib
+import shutil
 import zipfile
 import tempfile
 from pathlib import Path
@@ -84,6 +85,30 @@ def book_summary(book_id: str) -> dict | None:
         "size_bytes": _dir_size(pkg),
         "updated_at": manifest.get("generated_at", ""),
     }
+
+def delete_book(book_id: str) -> bool:
+    """Permanently removes a book's package directory (all audio, assets,
+    manifest — everything). Returns False if book_id doesn't resolve to a
+    real package under OUTPUT_DIR (including any path-traversal attempt via
+    book_id itself, e.g. "../../etc") rather than raising, so the route can
+    turn that into a plain 404. Does not touch the jobs table (server/jobs.py)
+    — a deleted book's job history entry is left as a harmless stale record;
+    GET /books already won't list it since list_book_ids() requires the
+    directory to still exist.
+    """
+    base = os.path.realpath(config.OUTPUT_DIR)
+    pkg = os.path.realpath(package_dir(book_id))
+    if pkg != os.path.join(base, book_id) or not os.path.isdir(pkg):
+        return False
+    shutil.rmtree(pkg)
+    _zip_cache.pop(book_id, None)
+    cached_zip = os.path.join(tempfile.gettempdir(), f"firebrat_{book_id}.zip")
+    if os.path.isfile(cached_zip):
+        try:
+            os.remove(cached_zip)
+        except OSError:
+            pass
+    return True
 
 # Simple zip cache: {book_id: (mtime, zip_path)}
 _zip_cache: dict[str, tuple[float, str]] = {}

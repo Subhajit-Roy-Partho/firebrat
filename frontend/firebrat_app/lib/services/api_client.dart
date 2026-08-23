@@ -12,11 +12,28 @@ class ApiClient {
   ApiClient({required this.baseUrl})
       : _dio = Dio(BaseOptions(baseUrl: baseUrl, connectTimeout: const Duration(seconds: 10)));
 
+  /// True if the server at [baseUrl] is reachable and responding — used to
+  /// validate a server URL as soon as the user enters one, before trying
+  /// to list or convert anything against it.
+  Future<bool> checkHealth() async {
+    try {
+      final resp = await _dio.get('/health', options: Options(sendTimeout: const Duration(seconds: 5)));
+      return resp.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<List<BookSummary>> listBooks() async {
     final resp = await _dio.get('/books');
     return (resp.data as List)
         .map((e) => BookSummary.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  /// Permanently deletes a book from the server to free space. Irreversible.
+  Future<void> deleteBook(String bookId) async {
+    await _dio.delete('/books/$bookId');
   }
 
   /// Uploads a PDF for conversion, reporting 0.0-1.0 upload progress.

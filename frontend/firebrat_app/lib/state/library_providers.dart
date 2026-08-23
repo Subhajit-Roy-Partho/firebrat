@@ -4,17 +4,26 @@ import '../services/api_client.dart';
 import '../services/download_manager.dart';
 import '../services/import_manager.dart';
 import '../services/library_repository.dart';
+import 'on_device_conversion_providers.dart';
 
-/// Point this at the machine running the FastAPI backend (uvicorn server.main:app).
-/// Override at build time with --dart-define=FIREBRAT_API_BASE_URL=http://host:8000
-/// if the default doesn't match your setup. A server is entirely optional —
-/// books imported from a local file work with this never being reachable.
+/// Compile-time fallback only — override at build time with
+/// --dart-define=FIREBRAT_API_BASE_URL=http://host:8000. The URL actually
+/// used at runtime is whatever's saved in Conversion settings
+/// (`conversionModeProvider.cloudServerUrl`), once the user has entered
+/// one; this is just what a fresh install falls back to before that.
 const _defaultApiBaseUrl = String.fromEnvironment(
   'FIREBRAT_API_BASE_URL',
   defaultValue: 'http://10.0.2.2:8000',
 );
 
-final apiClientProvider = Provider<ApiClient>((ref) => ApiClient(baseUrl: _defaultApiBaseUrl));
+/// Rebuilds whenever the user changes the server URL in Conversion
+/// settings — everything that talks to the server (library, download,
+/// upload/jobs) flows through this one provider, so changing the URL
+/// there takes effect app-wide immediately.
+final apiClientProvider = Provider<ApiClient>((ref) {
+  final savedUrl = ref.watch(conversionModeProvider).cloudServerUrl.trim();
+  return ApiClient(baseUrl: savedUrl.isNotEmpty ? savedUrl : _defaultApiBaseUrl);
+});
 
 final downloadManagerProvider =
     Provider<DownloadManager>((ref) => DownloadManager(ref.watch(apiClientProvider)));
