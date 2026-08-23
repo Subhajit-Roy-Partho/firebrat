@@ -24,14 +24,18 @@ if _BACKEND_DIR not in sys.path:
 
 from firebrat.pipeline.notify import send_telegram
 from firebrat.pipeline.manifest import build_manifest
+from firebrat.pipeline.status import write_status
 from firebrat.utils.ids import sanitize_book_id
 
 log = logging.getLogger("firebrat")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-EXTRACT_PY = "/scratch/sroy85/conda-envs/firebrat-extract/bin/python"
-SERVE_PY = "/scratch/sroy85/conda-envs/firebrat-serve/bin/python"
-TTS_PY = "/scratch/sroy85/conda-envs/firebrat-tts/bin/python"
+# Overridable so this same CLI works unmodified inside a container where the
+# three stages share one environment instead of this cluster's three conda
+# envs (see backend/docker/).
+EXTRACT_PY = os.environ.get("FIREBRAT_EXTRACT_PY", "/scratch/sroy85/conda-envs/firebrat-extract/bin/python")
+SERVE_PY = os.environ.get("FIREBRAT_SERVE_PY", "/scratch/sroy85/conda-envs/firebrat-serve/bin/python")
+TTS_PY = os.environ.get("FIREBRAT_TTS_PY", "/scratch/sroy85/conda-envs/firebrat-tts/bin/python")
 
 
 def parse_args():
@@ -51,6 +55,9 @@ def parse_args():
     p.add_argument("--skip-formulas", action="store_true", help="Skip LaTeX->PNG rendering")
     p.add_argument("--skip-package", action="store_true", help="Skip building the portable .tar.gz")
     p.add_argument("--voice-ref", default=None, help="Path to narrator reference wav for Chatterbox")
+    p.add_argument("--retry-failed", action="store_true",
+                   help="Re-run only chunks/sections previously flagged needs_review, "
+                        "reusing everything else already on disk (see docs/API.md retry)")
     return p.parse_args()
 
 
@@ -75,6 +82,7 @@ def main():
 
     log.info("Firebrat convert: pdf=%s book_id=%s pkg_dir=%s", pdf_path, book_id, pkg_dir)
     send_telegram(f"🎧 Firebrat starting: *{book_id}* ({os.path.basename(pdf_path)})", parse_mode="Markdown")
+    write_status(pkg_dir, status="running", stage="starting", detail="beginning conversion", error=None)
 
     raw_json = os.path.join(pkg_dir, "raw", "raw_pages.json")
     compiled_json = os.path.join(pkg_dir, "raw", "compiled.json")
@@ -103,6 +111,8 @@ def main():
             fig_ctr, tbl_ctr, formula_ctr = 1, 1, 1
             marker_chars_total = 0
             batch_starts = list(range(range_start, range_end, EXTRACT_BATCH_PAGES))
+            write_status(pkg_dir, status="running", stage="extracting",
+                         detail=f"0/{len(batch_starts)} batches", progress=0.0)
             for bi, bstart in enumerate(batch_starts):
                 blen = min(EXTRACT_BATCH_PAGES, range_end - bstart)
                 out_json = os.path.join(pkg_dir, "raw", f"_batch_{bstart}.json")
@@ -123,6 +133,9 @@ def main():
                 formula_ctr = batch_result["next_formula"]
                 marker_chars_total += batch_result["marker_chars"]
                 os.remove(out_json)
+                write_status(pkg_dir, stage="extracting",
+                             detail=f"{bi+1}/{len(batch_starts)} batches (pages {bstart+blen}/{range_end})",
+                             progress=(bi + 1) / max(1, len(batch_starts)))
                 if (bi + 1) % 5 == 0:
                     send_telegram(f"Firebrat extraction: {bi+1}/{len(batch_starts)} batches "
                                   f"(pages {bstart+blen}/{range_end}) done for *{book_id}*", parse_mode="Markdown")
@@ -150,6 +163,7 @@ def main():
         except Exception as e:
             log.exception("Stage 1 failed")
             send_telegram(f"❌ Stage 1 extraction failed for *{book_id}*: {e}", parse_mode="Markdown")
+            write_status(pkg_dir, status="failed", stage="extracting", error=str(e))
             sys.exit(1)
     else:
         log.info("Skipping Stage 1 (--skip-extraction), expecting %s", raw_json)
@@ -161,16 +175,22 @@ def main():
             log.error("Need %s for compilation. Run without --skip-extraction first.", raw_json)
             sys.exit(2)
         log.info("Stage 2: LLM compilation")
+        write_status(pkg_dir, status="running", stage="compiling", detail="running LLM compilation")
         try:
             from firebrat.pipeline.compile_llm import run_compilation
-            cstats = run_compilation(raw_json, pkg_dir, book_id=book_id)
+            cstats = run_compilation(raw_json, pkg_dir, book_id=book_id, retry_failed=args.retry_failed)
             log.info("Stage 2 done: %s", cstats)
+            needs_review = cstats.get("needs_review_chunks", [])
+            write_status(pkg_dir, stage="compiling",
+                         detail=f"{cstats['section_count']} sections from {cstats['chunk_count']} chunks",
+                         needs_review_count=len(needs_review))
             send_telegram(f"✅ Stage 2 compilation done for *{book_id}*: "
                           f"{cstats['section_count']} sections from {cstats['chunk_count']} chunks",
                           parse_mode="Markdown")
         except Exception as e:
             log.exception("Stage 2 failed")
             send_telegram(f"❌ Stage 2 compilation failed for *{book_id}*: {e}", parse_mode="Markdown")
+            write_status(pkg_dir, status="failed", stage="compiling", error=str(e))
             sys.exit(1)
     else:
         log.info("Skipping Stage 2 (--skip-compilation)")
@@ -226,11 +246,14 @@ def main():
         ]
         if args.voice_ref:
             delegate_args += ["--voice-ref", args.voice_ref]
+        if args.retry_failed:
+            delegate_args += ["--retry-failed"]
         result = subprocess.run(delegate_args)
         sys.exit(result.returncode)
 
     if not args.skip_tts and compiled_path:
         log.info("Stage 3: TTS + audio assembly")
+        write_status(pkg_dir, status="running", stage="synthesizing", detail="starting narration", progress=0.0)
         # Need segment wavs dir
         seg_wavs_dir = os.path.join(pkg_dir, "_segment_wavs")
         os.makedirs(seg_wavs_dir, exist_ok=True)
@@ -267,11 +290,31 @@ def main():
             for idx, sec in enumerate(compiled.get("sections", [])):
                 sid = sec["section_id"]
                 segs = sec.get("segments", [])
+
+                # Resumability: a section already fully narrated+assembled in a
+                # prior run (its segments.json segment count matches compiled.json)
+                # is skipped entirely — this is what makes --retry-failed after a
+                # Stage 3 crash cheap instead of re-synthesizing the whole book.
+                seg_json_path = os.path.join(pkg_dir, "sections", sid, "segments.json")
+                if os.path.isfile(seg_json_path):
+                    try:
+                        with open(seg_json_path, "r", encoding="utf-8") as f:
+                            existing = json.load(f)
+                        if len(existing.get("segments", [])) == len(segs):
+                            log.info("TTS section %d/%d %s already assembled, skipping", idx+1, total_sections, sid)
+                            continue
+                    except (OSError, ValueError):
+                        pass
+
                 log.info("TTS section %d/%d %s (%d segments)", idx+1, total_sections, sid, len(segs))
-                # synthesize this section's segments
+                # synthesize this section's segments — reuse any wav already on
+                # disk from an interrupted prior run instead of resynthesizing it.
                 seg_wavs: dict[str, str] = {}
                 for seg in segs:
                     wav_path = os.path.join(seg_wavs_dir, f"{seg['segment_id']}.wav")
+                    if os.path.isfile(wav_path) and os.path.getsize(wav_path) > 0:
+                        seg_wavs[seg["segment_id"]] = wav_path
+                        continue
                     ok = tts.synthesize(seg.get("text", ""), wav_path)
                     if ok:
                         seg_wavs[seg["segment_id"]] = wav_path
@@ -280,6 +323,8 @@ def main():
                         if os.path.isfile(wav_path):
                             seg_wavs[seg["segment_id"]] = wav_path
                 assemble_section(sec, segs, seg_wavs, pkg_dir)
+                write_status(pkg_dir, stage="synthesizing", detail=f"{idx+1}/{total_sections} sections",
+                             progress=(idx + 1) / max(1, total_sections))
                 if (idx + 1) % 3 == 0:
                     _notify(f"Firebrat TTS: {idx+1}/{total_sections} sections done for *{book_id}*",
                             parse_mode="Markdown")
@@ -289,6 +334,7 @@ def main():
         except Exception as e:
             log.exception("Stage 3 failed")
             send_telegram(f"❌ Stage 3 audio failed for *{book_id}*: {e}", parse_mode="Markdown")
+            write_status(pkg_dir, status="failed", stage="synthesizing", error=str(e))
             sys.exit(1)
     elif args.skip_tts:
         log.info("Skipping Stage 3 (--skip-tts)")
@@ -311,9 +357,11 @@ def main():
             f"{dur//60000} min {dur%60000//1000:02d}s audio\n`{mpath}`",
             parse_mode="Markdown",
         )
+        summary = f"{secs} sections, {figs} figures, {forms} formulas, {dur/60000:.1f} min audio"
     except Exception as e:
         log.exception("Manifest build failed")
         send_telegram(f"❌ Manifest failed for *{book_id}*: {e}", parse_mode="Markdown")
+        write_status(pkg_dir, status="failed", stage="manifest", error=str(e))
         sys.exit(1)
 
     # ── Portable package (.tar.gz) ───────────────────────────────
@@ -321,6 +369,7 @@ def main():
     # needed) — copy it to a device via USB/sideload/messaging and use the
     # app's "Import from file" picker.
     if not args.skip_package:
+        write_status(pkg_dir, status="running", stage="packaging", detail=summary)
         try:
             from firebrat.pipeline.package import package_book
             archive_path = package_book(pkg_dir)
@@ -328,10 +377,16 @@ def main():
             log.info("Packaged: %s (%.1f MB)", archive_path, archive_mb)
             send_telegram(f"📦 Firebrat packaged *{book_id}*: `{archive_path}` ({archive_mb:.0f} MB)",
                           parse_mode="Markdown")
+            write_status(pkg_dir, status="done", stage="done", error=None,
+                         detail=f"{summary} — packaged {archive_mb:.0f} MB")
         except Exception as e:
             log.exception("Packaging failed (non-fatal — book package on disk is still complete)")
             send_telegram(f"⚠️ Firebrat packaging failed for *{book_id}* (book itself is fine): {e}",
                           parse_mode="Markdown")
+            write_status(pkg_dir, status="done", stage="done", error=None,
+                         detail=f"{summary} — portable .tar.gz packaging failed (book itself is complete): {e}")
+    else:
+        write_status(pkg_dir, status="done", stage="done", detail=summary, error=None)
 
 if __name__ == "__main__":
     main()

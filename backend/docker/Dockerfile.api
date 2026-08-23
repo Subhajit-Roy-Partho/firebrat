@@ -1,0 +1,40 @@
+# Firebrat, API-only image: just the FastAPI server + job queue/upload/
+# status/download/retry endpoints. No marker-pdf/torch/chatterbox-tts here —
+# it shells out to convert.py for actual conversion, so FIREBRAT_EXTRACT_PY /
+# FIREBRAT_TTS_PY / FIREBRAT_CONVERT_PY must point at Python environments
+# that already have the pipeline's dependencies, provided by the host (bind
+# mount them in, e.g. `-v /path/to/conda-envs:/envs:ro`).
+#
+# Use this if you already run the conversion pipeline elsewhere (a cluster,
+# an existing conda setup) and just want the API/job-queue layer
+# containerized. If you want a single `docker run` that does everything,
+# use the all-in-one image (backend/docker/Dockerfile) instead.
+#
+# NOTE: authored and reviewed but not build-tested locally — see
+# .github/workflows/docker-publish.yml, which builds and publishes it.
+
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY backend/ /app/backend/
+
+RUN pip install --no-cache-dir \
+    fastapi "uvicorn[standard]" python-multipart pydantic requests pydub pytest httpx
+
+ENV FIREBRAT_OUTPUT_DIR=/data/output \
+    FIREBRAT_UPLOAD_DIR=/data/uploads \
+    FIREBRAT_JOBS_DB=/data/jobs.sqlite3 \
+    FIREBRAT_HOST=0.0.0.0 \
+    FIREBRAT_PORT=8000 \
+    PYTHONPATH=/app/backend
+
+RUN mkdir -p /data/output /data/uploads
+
+EXPOSE 8000
+VOLUME ["/data"]
+
+WORKDIR /app/backend
+ENTRYPOINT ["python", "-m", "uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]

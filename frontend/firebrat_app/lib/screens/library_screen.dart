@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/book.dart';
 import '../state/library_providers.dart';
 import '../widgets/book_card.dart';
+import 'conversions_screen.dart';
 import 'reader_screen.dart';
 
 class LibraryScreen extends ConsumerWidget {
@@ -19,6 +20,13 @@ class LibraryScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Firebrat'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.cloud_upload_rounded),
+            tooltip: 'Convert a new book (upload to server)',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ConversionsScreen()),
+            ),
+          ),
           IconButton(
             icon: importing
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))

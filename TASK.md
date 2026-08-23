@@ -19,9 +19,12 @@ Living checklist. Update the checkbox and add a one-line note when a phase compl
 ## Known deferred / out of scope for v1
 
 - Live device/emulator smoke testing (adb does not run in this sandbox — see AGENTS.md).
-- Multi-book concurrent conversion queue (pipeline is single-book CLI for now).
 - Manifest diffing / incremental re-conversion (schema has `generated_at` to support this later).
-- LLM-quality rewrite of the 44 `needs_review:true` supplements (35 `sec_patch_*` + 9 rewritten placeholders) — currently deterministic raw-text prose, flagged honestly; rerun `run_compilation(..., retry_failed=True)` with `FIREBRAT_SPARK_MODEL=deepseek/deepseek-v4-pro:thinking` in a tmux session to replace them.
+- LLM-quality rewrite of the 44 `needs_review:true` supplements (35 `sec_patch_*` + 9 rewritten placeholders) — currently deterministic raw-text prose, flagged honestly; `POST /jobs/{id}/retry` (or `convert.py --skip-extraction --retry-failed`) now does this without re-extracting; set `FIREBRAT_SPARK_MODEL=deepseek/deepseek-v4-pro:thinking` first for the strong tier.
+- Docker images (`backend/docker/`, published as `subhajitroy/firebrat:{cpu,gpu,api}` by `.github/workflows/docker-publish.yml`) are authored but **not yet build-tested anywhere** — this sandbox has no Docker/rootless-build tooling at all (no daemon, no buildah/kaniko, user namespaces blocked, no subuid/subgid). First real build happens either in CI or on a machine with Docker; expect to need to fix pip dependency resolution issues in `backend/docker/Dockerfile` (torch version pinned transitively by `marker-pdf`/`chatterbox-tts`, not pinned directly there).
+
+- [x] **Phase 7 — Upload/conversion job queue + app UI**: `POST /books/upload`, `GET /jobs`, `GET /jobs/{id}`, `POST /jobs/{id}/retry`, `GET /jobs/{id}/log` (`backend/server/routes/jobs.py`, `job_runner.py`, `jobs.py`); `convert.py` now writes live `status.json` progress (`firebrat/pipeline/status.py`) and Stage 3 is resumable at both section and per-segment granularity. Flutter app has a new "Conversions" screen (upload a PDF, watch stage/progress, retry). 8/8 backend tests pass (added `tests/test_jobs.py`). Multi-book conversion is still **sequential by default** (`FIREBRAT_MAX_CONCURRENT_JOBS=1`) — the queue exists but concurrency is opt-in given the 6GB RAM constraint, not true parallel conversion.
+- [x] **Phase 8 — Flutter focus mode + lock screen + app icon**: full-screen crossfading image/formula view with transport controls (`focus_mode_screen.dart`); app-wide lock-screen/notification media controls via `audio_service`, artwork synced to the current figure/formula (`services/audio_handler.dart`); original hand-drawn app icon (book + headphones + a firebrat mascot).
 
 ## Handover — where to pick up (2026-08-22)
 

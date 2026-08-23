@@ -46,7 +46,25 @@ Previous incremental-archive stage (204 sections, 336 MB @2026-08-22 09:26) is s
 
 ## Quick start
 
-### 1. Set up the three conda environments
+### Option A: Docker (easiest)
+
+Published images: [`subhajitroy/firebrat`](https://hub.docker.com/r/subhajitroy/firebrat) on Docker Hub, built by [`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml). Three tags:
+
+- **`cpu`** — everything in one container (API + extraction + narration), runs anywhere with plain `docker run`, no GPU needed. Slower conversions.
+- **`gpu`** (= `latest`) — same, but expects `--gpus all` and [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) on the host. Much faster.
+- **`api`** — just the server + upload/job-queue endpoints, no marker-pdf/torch/chatterbox — point `FIREBRAT_EXTRACT_PY`/`FIREBRAT_TTS_PY` at conda envs you already have (e.g. bind-mounted in) instead.
+
+```bash
+docker compose --profile cpu up   # or --profile gpu / --profile api
+```
+
+Then open the app and point it at `http://<this-machine>:8000`, or upload a PDF straight from the app's new "Convert a new book" screen — see [docs/API.md](docs/API.md) for the upload/status/retry endpoints if you'd rather script it. Book packages, uploads, and the job database persist in the `firebrat-data` Docker volume across restarts.
+
+Set `MODEL_API_KEY` (your nano-gpt or OpenAI-compatible key) in a `.env` file next to `docker-compose.yml` — Compose reads it automatically. `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` are optional (progress pings).
+
+### Option B: from source
+
+#### 1. Set up the three conda environments
 
 marker-pdf's and Chatterbox's dependency pins conflict, so extraction, TTS, and the API server each get their own environment:
 
@@ -57,9 +75,9 @@ mamba env create -f env/tts-environment.yml      -p /path/to/envs/firebrat-tts
 mamba env create -f env/serve-environment.yml    -p /path/to/envs/firebrat-serve
 ```
 
-Update the hardcoded env paths at the top of `backend/convert.py` (`EXTRACT_PY`, `TTS_PY`, `SERVE_PY`) to match wherever you created them.
+Point `convert.py` at them via env vars — `FIREBRAT_EXTRACT_PY`, `FIREBRAT_TTS_PY`, `FIREBRAT_SERVE_PY` — or edit the defaults at the top of `backend/convert.py` directly.
 
-### 2. Convert a PDF into a book package
+#### 2. Convert a PDF into a book package
 
 ```bash
 export MODEL_API_KEY=...        # nano-gpt (or any OpenAI-compatible) API key
@@ -91,9 +109,9 @@ tmux new -s firebrat_convert -c backend "bash -c '
 '"
 ```
 
-Interrupted Stage 2 runs resume automatically from `raw/compiled.json` — already-covered pages are skipped, so re-running the same command picks up where it left off. To retry placeholder (`needs review`) chunks: `PYTHONPATH=backend python -c "from firebrat.pipeline.compile_llm import run_compilation; run_compilation('raw/raw_pages.json','output/<book>', retry_failed=True)"`. Calm female voice now defaults via `backend/voice/narrator_ref.wav` `backend/firebrat/config.py:23` (`exaggeration 0.28` / `PAUSE 260`); delete that wav to fall back to default voice.
+Interrupted runs resume automatically — Stage 2 skips already-covered pages (`raw/compiled.json` checkpoint), and Stage 3 skips sections already fully narrated+assembled, so re-running the same command picks up where it left off. To specifically retry placeholder (`needs_review`) chunks/sections without redoing anything that already succeeded: `python convert.py path/to/book.pdf --skip-extraction --retry-failed`. (The server's `POST /jobs/{id}/retry` — see [docs/API.md](docs/API.md) — does exactly this automatically when converting through the API/app instead of the CLI.) Calm female voice now defaults via `backend/voice/narrator_ref.wav` `backend/firebrat/config.py:23` (`exaggeration 0.28` / `PAUSE 260`); delete that wav to fall back to default voice.
 
-### 3. Serve book packages
+#### 3. Serve book packages
 
 ```bash
 cd backend
@@ -103,7 +121,16 @@ PYTHONPATH=/scratch/sroy85/Github/firebrat/backend /path/to/envs/firebrat-serve/
 
 See [docs/API.md](docs/API.md) for the full route reference. Tests require `PYTHONPATH=backend` so `firebrat` package resolves (the pipeline CLI adds it via `sys.path` at runtime, but `pytest` does not).
 
-### 4. Run the Flutter app
+With the server running, you can also upload a PDF directly instead of running `convert.py` by hand:
+
+```bash
+curl -F "file=@path/to/book.pdf" http://localhost:8000/books/upload
+curl http://localhost:8000/jobs   # watch it convert
+```
+
+— or from the app itself (see below). The server queues uploads one at a time by default (`FIREBRAT_MAX_CONCURRENT_JOBS`) since conversion is memory/GPU heavy.
+
+#### 4. Run the Flutter app
 
 ```bash
 cd frontend/firebrat_app
@@ -111,7 +138,12 @@ flutter pub get
 flutter run --dart-define=FIREBRAT_API_BASE_URL=http://<your-server-host>:8000
 ```
 
-The app downloads a book's package once and reads/plays it fully offline afterward — the backend server only needs to be reachable during that initial download.
+The app downloads a book's package once and reads/plays it fully offline afterward — the backend server only needs to be reachable during that initial download (or while converting a new upload).
+
+Beyond the reader itself, the app has:
+- **Upload a book** — the cloud-upload icon on the library screen opens a "Conversions" view: pick a PDF, watch live stage/progress for every upload (queued/converting/done/failed), and retry a failed or `needs_review` conversion with one tap.
+- **Focus mode** — the fullscreen icon in the reader turns the screen into just the current image/formula, crossfading as playback moves on, with transport controls pinned at the bottom.
+- **Lock-screen controls** — playback keeps running and stays controllable (play/pause, prev/next segment) from the lock screen and notification shade, with the current figure/formula as the artwork.
 
 ## License
 

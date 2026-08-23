@@ -15,6 +15,10 @@ backend/output/
 *.mp3
 !backend/voice/narrator_ref.wav
 
+# Job queue runtime state (server/jobs.py, backend/server/routes/jobs.py)
+backend/jobs.sqlite3
+backend/uploads/
+
 # HuggingFace / model caches if ever pointed inside repo
 .cache/
 hf_cache/

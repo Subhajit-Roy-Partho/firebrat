@@ -7,17 +7,32 @@ import zipfile
 import tempfile
 from pathlib import Path
 
-from server.config import OUTPUT_DIR
+from server import config
+from firebrat.pipeline.status import read_status
 
 def list_book_ids() -> list[str]:
-    if not os.path.isdir(OUTPUT_DIR):
+    """Every book_id with a manifest.json AND, if it has a status.json at
+    all (books converted before the job queue existed won't), a status of
+    "done" — a manifest.json can exist mid-conversion (the pipeline writes
+    an early one before Stage 3 so section ids are stable), so without this
+    check an in-progress book could appear here with missing/partial audio.
+    In-progress and failed books are visible via GET /jobs instead.
+    """
+    if not os.path.isdir(config.OUTPUT_DIR):
         return []
-    return sorted(d for d in os.listdir(OUTPUT_DIR)
-                  if os.path.isdir(os.path.join(OUTPUT_DIR, d))
-                  and os.path.isfile(os.path.join(OUTPUT_DIR, d, "manifest.json")))
+    ids = []
+    for d in sorted(os.listdir(config.OUTPUT_DIR)):
+        pkg = os.path.join(config.OUTPUT_DIR, d)
+        if not os.path.isdir(pkg) or not os.path.isfile(os.path.join(pkg, "manifest.json")):
+            continue
+        status = read_status(pkg)
+        if status is not None and status.get("status") != "done":
+            continue
+        ids.append(d)
+    return ids
 
 def package_dir(book_id: str) -> str:
-    return os.path.join(OUTPUT_DIR, book_id)
+    return os.path.join(config.OUTPUT_DIR, book_id)
 
 def manifest_path(book_id: str) -> str:
     return os.path.join(package_dir(book_id), "manifest.json")

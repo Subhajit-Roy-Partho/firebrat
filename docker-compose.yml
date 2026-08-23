@@ -1,0 +1,76 @@
+# Firebrat server, three ways to run it — pick one profile:
+#
+#   docker compose --profile cpu up      # all-in-one, runs anywhere, slower conversions
+#   docker compose --profile gpu up      # all-in-one, needs nvidia-container-toolkit + a GPU
+#   docker compose --profile api up      # API/job-queue only, needs conda envs on the host
+#
+# All three publish the API on http://localhost:8000 and persist book
+# packages/uploads/the job database in the `firebrat-data` volume, so
+# `docker compose down` + `up` again picks up right where it left off.
+services:
+  firebrat-cpu:
+    image: subhajitroy/firebrat:cpu
+    build:
+      context: .
+      dockerfile: backend/docker/Dockerfile
+      args:
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
+    profiles: ["cpu"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - firebrat-data:/data
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - MODEL_API_KEY=${MODEL_API_KEY:-}
+      - FIREBRAT_SPARK_MODEL=${FIREBRAT_SPARK_MODEL:-}
+
+  firebrat-gpu:
+    image: subhajitroy/firebrat:gpu
+    build:
+      context: .
+      dockerfile: backend/docker/Dockerfile
+      args:
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cu121
+    profiles: ["gpu"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - firebrat-data:/data
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - MODEL_API_KEY=${MODEL_API_KEY:-}
+      - FIREBRAT_SPARK_MODEL=${FIREBRAT_SPARK_MODEL:-}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  firebrat-api:
+    image: subhajitroy/firebrat:api
+    build:
+      context: .
+      dockerfile: backend/docker/Dockerfile.api
+    profiles: ["api"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - firebrat-data:/data
+      # Point these at your existing conda envs (see AGENTS.md) so this
+      # thin image can shell out to them:
+      # - /path/to/conda-envs:/envs:ro
+    environment:
+      - FIREBRAT_EXTRACT_PY=${FIREBRAT_EXTRACT_PY:-}
+      - FIREBRAT_TTS_PY=${FIREBRAT_TTS_PY:-}
+      - FIREBRAT_CONVERT_PY=${FIREBRAT_CONVERT_PY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - MODEL_API_KEY=${MODEL_API_KEY:-}
+
+volumes:
+  firebrat-data:

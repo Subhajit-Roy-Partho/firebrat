@@ -1,0 +1,16 @@
+.git/
+backend/output/
+backend/uploads/
+backend/jobs.sqlite3
+backend/full_conversion.log
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/.pytest_cache/
+*.pdf
+*.wav
+*.m4a
+*.mp3
+!backend/voice/narrator_ref.wav
+frontend/
+docs/
+.github/

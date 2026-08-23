@@ -1,9 +1,10 @@
 import 'package:dio/dio.dart';
 import '../models/book.dart';
+import '../models/job.dart';
 
-/// Talks to the Firebrat FastAPI backend. Only used for the catalog listing
-/// and the one-time download — the reader itself never calls this once a
-/// book is on-device (offline-first).
+/// Talks to the Firebrat FastAPI backend: the catalog listing, the one-time
+/// download (the reader itself never calls this again once a book is
+/// on-device, offline-first), and the upload/conversion job queue.
 class ApiClient {
   final Dio _dio;
   final String baseUrl;
@@ -16,6 +17,47 @@ class ApiClient {
     return (resp.data as List)
         .map((e) => BookSummary.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  /// Uploads a PDF for conversion, reporting 0.0-1.0 upload progress.
+  /// Returns the freshly-created job (state usually "queued").
+  Future<ConversionJob> uploadBook(
+    String pdfPath, {
+    String? title,
+    void Function(double progress)? onProgress,
+  }) async {
+    final form = FormData.fromMap({
+      'file': await MultipartFile.fromFile(pdfPath, filename: pdfPath.split('/').last),
+      if (title != null && title.isNotEmpty) 'title': title,
+    });
+    final resp = await _dio.post(
+      '/books/upload',
+      data: form,
+      onSendProgress: (sent, total) {
+        if (total > 0 && onProgress != null) onProgress(sent / total);
+      },
+    );
+    return ConversionJob.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  Future<List<ConversionJob>> listJobs() async {
+    final resp = await _dio.get('/jobs');
+    return (resp.data as List).map((e) => ConversionJob.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<ConversionJob> getJob(String jobId) async {
+    final resp = await _dio.get('/jobs/$jobId');
+    return ConversionJob.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  Future<ConversionJob> retryJob(String jobId) async {
+    final resp = await _dio.post('/jobs/$jobId/retry');
+    return ConversionJob.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  Future<List<String>> getJobLog(String jobId, {int tailLines = 200}) async {
+    final resp = await _dio.get('/jobs/$jobId/log', queryParameters: {'tail_lines': tailLines});
+    return (resp.data['lines'] as List).cast<String>();
   }
 
   Future<Map<String, dynamic>> getManifest(String bookId) async {
