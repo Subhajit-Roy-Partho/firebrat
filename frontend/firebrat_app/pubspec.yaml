@@ -45,6 +45,8 @@ dependencies:
   file_picker: ^11.0.3
   archive: ^4.0.7
   audio_service: ^0.18.19
+  mobile_backend_pipeline:
+    path: ../../mobile-Backend
 
 dev_dependencies:
   flutter_test:

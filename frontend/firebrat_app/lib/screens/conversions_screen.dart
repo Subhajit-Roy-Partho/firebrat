@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/job.dart';
 import '../state/conversions_providers.dart';
 import '../state/library_providers.dart';
+import '../state/on_device_conversion_providers.dart';
+import '../state/on_device_pipeline_run_provider.dart';
+import 'conversion_settings_screen.dart';
 
 /// Upload a PDF for conversion, and watch every job — queued, converting,
 /// done, or failed — with live stage/progress and a retry action for
@@ -17,64 +20,111 @@ class ConversionsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final jobsAsync = ref.watch(jobsProvider);
     final uploadProgress = ref.watch(uploadProgressProvider);
+    final conversionMode = ref.watch(conversionModeProvider);
+    final onDeviceRun = ref.watch(onDeviceRunProvider);
+    final busy = uploadProgress != null || (onDeviceRun != null && !onDeviceRun.done);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Conversions')),
-      body: RefreshIndicator(
-        onRefresh: () => ref.read(jobsProvider.notifier).refresh(),
-        child: jobsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (err, _) => _ErrorView(message: 'Could not reach the server.\n$err'),
-          data: (jobs) {
-            if (jobs.isEmpty) {
-              return LayoutBuilder(
-                builder: (context, _) => ListView(
-                  children: const [
-                    SizedBox(height: 120),
-                    Center(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24),
-                        child: Text(
-                          'No conversions yet. Tap "Upload a PDF" to send a book to the server.',
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
-              itemCount: jobs.length,
-              itemBuilder: (context, i) => _JobCard(job: jobs[i]),
-            );
-          },
-        ),
+      appBar: AppBar(
+        title: const Text('Conversions'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Conversion settings (cloud vs on-device)',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ConversionSettingsScreen()),
+            ),
+          ),
+        ],
       ),
-      floatingActionButton: uploadProgress != null
+      body: Column(
+        children: [
+          if (onDeviceRun != null && !onDeviceRun.done) _OnDeviceRunBanner(state: onDeviceRun),
+          if (onDeviceRun?.error != null) _OnDeviceErrorBanner(message: onDeviceRun!.error!),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () => ref.read(jobsProvider.notifier).refresh(),
+              child: jobsAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (err, _) => _ErrorView(message: 'Could not reach the server.\n$err'),
+                data: (jobs) {
+                  if (jobs.isEmpty) {
+                    return LayoutBuilder(
+                      builder: (context, _) => ListView(
+                        children: const [
+                          SizedBox(height: 120),
+                          Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 24),
+                              child: Text(
+                                'No conversions yet. Tap "Upload a PDF" to convert a book.',
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+                    itemCount: jobs.length,
+                    itemBuilder: (context, i) => _JobCard(job: jobs[i]),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: busy
           ? FloatingActionButton.extended(
               onPressed: null,
               icon: SizedBox(
                 width: 18,
                 height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, value: uploadProgress > 0 ? uploadProgress : null),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  value: uploadProgress != null && uploadProgress > 0 ? uploadProgress : null,
+                ),
               ),
-              label: Text('Uploading ${(uploadProgress * 100).round()}%'),
+              label: Text(uploadProgress != null ? 'Uploading ${(uploadProgress * 100).round()}%' : 'Converting…'),
             )
           : FloatingActionButton.extended(
-              onPressed: () => _uploadPdf(context, ref),
+              onPressed: () => _pickAndConvert(context, ref, conversionMode.mode),
               icon: const Icon(Icons.upload_file_rounded),
-              label: const Text('Upload a PDF'),
+              label: Text(conversionMode.mode == ConversionModePref.onDevice ? 'Convert a PDF' : 'Upload a PDF'),
             ),
     );
   }
 
-  Future<void> _uploadPdf(BuildContext context, WidgetRef ref) async {
+  Future<void> _pickAndConvert(BuildContext context, WidgetRef ref, ConversionModePref mode) async {
     final result = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf'], withData: false);
     final path = result?.files.single.path;
     if (path == null) return; // user cancelled
 
+    if (!context.mounted) return;
+    if (mode == ConversionModePref.onDevice) {
+      await _convertOnDevice(context, ref, path);
+    } else {
+      await _uploadPdf(context, ref, path);
+    }
+  }
+
+  Future<void> _convertOnDevice(BuildContext context, WidgetRef ref, String path) async {
+    try {
+      await runOnDeviceConversion(ref, path);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Converted — check your library.')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('On-device conversion failed: $e')));
+      }
+    }
+  }
+
+  Future<void> _uploadPdf(BuildContext context, WidgetRef ref, String path) async {
     final progressNotifier = ref.read(uploadProgressProvider.notifier);
     progressNotifier.set(0.0);
     try {
@@ -88,6 +138,52 @@ class ConversionsScreen extends ConsumerWidget {
     } finally {
       progressNotifier.set(null);
     }
+  }
+}
+
+class _OnDeviceRunBanner extends StatelessWidget {
+  final OnDeviceRunState state;
+  const _OnDeviceRunBanner({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      color: scheme.primaryContainer,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.phone_android_rounded, size: 18),
+              const SizedBox(width: 8),
+              Expanded(child: Text(state.stage ?? 'Converting on this device…', style: Theme.of(context).textTheme.titleSmall)),
+            ],
+          ),
+          if (state.detail != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(state.detail!)),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(value: state.fraction),
+        ],
+      ),
+    );
+  }
+}
+
+class _OnDeviceErrorBanner extends StatelessWidget {
+  final String message;
+  const _OnDeviceErrorBanner({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      color: scheme.errorContainer,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Text(message, style: TextStyle(color: scheme.onErrorContainer)),
+    );
   }
 }
 

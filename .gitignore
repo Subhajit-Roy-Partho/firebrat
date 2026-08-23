@@ -1,5 +1,6 @@
-# Source book (large binary, kept in working dir but not in git history)
+# Source books (large binaries, kept in working dir but not in git history)
 /*.pdf
+/input/
 
 # Python
 __pycache__/
