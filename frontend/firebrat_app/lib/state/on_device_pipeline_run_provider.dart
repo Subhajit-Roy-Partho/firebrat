@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart' show ServiceRequestFailure;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart';
 import 'library_providers.dart';
@@ -26,8 +28,12 @@ class OnDeviceRunNotifier extends Notifier<OnDeviceRunState?> {
 
 final onDeviceRunProvider = NotifierProvider<OnDeviceRunNotifier, OnDeviceRunState?>(OnDeviceRunNotifier.new);
 
-/// Runs one on-device conversion end to end, reporting progress into
-/// [onDeviceRunProvider] and invalidating the local library on success so
+/// Runs one on-device conversion as a background task with a persistent
+/// notification (`mobile_backend_pipeline`'s `BackgroundConversionRunner`
+/// — see its doc comment: this is what lets the conversion keep running
+/// if the user backgrounds the app or swipes it out of recents, not just
+/// while it stays in the foreground). Reports progress into
+/// [onDeviceRunProvider] and invalidates the local library on success so
 /// the finished book shows up without a manual refresh — the same
 /// convention `state/conversions_providers.dart`'s `JobsNotifier` uses for
 /// cloud jobs finishing.
@@ -39,23 +45,49 @@ Future<String> runOnDeviceConversion(WidgetRef ref, String pdfPath) async {
   final notifier = ref.read(onDeviceRunProvider.notifier);
   notifier.set(const OnDeviceRunState(stage: 'starting', detail: 'preparing'));
 
+  await BackgroundConversionRunner.requestPermissions();
   final booksDir = await ref.read(downloadManagerProvider).booksDir();
-  final pipeline = MobileConversionPipeline(
-    settings: OnDeviceModeSettings(
-      llmBaseUrl: settings.onDeviceLlmUrl,
-      llmApiKey: settings.onDeviceLlmApiKey,
-      llmModel: settings.onDeviceLlmModel,
-    ),
-    onProgress: (p) => notifier.set(OnDeviceRunState(stage: p.stage, detail: p.detail, fraction: p.fraction)),
-  );
 
-  try {
-    final bookId = await pipeline.convert(pdfPath: pdfPath, booksRootDir: booksDir.path);
-    notifier.set(const OnDeviceRunState(stage: 'done', detail: 'complete', fraction: 1.0, done: true));
-    invalidateLibrary(ref);
-    return bookId;
-  } catch (e) {
-    notifier.set(OnDeviceRunState(error: e.toString(), done: true));
-    rethrow;
+  final completer = Completer<String>();
+  late final void Function(Object data) listener;
+  listener = (Object data) {
+    if (data is! Map) return;
+    if (data['error'] != null) {
+      final error = data['error'].toString();
+      notifier.set(OnDeviceRunState(error: error, done: true));
+      BackgroundConversionRunner.removeProgressListener(listener);
+      if (!completer.isCompleted) completer.completeError(StateError(error));
+      return;
+    }
+    if (data['done'] == true) {
+      notifier.set(const OnDeviceRunState(stage: 'done', detail: 'complete', fraction: 1.0, done: true));
+      invalidateLibrary(ref);
+      BackgroundConversionRunner.removeProgressListener(listener);
+      if (!completer.isCompleted) completer.complete(data['bookId'] as String);
+      return;
+    }
+    notifier.set(OnDeviceRunState(
+      stage: data['stage'] as String?,
+      detail: data['detail'] as String?,
+      fraction: (data['fraction'] as num?)?.toDouble(),
+    ));
+  };
+  BackgroundConversionRunner.addProgressListener(listener);
+
+  final request = ConversionRequest(
+    pdfPath: pdfPath,
+    booksRootDir: booksDir.path,
+    llmBaseUrl: settings.onDeviceLlmUrl,
+    llmApiKey: settings.onDeviceLlmApiKey,
+    llmModel: settings.onDeviceLlmModel,
+  );
+  final result = await BackgroundConversionRunner.start(request);
+  if (result is ServiceRequestFailure) {
+    BackgroundConversionRunner.removeProgressListener(listener);
+    final error = result.error.toString();
+    notifier.set(OnDeviceRunState(error: error, done: true));
+    throw StateError('Could not start the background conversion service: $error');
   }
+
+  return completer.future;
 }

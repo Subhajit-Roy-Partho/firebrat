@@ -230,9 +230,15 @@ class _JobCard extends ConsumerWidget {
               const SizedBox(height: 12),
               LinearProgressIndicator(value: job.progress),
               const SizedBox(height: 6),
-              Text(
-                _stageLabel(job),
-                style: Theme.of(context).textTheme.bodySmall,
+              Row(
+                children: [
+                  Expanded(child: Text(_stageLabel(job), style: Theme.of(context).textTheme.bodySmall)),
+                  TextButton(
+                    onPressed: () => _resume(context, ref),
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
+                    child: const Text('Looks stuck? Resume', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
               ),
             ],
             if (job.state == JobState.done) ...[
@@ -297,6 +303,20 @@ class _JobCard extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Retry failed: $e')));
+      }
+    }
+  }
+
+  Future<void> _resume(BuildContext context, WidgetRef ref) async {
+    try {
+      await ref.read(apiClientProvider).resumeJob(job.jobId);
+      await ref.read(jobsProvider.notifier).refresh();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Put back on the queue.')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Resume failed: $e')));
       }
     }
   }

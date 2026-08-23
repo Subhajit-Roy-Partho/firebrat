@@ -121,9 +121,64 @@ def test_upload_status_retry_flow(tmp_path):
         # retrying a job that's already done is allowed (needs_review re-attempt)
         again = client.post(f"/jobs/{job_id}/retry")
         assert again.status_code == 200
+        assert _wait_for(lambda: client.get(f"/jobs/{job_id}").json()["state"] == "done")
 
         # retrying an unknown job 404s
         assert client.post("/jobs/does-not-exist/retry").status_code == 404
 
+        # resume only makes sense for a stuck queued/running job, not a done one
+        assert client.post(f"/jobs/{job_id}/resume").status_code == 409
+        assert client.post("/jobs/does-not-exist/resume").status_code == 404
+
         listing = client.get("/jobs").json()
         assert any(j["job_id"] == job_id for j in listing)
+
+
+def test_orphaned_job_resumes_automatically_on_startup(tmp_path):
+    """Simulates a server restart while a job was mid-flight: the job row
+    is left saying "running" (nothing marked it otherwise), but no worker
+    is actually processing it since this is a fresh process/queue. The
+    lifespan startup hook should notice and requeue it without anyone
+    calling /resume by hand.
+    """
+    fake_convert = tmp_path / "fake_convert.py"
+    fake_convert.write_text(_FAKE_CONVERT_PY)
+
+    output_dir = tmp_path / "output"
+    upload_dir = tmp_path / "uploads"
+    jobs_db = tmp_path / "jobs.sqlite3"
+    output_dir.mkdir()
+    upload_dir.mkdir()
+    pdf_path = upload_dir / "orphan.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+    import server.config as cfg
+    cfg.OUTPUT_DIR = str(output_dir)
+    cfg.UPLOAD_DIR = str(upload_dir)
+    cfg.JOBS_DB_PATH = str(jobs_db)
+    cfg.CONVERT_PY = sys.executable
+    cfg.CONVERT_SCRIPT = str(fake_convert)
+    cfg.MAX_CONCURRENT_JOBS = 1
+    os.environ["FAKE_CONVERT_BEHAVIOR"] = "succeed"
+
+    import server.jobs as jobs_module
+    import server.job_runner as job_runner_module
+    # Fresh module-level state — these guards exist so a real server only
+    # scans/starts once per process, but that's exactly what breaks test
+    # isolation when several "process lifetimes" run in the same pytest
+    # session. A real restart always gets fresh globals; this test recreates
+    # that condition on purpose.
+    job_runner_module._workers_started = False
+    job_runner_module._resumed_orphans = False
+
+    orphan_job_id = jobs_module.create_job(
+        book_id="orphanbook", filename="orphan.pdf", title="Orphan Book", pdf_path=str(pdf_path)
+    )
+    jobs_module.set_state(orphan_job_id, "running")  # as if the old process died mid-run
+
+    from fastapi.testclient import TestClient
+    from server.main import app
+
+    with TestClient(app) as client:
+        assert _wait_for(lambda: client.get(f"/jobs/{orphan_job_id}").json()["state"] == "done")
+        assert "orphanbook" in [b["book_id"] for b in client.get("/books").json()]

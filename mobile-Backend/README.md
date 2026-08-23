@@ -57,6 +57,36 @@ pipeline/mobile_conversion_pipeline.dart  — orchestrates the above, writes
                                              (docs/DATA_SCHEMA.md shape)
 ```
 
+### Background execution + notifications
+
+`background/` wraps the pipeline above in `flutter_foreground_task` so a
+conversion survives the app being backgrounded — or, on Android, even
+swiped out of recents — instead of getting killed a few seconds after the
+user leaves the app, which a multi-minute-to-hours book conversion would
+otherwise hit constantly.
+
+- `background/conversion_request.dart` — the pipeline's inputs, handed
+  across the isolate boundary as a JSON file (see its doc comment for why:
+  `TaskHandler` runs in a genuinely separate isolate that does not share
+  memory with the main one).
+- `background/conversion_task_handler.dart` — the `TaskHandler` subclass
+  that actually runs `MobileConversionPipeline.convert()` inside that
+  isolate, forwarding progress to the main isolate and updating the
+  persistent notification live.
+- `background/background_conversion_runner.dart` — the app-facing API:
+  `initialize()` once at startup, `requestPermissions()` +  `start(request)`
+  per conversion, `addProgressListener`/`removeProgressListener` to observe
+  it from the UI.
+
+**Platform reality, not a design choice**: Android gets a real foreground
+service — this is the one that actually delivers "keeps running in the
+background." iOS's version of this plugin is much weaker by OS design (not
+this package's limitation, `flutter_foreground_task`'s iOS docs are explicit
+about it): background execution happens in short bursts (~30s roughly every
+~15min) and stops immediately if the user force-closes the app from the
+app switcher. An iOS on-device conversion should be expected to need the
+app kept open (or at least not force-closed) to finish in reasonable time.
+
 ## Known limitations (read before relying on this)
 
 - **No figure/table extraction.** `figures`/`tables` in the produced
@@ -91,6 +121,14 @@ pipeline/mobile_conversion_pipeline.dart  — orchestrates the above, writes
   `AGENTS.md`) and no physical device, so `CactusLM`'s actual model
   download/inference has never executed, only type-checked against the
   real `cactus` package API.
+- **The background service is unverified at runtime, same reason.** The
+  isolate handoff (`conversion_request.dart`'s file-based approach),
+  whether the notification actually updates live, and whether the service
+  really survives backgrounding/task-removal on a real device — all
+  written directly against `flutter_foreground_task`'s documented API, none
+  of it executed. `flutter analyze`/`flutter build apk --debug` on the host
+  app confirm it compiles and links (including the native Android service
+  declared in `AndroidManifest.xml`); nothing more than that.
 
 None of this is hidden inside the code — every one of these is called out
 at the specific file/class where it matters, so a reader hits the caveat

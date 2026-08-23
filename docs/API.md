@@ -50,6 +50,10 @@ This is the only endpoint the Flutter app calls beyond `/books` and this downloa
 
 Serves one file from inside the package by its relative path (e.g. `assets/figures/fig_0001.png`, or `sections/sec_0001/audio.m4a`). Guards against path traversal — a `path` that resolves outside the book's directory 404s rather than serving anything. Exists for partial/lazy fetch of individual assets; the app's main flow uses the bulk `/download` zip instead.
 
+## `DELETE /books/{book_id}`
+
+Permanently deletes a converted book's package (audio, assets, manifest — everything) to free server space. Irreversible — the caller should confirm with the user first. `{"deleted": "book_id"}` on success, 404 if `book_id` doesn't exist.
+
 ## `POST /books/upload`
 
 Upload a PDF for conversion. `multipart/form-data`: `file` (required, `.pdf` only, capped at `FIREBRAT_MAX_UPLOAD_MB` — default 500), `title` (optional, defaults to a title-cased version of the filename). Returns the newly-created job immediately (state `queued`); conversion runs in the background.
@@ -85,6 +89,10 @@ One job, same shape. 404 if unknown.
 ## `POST /jobs/{job_id}/retry`
 
 Re-runs a `failed` job, or re-attempts the `needs_review` chunks/sections of a `done` one (e.g. after pointing `FIREBRAT_SPARK_MODEL` at a stronger tier). Always cheap, never starts over from scratch: it inspects how far the previous attempt got (via `status.json`'s `stage`) and skips extraction if raw pages already exist, then runs `convert.py --retry-failed` — Stage 2 only redoes chunks flagged `needs_review`, and Stage 3 only re-synthesizes sections that were never fully assembled (segment-by-segment, so a crash partway through TTS doesn't cost you the sections that already finished). 409 if the job is currently `queued`/`running`; 410 if the original upload was deleted from disk (re-upload instead).
+
+## `POST /jobs/{job_id}/resume`
+
+Puts a stuck `queued`/`running` job back on the work queue, unchanged (no `--retry-failed` — this only continues from checkpoint, it doesn't redo flagged content, unlike retry). The server already does this **automatically at startup** for every job left `queued`/`running` — the common cause is the server process restarting mid-conversion, which used to silently strand a job forever; now it just resumes. This endpoint exists for the rarer case a job looks stuck for some other reason and you want to nudge it by hand. 409 if the job isn't currently `queued`/`running`; 410 if the original upload was deleted from disk.
 
 ## `GET /jobs/{job_id}/log?tail_lines=200`
 

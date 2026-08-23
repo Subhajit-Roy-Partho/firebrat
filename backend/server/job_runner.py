@@ -17,16 +17,28 @@ import subprocess
 import threading
 
 from server import config, jobs
+from firebrat.pipeline.status import read_status
 
 log = logging.getLogger("firebrat.server.jobs")
 
 _queue: "queue.Queue[str]" = queue.Queue()
 _workers_started = False
 _workers_lock = threading.Lock()
+_resumed_orphans = False
+_resume_lock = threading.Lock()
 
 
 def _job_log_path(book_id: str) -> str:
     return os.path.join(config.OUTPUT_DIR, book_id, "convert_stdout.log")
+
+
+def skip_extraction_arg_for_stage(stage: str | None) -> list[str]:
+    """Shared with server/routes/jobs.py's retry/resume endpoints so both
+    apply the same "never redo a stage that already produced output" rule.
+    """
+    if stage in ("compiling", "rendering_formulas", "synthesizing", "packaging", "manifest", "done"):
+        return ["--skip-extraction"]
+    return []
 
 
 def _run_job(job_id: str, extra_args: list[str]) -> None:
@@ -89,3 +101,32 @@ def ensure_workers_started() -> None:
 def enqueue(job_id: str, extra_args: list[str] | None = None) -> None:
     ensure_workers_started()
     _queue.put((job_id, extra_args or []))
+
+
+def resume_orphaned_jobs() -> None:
+    """Called once at server startup. A job left in `queued` or `running`
+    state means the server process that owned it is gone (crashed, was
+    restarted, whatever) — this process's in-memory queue is empty
+    regardless of what the jobs table says, so nothing would ever pick
+    those back up on its own. convert.py resumes from checkpoint by design
+    (see AGENTS.md), so simply re-enqueueing is safe and correct — this is
+    what makes "the server restarted mid-conversion" a non-event instead of
+    a silently stuck job the user has to notice and manually retry.
+    """
+    global _resumed_orphans
+    with _resume_lock:
+        if _resumed_orphans:
+            return
+        _resumed_orphans = True
+
+    orphaned = [j for j in jobs.list_jobs() if j["state"] in ("queued", "running")]
+    for job in orphaned:
+        if not os.path.isfile(job["pdf_path"]):
+            jobs.set_state(job["job_id"], "failed", error="original upload no longer on disk after server restart")
+            continue
+        pkg_dir = os.path.join(config.OUTPUT_DIR, job["book_id"])
+        status = read_status(pkg_dir) or {}
+        extra_args = skip_extraction_arg_for_stage(status.get("stage"))
+        jobs.set_state(job["job_id"], "queued")
+        log.info("Resuming orphaned job %s (%s) left in state after restart", job["job_id"], job["book_id"])
+        enqueue(job["job_id"], extra_args)

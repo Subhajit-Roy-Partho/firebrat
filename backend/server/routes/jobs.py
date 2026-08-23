@@ -99,19 +99,44 @@ def retry_job(job_id: str):
 
     pkg_dir = os.path.join(config.OUTPUT_DIR, job["book_id"])
     status = read_status(pkg_dir) or {}
-    stage = status.get("stage")
-
-    extra_args: list[str] = ["--retry-failed"]
-    if stage in ("compiling", "rendering_formulas", "synthesizing", "packaging", "manifest", "done"):
-        # Extraction already produced raw_pages.json — never redo it.
-        extra_args.append("--skip-extraction")
     # A "done" job being retried means the caller wants needs_review chunks
     # re-attempted (e.g. after switching FIREBRAT_SPARK_MODEL to the strong
     # tier) — compilation, formulas, and TTS all stay resumable so this is
     # cheap: --retry-failed only redoes flagged chunks/sections, everything
     # else already on disk is reused as-is (see convert.py Stage 2/3).
+    extra_args = ["--retry-failed"] + job_runner.skip_extraction_arg_for_stage(status.get("stage"))
 
     jobs.increment_retry(job_id)
+    job_runner.enqueue(job_id, extra_args)
+    return _job_view(jobs.get_job(job_id))
+
+
+@router.post("/jobs/{job_id}/resume")
+def resume_job(job_id: str):
+    """Puts a stuck job back on the queue, unchanged — for a job left in
+    `queued` or `running` state by something that isn't the pipeline's own
+    logic (a server restart while it was mid-flight is the common case: the
+    in-memory work queue is empty again after restart, but the job's row
+    still says "running" since nothing told it otherwise). The server
+    already does this automatically on startup for every such job (see
+    job_runner.resume_orphaned_jobs) — this endpoint exists for the rarer
+    case a job still looks stuck for some other reason and the user just
+    wants to nudge it. Unlike retry, this does NOT pass --retry-failed —
+    it only continues from checkpoint, it doesn't redo flagged content.
+    """
+    job = jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    if job["state"] not in ("queued", "running"):
+        raise HTTPException(status_code=409, detail=f"job is {job['state']}, nothing to resume")
+    if not os.path.isfile(job["pdf_path"]):
+        raise HTTPException(status_code=410, detail="original upload no longer on disk, cannot resume")
+
+    pkg_dir = os.path.join(config.OUTPUT_DIR, job["book_id"])
+    status = read_status(pkg_dir) or {}
+    extra_args = job_runner.skip_extraction_arg_for_stage(status.get("stage"))
+
+    jobs.set_state(job_id, "queued")
     job_runner.enqueue(job_id, extra_args)
     return _job_view(jobs.get_job(job_id))
 

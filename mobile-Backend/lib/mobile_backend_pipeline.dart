@@ -19,3 +19,6 @@ export 'src/tts/on_device_tts.dart';
 export 'src/tts/wav_utils.dart';
 export 'src/pipeline/mobile_conversion_pipeline.dart';
 export 'src/util/ids.dart';
+export 'src/background/conversion_request.dart';
+export 'src/background/conversion_task_handler.dart';
+export 'src/background/background_conversion_runner.dart';

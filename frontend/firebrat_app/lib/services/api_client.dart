@@ -72,6 +72,14 @@ class ApiClient {
     return ConversionJob.fromJson(resp.data as Map<String, dynamic>);
   }
 
+  /// Puts a stuck queued/running job back on the server's work queue. The
+  /// server already does this automatically on its own restart — this is
+  /// for the rarer case a job still looks stuck for some other reason.
+  Future<ConversionJob> resumeJob(String jobId) async {
+    final resp = await _dio.post('/jobs/$jobId/resume');
+    return ConversionJob.fromJson(resp.data as Map<String, dynamic>);
+  }
+
   Future<List<String>> getJobLog(String jobId, {int tailLines = 200}) async {
     final resp = await _dio.get('/jobs/$jobId/log', queryParameters: {'tail_lines': tailLines});
     return (resp.data['lines'] as List).cast<String>();

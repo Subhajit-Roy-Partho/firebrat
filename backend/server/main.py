@@ -12,6 +12,7 @@ from server.routes.jobs import router as jobs_router
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     job_runner.ensure_workers_started()
+    job_runner.resume_orphaned_jobs()
     yield
 
 

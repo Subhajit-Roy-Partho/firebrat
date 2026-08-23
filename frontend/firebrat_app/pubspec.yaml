@@ -47,6 +47,7 @@ dependencies:
   audio_service: ^0.18.19
   mobile_backend_pipeline:
     path: ../../mobile-Backend
+  flutter_foreground_task: ^10.0.0
 
 dev_dependencies:
   flutter_test:
