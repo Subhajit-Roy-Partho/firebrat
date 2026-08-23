@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/book.dart';
 import '../state/library_providers.dart';
+import '../state/theme_providers.dart';
 import '../widgets/book_card.dart';
 import 'conversions_screen.dart';
 import 'reader_screen.dart';
@@ -15,11 +16,27 @@ class LibraryScreen extends ConsumerWidget {
     final catalogAsync = ref.watch(catalogProvider);
     final progress = ref.watch(downloadProgressProvider);
     final importing = ref.watch(importInProgressProvider);
+    final themeMode = ref.watch(themeModeProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Firebrat'),
         actions: [
+          PopupMenuButton<ThemeMode>(
+            icon: Icon(switch (themeMode) {
+              ThemeMode.light => Icons.light_mode_rounded,
+              ThemeMode.dark => Icons.dark_mode_rounded,
+              ThemeMode.system => Icons.brightness_auto_rounded,
+            }),
+            tooltip: 'Theme',
+            initialValue: themeMode,
+            onSelected: (mode) => ref.read(themeModeProvider.notifier).setThemeMode(mode),
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: ThemeMode.system, child: Text('Match system')),
+              PopupMenuItem(value: ThemeMode.light, child: Text('Light')),
+              PopupMenuItem(value: ThemeMode.dark, child: Text('Dark')),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.cloud_upload_rounded),
             tooltip: 'Convert a new book (upload to server)',
