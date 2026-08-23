@@ -62,6 +62,23 @@ Then open the app and point it at `http://<this-machine>:8000`, or upload a PDF 
 
 Set `MODEL_API_KEY` (your nano-gpt or OpenAI-compatible key) in a `.env` file next to `docker-compose.yml` — Compose reads it automatically. `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` are optional (progress pings).
 
+#### Publishing an updated image (maintainers)
+
+Images are built and pushed by [`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml) on GitHub's own runners — no local Docker install needed, which is why the images are built there instead of by hand.
+
+One-time setup: add two repo secrets under **Settings → Secrets and variables → Actions**:
+- `DOCKERHUB_USERNAME` — your Docker Hub username.
+- `DOCKERHUB_TOKEN` — a Docker Hub **access token**, not your password (hub.docker.com → Account Settings → Security → New Access Token).
+
+After that, a new version publishes automatically on every push to `master` or a `v*` tag, or on demand:
+
+```bash
+gh workflow run docker-publish.yml
+gh run watch                        # follow the in-progress build
+```
+
+The build installs `marker-pdf`/`chatterbox-tts`/torch from scratch (no layer cache to seed it from on the first run), so expect the `cpu` and `gpu` variants to take a while the first time; `api` is fast. If a run fails with `Username and password required`, the two secrets above haven't been added yet — that's the only thing `docker-publish.yml` needs to work.
+
 ### Option B: from source
 
 #### 1. Set up the three conda environments
