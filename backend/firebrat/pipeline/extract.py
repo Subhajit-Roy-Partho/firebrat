@@ -7,12 +7,24 @@ per small page-range batch (see extract_batch_cli.py), each batch run as
 its own subprocess so memory is fully released before the next batch starts.
 run_extraction() still supports whole-file single-shot use for small PDFs
 (e.g. the --pages testing flag in convert.py).
+
+Figures and tables come from marker's own layout-detected blocks (Figure/
+Picture/Table, each cropped via that block's own get_image(), with sibling
+Caption blocks for real caption text) — NOT from a naive PyMuPDF
+page.get_images() scrape. That distinction matters a lot in practice: a
+raw-image scrape only finds embedded raster images and misses anything
+vector-drawn (circuit diagrams, logic gates, waveforms — most of a typical
+technical book's figures), and it has no concept of tables at all. An
+earlier version of this module did exactly that naive scrape, with an
+always-empty page_tables list nothing ever populated — confirmed against
+two real converted books (arm-fundamentals-soc, digital-design-and-
+computer-architecture) both showing zero tables and a suspiciously low
+figure count in raw_pages.json. See TASK.md for the fix writeup.
 """
 import json
 import logging
 import os
 import re
-import shutil
 
 from firebrat.utils.ids import (
     make_figure_id, make_formula_id, make_table_id, sanitize_book_id,
@@ -23,33 +35,99 @@ log = logging.getLogger(__name__)
 
 LATEX_INLINE_RE = re.compile(r"\$(.+?)\$")
 
+# Block types that wrap a content block + its caption as siblings, and the
+# content block type each wrapper actually holds.
+_GROUP_CONTENT_TYPE = {
+    "FigureGroup": "Figure",
+    "PictureGroup": "Picture",
+    "TableGroup": "Table",
+}
+_CONTENT_BLOCK_TYPES = {"Figure", "Picture", "Table"}
+# Never worth descending into — leaves or already-consumed-by-parent structure.
+_SKIP_BLOCK_TYPES = {"Line", "Span", "TableCell"}
 
-def _try_marker(pdf_path: str):
-    """Run marker's PdfConverter and return (markdown_text, images_dict, json_blocks) or None."""
+
+def _build_marker_document(pdf_path: str):
+    """Runs marker's full layout+OCR+table-recognition pipeline and returns
+    its Document object (real structured blocks), or None if marker itself
+    fails — in which case the caller gets no figures/tables for this batch
+    rather than a silently degraded partial result.
+    """
     try:
         from marker.converters.pdf import PdfConverter
         from marker.models import create_model_dict
         converter = PdfConverter(artifact_dict=create_model_dict())
-        rendered = converter(pdf_path)
-        try:
-            from marker.output import text_from_rendered
-            md, id_map, images = text_from_rendered(rendered)
-        except ImportError:
-            md = getattr(rendered, "markdown", "") or str(rendered)
-            images = getattr(rendered, "images", {}) or {}
-            id_map = {}
-        blocks = None
-        try:
-            json_str = rendered.json if hasattr(rendered, "json") else None
-            if json_str:
-                blocks = json.loads(json_str) if isinstance(json_str, str) else json_str
-        except Exception as e:
-            log.debug("marker JSON blocks unavailable: %s", e)
-        log.info("Marker succeeded: %d chars markdown, %d images", len(md or ""), len(images or {}))
-        return md or "", images or {}, blocks
+        document = converter.build_document(pdf_path)
+        log.info("Marker succeeded: %d pages", len(document.pages))
+        return document
     except Exception as e:
-        log.warning("Marker failed, falling back to PyMuPDF: %s", e, exc_info=True)
+        log.warning("Marker failed, figures/tables will be empty for this batch: %s", e, exc_info=True)
         return None
+
+
+def _block_children(block, document):
+    """A block's children, resolved from `.structure` (a list of block ids)
+    if `.children` isn't already populated — marker's raw Document blocks
+    use `.structure`; only the render-time BlockOutput tree (which this
+    module doesn't use) populates `.children` directly."""
+    children = getattr(block, "children", None)
+    if children:
+        return children
+    structure = getattr(block, "structure", None)
+    if not structure:
+        return []
+    resolved = []
+    for block_id in structure:
+        child = document.get_block(block_id)
+        if child is not None:
+            resolved.append(child)
+    return resolved
+
+
+def _find_visuals_on_page(page, document):
+    """Walks one marker page's block tree, returning
+    [(content_block, caption_block_or_None), ...] for every Figure/
+    Picture/Table found — pairing each with its sibling Caption when the
+    content is wrapped in a *Group block (the normal case for figures;
+    tables are sometimes bare, with their title as the first line of their
+    own text instead of a separate Caption block).
+
+    Deduplicates by block id: marker's tree can reach the same content
+    block via more than one structural path (seen in practice — a Table
+    inside a TableGroup that's itself reachable as a bare top-level Table
+    too), and without a guard the same figure/table gets emitted, saved,
+    and cataloged twice. When two occurrences of the same id disagree on
+    whether a caption was found, the captioned one wins — a plain "first
+    occurrence wins" guard was observed dropping a real caption whenever
+    the uncaptioned path happened to be visited first.
+    """
+    by_id: dict = {}
+
+    def consider(content, caption):
+        existing = by_id.get(content.id)
+        if existing is None or (existing[1] is None and caption is not None):
+            by_id[content.id] = (content, caption)
+
+    def visit(block):
+        block_type = str(block.block_type)
+        if block_type in _GROUP_CONTENT_TYPE:
+            children = _block_children(block, document)
+            content = next((c for c in children if str(c.block_type) == _GROUP_CONTENT_TYPE[block_type]), None)
+            caption = next((c for c in children if str(c.block_type) == "Caption"), None)
+            if content is not None:
+                consider(content, caption)
+            return
+        if block_type in _CONTENT_BLOCK_TYPES:
+            consider(block, None)
+            return
+        if block_type in _SKIP_BLOCK_TYPES:
+            return
+        for child in _block_children(block, document):
+            visit(child)
+
+    for top in _block_children(page, document):
+        visit(top)
+    return list(by_id.values())
 
 
 def extract_pages(
@@ -80,27 +158,9 @@ def extract_pages(
     local_page_count = get_page_count(pdf_path)
     log.info("Extracting %s (%d local pages, global offset %d)", pdf_path, local_page_count, page_offset)
 
-    marker_result = _try_marker(pdf_path)
-    marker_md: str = ""
-    marker_images: dict = {}
-    if marker_result is not None:
-        marker_md, marker_images, _blocks = marker_result
-        raw_dir = os.path.join(pkg_dir, "raw")
-        os.makedirs(raw_dir, exist_ok=True)
-        with open(os.path.join(raw_dir, "marker.md"), "a", encoding="utf-8") as f:
-            f.write(marker_md + "\n\n")
-
-    for idx, (key, pil_img) in enumerate((marker_images or {}).items()):
-        try:
-            fname = f"marker_{page_offset:04d}_{idx:04d}.png"
-            out = os.path.join(assets_dir, "marker_images", fname)
-            os.makedirs(os.path.dirname(out), exist_ok=True)
-            if hasattr(pil_img, "save"):
-                pil_img.save(out)
-            else:
-                shutil.copy(str(pil_img), out)
-        except Exception as e:
-            log.debug("Failed to save marker image %s: %s", key, e)
+    document = _build_marker_document(pdf_path)
+    marker_pages_by_idx = {p.page_id: p for p in document.pages} if document is not None else {}
+    marker_chars = 0
 
     import pymupdf  # type: ignore
     doc = pymupdf.open(pdf_path)
@@ -126,34 +186,54 @@ def extract_pages(
         page_tables: list[dict] = []
         page_formulas: list[dict] = []
 
-        try:
-            for img_idx, img_info in enumerate(page.get_images(full=True)):
-                xref = img_info[0]
+        marker_page = marker_pages_by_idx.get(local_idx)
+        if marker_page is not None:
+            for content_block, caption_block in _find_visuals_on_page(marker_page, document):
+                block_type = str(content_block.block_type)
                 try:
-                    pix2 = pymupdf.Pixmap(doc, xref)
-                    if pix2.w < 80 or pix2.h < 80:
-                        pix2 = None
+                    caption_text = caption_block.raw_text(document).strip() if caption_block is not None else ""
+                    if block_type == "Table":
+                        # Tables rarely have a separate Caption sibling — their
+                        # own text (title + cell contents) carries the real
+                        # content, which matters far more here than for a
+                        # figure: this is what lets the compilation LLM
+                        # actually narrate what's in the table instead of
+                        # just gesturing at "a table" with no data.
+                        table_text = content_block.raw_text(document).strip()
+                        caption_text = (caption_text + "\n" + table_text).strip() if caption_text else table_text
+
+                    image = content_block.get_image(document, highres=True)
+                    if image is None:
                         continue
-                    if pix2.colorspace is None or pix2.colorspace.n not in (1, 3):
-                        pix2 = pymupdf.Pixmap(pymupdf.csRGB, pix2)
-                    width, height = pix2.w, pix2.h
-                    fid = make_figure_id(fig_counter + 1)
-                    fname = f"{fid}.png"
-                    out = os.path.join(figures_dir, fname)
-                    pix2.save(out)
-                    pix2 = None
-                    fig_counter += 1
-                    page_figures.append({
-                        "figure_id": fid,
-                        "page": page_idx,
-                        "caption": "",
-                        "image_path": os.path.join("assets/figures", fname),
-                        "width": width, "height": height,
-                    })
+                    width, height = image.size
+                    if width < 40 or height < 40:
+                        continue  # near-empty crop, not worth keeping
+
+                    if block_type == "Table":
+                        tbl_counter += 1
+                        tid = make_table_id(tbl_counter)
+                        fname = f"{tid}.png"
+                        image.save(os.path.join(tables_dir, fname))
+                        page_tables.append({
+                            "table_id": tid,
+                            "page": page_idx,
+                            "caption": caption_text[:2000],  # keep the LLM prompt from ballooning on a giant table
+                            "image_path": os.path.join("assets/tables", fname),
+                        })
+                    else:
+                        fig_counter += 1
+                        fid = make_figure_id(fig_counter)
+                        fname = f"{fid}.png"
+                        image.save(os.path.join(figures_dir, fname))
+                        page_figures.append({
+                            "figure_id": fid,
+                            "page": page_idx,
+                            "caption": caption_text,
+                            "image_path": os.path.join("assets/figures", fname),
+                            "width": width, "height": height,
+                        })
                 except Exception as e:
-                    log.warning("Figure extract failed page %d img %d: %s", page_idx, img_idx, e)
-        except Exception as e:
-            log.debug("get_images failed page %d: %s", page_idx, e)
+                    log.warning("Visual block extract failed page %d (%s): %s", page_idx, block_type, e)
 
         for m in LATEX_INLINE_RE.finditer(page_text):
             latex = m.group(1).strip()
@@ -188,7 +268,7 @@ def extract_pages(
         "next_fig": fig_counter + 1,
         "next_tbl": tbl_counter + 1,
         "next_formula": formula_counter + 1,
-        "marker_chars": len(marker_md),
+        "marker_chars": marker_chars,
     }
 
 
