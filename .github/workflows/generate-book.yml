@@ -1,0 +1,96 @@
+name: Generate book (pipeline)
+
+# One-click server-side book generation. Useful when the SLURM cluster is
+# busy or you want a clean CI build of the pipeline artifacts.
+# Trigger manually from Actions → Generate book → Run workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pdf_url:
+        description: 'HTTPS URL to a PDF (or leave empty to use input/sample.pdf in repo)'
+        required: false
+        default: ''
+      book_id:
+        description: 'Override book_id (default: derived from filename)'
+        required: false
+        default: ''
+      spark_model:
+        description: 'FIREBRAT_SPARK_MODEL override'
+        required: false
+        default: 'deepseek/deepseek-v4-pro:thinking'
+      skip_tts:
+        description: 'Skip TTS stage (faster, for extraction/compilation check)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: System deps (pdflatex, gs, ffmpeg, imagemagick)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y texlive-latex-base texlive-latex-extra texlive-fonts-recommended ghostscript imagemagick ffmpeg
+          pdflatex --version | head -n 1
+          gs --version
+          ffmpeg -version | head -n 1
+
+      - name: Install Python deps (serve + pipeline lite)
+        run: |
+          pip install -r backend/requirements-serve.txt 2>/dev/null || pip install fastapi uvicorn pydantic pytest anyio httpx pydub soundfile marker-pdf pymupdf requests
+          pip install -e backend 2>/dev/null || true
+
+      - name: Fetch PDF
+        run: |
+          mkdir -p input
+          if [ -n "${{ inputs.pdf_url }}" ]; then
+            curl -L -o input/book.pdf "${{ inputs.pdf_url }}"
+            echo "Fetched input/book.pdf from URL"
+          elif [ -f input/sample.pdf ]; then
+            cp input/sample.pdf input/book.pdf
+            echo "Using input/sample.pdf"
+          else
+            echo "No PDF found: provide pdf_url or commit input/sample.pdf"
+            exit 1
+          fi
+          ls -lh input/book.pdf
+
+      - name: Run pipeline (stages 1+2, optionally 3)
+        env:
+          MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
+          NANO_API_KEY: ${{ secrets.NANO_API_KEY }}
+          HF_HOME: /tmp/hf
+          FIREBRAT_SPARK_MODEL: ${{ inputs.spark_model }}
+        run: |
+          mkdir -p /tmp/hf
+          ARGS="input/book.pdf --book-id ${{ inputs.book_id }}"
+          if [ "${{ inputs.skip_tts }}" = "true" ]; then ARGS="$ARGS --skip-tts"; fi
+          PYTHONPATH=backend python backend/convert.py $ARGS 2>&1 | tee convert.log
+          echo "--- manifest ---"
+          cat backend/output/*/manifest.json | head -n 100 || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: book-packages
+          path: |
+            backend/output/
+            convert.log
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          echo "## Generated packages" >> $GITHUB_STEP_SUMMARY
+          ls -lh backend/output/*.tar.gz 2>/dev/null || ls -lhR backend/output | head -n 100
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat backend/output/*/manifest.json 2>/dev/null | python3 -c "import json,glob; [print(f\"{p}: {json.load(open(p))['book_id']} {len(json.load(open(p))['sections'])} sections\") for p in glob.glob('backend/output/*/manifest.json')]" || true

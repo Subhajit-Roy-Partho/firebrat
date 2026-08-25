@@ -56,7 +56,11 @@ Because Chatterbox's dependency pins conflict with marker-pdf's, this stage runs
 
 ### Manifest (`firebrat/pipeline/manifest.py`)
 
-Merges Stage 1's figures/tables, Stage 2's LLM-authored formulas, and Stage 3's per-section durations into the final `manifest.json` — the one file the Flutter app actually reads to know what a book contains. Now records `narrator_voice.reference_clip` (calm female), `exaggeration 0.28`, `needs_review` via title/placeholder heuristic (`manifest.py:120` — 44 `needs_review:true` supplements in current 242-section archive).
+Merges Stage 1's figures/tables, Stage 2's LLM-authored formulas, and Stage 3's per-section durations into the final `manifest.json` — the one file the Flutter app actually reads to know what a book contains. Now records `narrator_voice.reference_clip` (calm female), `exaggeration 0.28`, `needs_review` via title/placeholder heuristic (`manifest.py:120` — 44 `needs_review:true` supplements in current 242-section archive). Since 2026-08-25 also deduplicates duplicate `section_id` (e.g. `sec_0016` ×2 → `sec_9001`) `manifest.py:78` — prevents two logical sections sharing one `sections/sec_*/audio.m4a`, which previously lost the second section's audio.
+
+### Reliability notes — LaTeX (added 2026-08-25)
+
+Nano-GPT sometimes returns LaTeX with a single backslash (`"\text{...} = \frac{...}"`) — valid JSON `"\t"`/`"\f"` escapes but wrong LaTeX. After `json.loads` this becomes `TAB`/`FORM FEED` + `ext`/`rac` (`formula_0026` hit this, dropping its PNG). `compile_llm.py:162` `_sanitize_latex()` now repairs `0x09`/`0x0C`/`ext{` before validation, so the checkpoint is never written corrupted; `formulas.py` then renders the repaired string.
 
 ## Backend serving model
 
@@ -64,10 +68,12 @@ Merges Stage 1's figures/tables, Stage 2's LLM-authored formulas, and Stage 3's 
 
 ## Frontend architecture
 
-- **State**: Riverpod. `library_providers.dart` (catalog, downloads), `reader_providers.dart` (per-book session: manifest, current section, live `PlaybackController`), `settings_providers.dart` (speed, autoplay, font scale — persisted via `shared_preferences`).
+- **State**: Riverpod. `library_providers.dart` (catalog, downloads), `reader_providers.dart` (per-book session: manifest, current section, live `PlaybackController`), `settings_providers.dart` (speed, autoplay, font scale — persisted via `shared_preferences`), `app_icon_service.dart` (listening-time / streak → mood).
 - **Audio**: `just_audio`, one player per reader session, wrapped by `PlaybackController`. Its `positionStream` drives a binary search over the current section's `segments.json` to find the active segment — that active-segment id is the single source of truth every highlight widget watches.
 - **Manual navigation always works.** Tapping a segment, or the prev/next segment buttons, calls `player.seek()` directly — this is completely independent of whether autoplay is enabled. Autoplay is implemented as a `sectionCompleteStream` listener that, if enabled, waits a configurable delay and advances — it never gates or blocks a manual action.
 - **Figures/tables never hide.** `FigureGallery` always renders every figure/table for the current section in a horizontally-scrollable row; the one currently referenced by the active segment gets a border/glow, nothing is removed from view.
+- **Icon moods.** The launcher icon is the happy worm (`assets/icon/app_icon.svg` — worm opening book, `^ ^` eyes, rosy cheeks). Four variants `assets/icon/moods/` (`focused`/`sleepy`/`celebratory`/`streak`) are shown in-app via `AppIconService` `lib/services/app_icon_service.dart:1` (shared_preferences streak/listening); launcher `activity-alias` swap is optional future work (`docs/ICON.md`).
+- **Notifications.** Local: `audio_service` (playback) + `flutter_foreground_task` (on-device conversion persistent notification) — no Firebase. Remote push (optional): Firebase Cloud Messaging (`docs/FIREBASE.md`); pipeline Telegram pings (`pipeline/notify.py`) are operator-only.
 
 ## Why these choices
 

@@ -75,12 +75,38 @@ def build_manifest(
             "page": fo.get("page", 0),
         })
 
-    # Normalize compiled sections: ensure section_id + segment_ids present
+    # Normalize compiled sections: ensure section_id + segment_ids present + deduplicate
     from firebrat.utils.ids import make_section_id, make_segment_id
     sections_out: list[dict] = []
     total_duration = 0
+    seen_sids: set[str] = set()
+    # For duplicates, mint from high range to avoid colliding with existing sequential ids
+    next_dup = 9001
     for order, sec in enumerate(compiled.get("sections", [])):
-        sid = sec.get("section_id") or make_section_id(order + 1)
+        raw_sid = sec.get("section_id")
+        if raw_sid and raw_sid not in seen_sids:
+            sid = raw_sid
+        else:
+            if raw_sid:
+                log.warning("Duplicate section_id %s at order %d — minting replacement", raw_sid, order + 1)
+                # Mint a high-numbered id that is guaranteed free
+                while make_section_id(next_dup) in seen_sids:
+                    next_dup += 1
+                sid = make_section_id(next_dup)
+                next_dup += 1
+            else:
+                sid = make_section_id(order + 1)
+                # Ensure not already seen (gap due to earlier duplicate mint)
+                while sid in seen_sids:
+                    sid = make_section_id(next_dup)
+                    next_dup += 1
+            # Retarget segment_ids that were derived from the old sid
+            if raw_sid and raw_sid != sid:
+                for s in sec.get("segments", []):
+                    old_seg = s.get("segment_id", "")
+                    if old_seg.startswith(raw_sid):
+                        s["segment_id"] = old_seg.replace(raw_sid, sid, 1)
+        seen_sids.add(sid)
         sec["section_id"] = sid
         # Load timing if assembly already ran
         seg_json_path = os.path.join(package_dir, "sections", sid, "segments.json")

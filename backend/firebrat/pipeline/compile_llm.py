@@ -159,6 +159,56 @@ def _sanitize_refs(parsed: dict) -> dict:
     return parsed
 
 
+def _sanitize_latex(parsed: dict) -> dict:
+    """Repair LLM LaTeX that was single-escaped in JSON (``\\text`` / ``\\frac``).
+
+    Nano-GPT sometimes returns ``"latex": "\\text{...} = \\frac{...}"`` with
+    a single backslash — valid JSON escapes ``\\t`` → TAB (0x09) and
+    ``\\f`` → FORM FEED (0x0C). After ``json.loads`` the string becomes
+    ``"\\t ext... = \\x0c rac..."`` which later fails pdflatex and drops
+    ``formula_NNNN.png`` (seen for ``formula_0026``). This pass restores
+    the backslashes *before* pydantic validation so the checkpoint is never
+    written corrupted. Idempotent for already-correct (double-escaped) latex.
+    """
+    for sec in parsed.get("sections", []) if isinstance(parsed, dict) else []:
+        if not isinstance(sec, dict):
+            continue
+        for seg in sec.get("segments", []):
+            if not isinstance(seg, dict):
+                continue
+            latex = seg.get("latex")
+            if not isinstance(latex, str) or not latex:
+                continue
+            # TAB (\\t → 0x09) and FORM FEED (\\f → 0x0C) are the two JSON
+            # escapes that coincide with LaTeX command prefixes. Repair both.
+            # ``latex.lstrip().startswith("ext{")`` is the smoking gun for a
+            # leading ``\\text`` that lost its backslash entirely after a
+            # round-trip through a corrupted checkpoint.
+            repaired = latex
+            if "\x09" in repaired or "\x0c" in repaired or "\x08" in repaired:
+                repaired = repaired.replace("\x09", "\\t").replace("\x0c", "\\f").replace("\x08", "\\b")
+                # After naive replace, ``\\t ext`` → ``\\text`` is already correct;
+                # but a leading ``ext{`` means the initial TAB was at position 0
+                # and was stripped by an earlier dump — restore it.
+                if repaired.lstrip().startswith("ext{"):
+                    repaired = "\\t" + repaired.lstrip()[3:]
+                    repaired = repaired.replace("\\t", "\\text", 1)
+                # ``\\f`` in ``\\frac`` is now ``\\frac`` after replace, but
+                # ``\\frac`` that was FORM FEED + ``rac`` needs the ``f`` back:
+                # ``\\x0crac`` → ``\\frac`` already handled by \\f→\\f.
+                # The above \\f replacement already yields ``\\f`` + ``rac`` = ``\\frac``,
+                # but to be explicit, fix the common pattern.
+                repaired = repaired.replace("\\frac", "\\frac")
+            # Also handle the degenerate case where the leading backslash was
+            # completely lost (``ext{Throughput}``) without any control char.
+            if repaired.lstrip().startswith("ext{"):
+                repaired = "\\text" + repaired.lstrip()[3:]
+            if repaired != latex:
+                log.warning("Repaired corrupted LaTeX %r → %r", latex[:80], repaired[:80])
+                seg["latex"] = repaired
+    return parsed
+
+
 FALLBACK_SECTION = {
     "title": "Unprocessed chunk",
     "source_pages": [],
@@ -283,6 +333,7 @@ def run_compilation(raw_pages_path: str, output_dir: str, book_id: str | None = 
                                            retries_parse=3, fallback_model=fallback)
             parsed = _normalize_wrapper(parsed)
             parsed = _sanitize_refs(parsed)
+            parsed = _sanitize_latex(parsed)
             parsed = _fill_blank_titles(parsed)
             # Detect schema-hallucination where LLM returns a JSON Schema instead of instance
             # e.g. {"type":"object","properties":{"sections":{"type":"array"}},"required":["sections"]}
@@ -298,6 +349,7 @@ def run_compilation(raw_pages_path: str, output_dir: str, book_id: str | None = 
                     parsed2, _ = chat_json(messages, fallback, temperature=0.2, max_tokens=7000, retries_parse=3, fallback_model=None)
                     parsed2 = _normalize_wrapper(parsed2)
                     parsed2 = _sanitize_refs(parsed2)
+                    parsed2 = _sanitize_latex(parsed2)
                     parsed2 = _fill_blank_titles(parsed2)
                     output = LLMOutput.model_validate(parsed2)
                 else:

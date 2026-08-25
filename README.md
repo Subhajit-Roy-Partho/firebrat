@@ -33,9 +33,13 @@ Full rationale for each design decision is in [docs/ARCHITECTURE.md](docs/ARCHIT
 
 ## Status
 
-**2026-08-22 — pipeline complete.** Full 659-page book converted → `242` sections, `659/659` pages covered (104 missing pages patched as honest `needs_review` supplements), `135` figures, `73` formulas, `441.6 min` audio, calm female voice. Archive at `backend/output/arm-fundamentals-soc.tar.gz` (430.5 MB) + unpacked `backend/output/arm-fundamentals-soc/` — see [TASK.md](TASK.md) handover and `backend/full_conversion.log` for the full run log. Backend tests 7/7, `flutter analyze` clean, APK builds.
+**2026-08-25 — repaired & repackaged.** `arm-fundamentals-soc` 242 sections, `659/659` pages, `135` figures, `73` formulas (all PNGs now present — `formula_0026` LaTeX escape repaired), `436.3 min` audio, calm female voice; `digital-design-and-computer-architecture` 196 sections `46` figs `158` formulas `264.8 min` — both re-manifested 2026-08-25 (duplicate `sec_0016/0019/0022/0024` → `sec_9001-9004` with placeholder silence, `status.json` rewritten, `compiled.json` synced). Archives: `backend/output/arm-fundamentals-soc.tar.gz` (430.5 MB) + `backend/output/digital-design-and-computer-architecture.tar.gz` (334 MB). Full run log `backend/full_conversion.log`; 15/15 backend tests, `flutter analyze` / `flutter test` clean.
 
-Previous incremental-archive stage (204 sections, 336 MB @2026-08-22 09:26) is superseded by the calm-voice 242-section archive @04:51; 44 sections are flagged `needs_review:true` deterministic supplements that can be LLM-refined later without re-extracting.
+**Icon:** happy worm opening book (`assets/icon/app_icon.svg`) with 4 usage-driven moods (`assets/icon/moods/` + `lib/services/app_icon_service.dart`) — see `docs/ICON.md`.
+
+**Notifications:** local playback `audio_service` + conversion `flutter_foreground_task`; operator Telegram pings (`TELEGRAM_BOT_TOKEN`) + optional Firebase Cloud Messaging (`docs/FIREBASE.md`).
+
+**Env:** all variables documented (`docs/ENV.md` + `backend/.env.example`); previously deferred extraction fidelity fix (`aeda268` — marker `Document` blocks) is now in-code but existing packages still need re-extraction for full table coverage.
 
 ## Repository layout
 

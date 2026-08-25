@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF9A8A"/><stop offset="1" stop-color="#7C3AED"/></linearGradient>
+    <linearGradient id="pageL" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFBF0"/><stop offset="1" stop-color="#FDE8C0"/></linearGradient>
+    <linearGradient id="pageR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF8E8"/><stop offset="1" stop-color="#FADDB5"/></linearGradient>
+    <linearGradient id="wormBody" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB86A"/><stop offset="1" stop-color="#EF7A2E"/></linearGradient>
+    <linearGradient id="wormBelly" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE8B8"/><stop offset="1" stop-color="#FFD08A"/></linearGradient>
+    <linearGradient id="hat" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFD93D"/><stop offset="1" stop-color="#FF6B35"/></linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <!-- confetti -->
+  <g opacity="0.9">
+    <rect x="180" y="160" width="18" height="28" rx="4" fill="#FFD93D" transform="rotate(20 189 174)"/>
+    <rect x="720" y="120" width="16" height="24" rx="4" fill="#6BCB77" transform="rotate(-15 728 132)"/>
+    <rect x="800" y="200" width="14" height="22" rx="4" fill="#4D96FF" transform="rotate(30 807 211)"/>
+    <rect x="140" y="240" width="12" height="20" rx="4" fill="#FF6B9D" transform="rotate(-20 146 250)"/>
+    <circle cx="260" cy="140" r="8" fill="white" opacity="0.8"/><circle cx="740" cy="200" r="6" fill="white" opacity="0.7"/>
+  </g>
+  <ellipse cx="512" cy="820" rx="280" ry="34" fill="#1B2570" opacity="0.35"/>
+  <g>
+    <path d="M512 572 C 452 536, 356 516, 268 534 C 252 537, 242 550, 242 566 L 242 756 C 242 772, 252 782, 268 779 C 356 762, 452 778, 512 812 Z" fill="url(#pageL)" stroke="#C88A3A" stroke-width="12" stroke-linejoin="round"/>
+    <path d="M512 572 C 572 536, 668 516, 756 534 C 772 537, 782 550, 782 566 L 782 756 C 782 772, 772 782, 756 779 C 668 762, 572 778, 512 812 Z" fill="url(#pageR)" stroke="#C88A3A" stroke-width="12" stroke-linejoin="round"/>
+    <path d="M512 572 L512 812" stroke="#C88A3A" stroke-width="12" stroke-linecap="round"/>
+    <g stroke="#E8C99A" stroke-width="10" stroke-linecap="round" opacity="0.95">
+      <path d="M292 592 C 348 582, 410 586, 466 606"/><path d="M288 630 C 348 620, 412 624, 468 644"/><path d="M286 668 C 346 658, 410 662, 470 682"/><path d="M284 706 C 342 696, 406 700, 468 718"/>
+      <path d="M558 606 C 610 586, 672 582, 732 592"/><path d="M556 644 C 610 624, 674 620, 736 630"/><path d="M554 682 C 608 662, 672 658, 738 668"/><path d="M556 718 C 604 700, 668 696, 740 706"/>
+    </g>
+  </g>
+  <path d="M324 482 C 324 292, 700 292, 700 482" fill="none" stroke="#25308A" stroke-width="38" stroke-linecap="round"/>
+  <rect x="274" y="452" width="96" height="132" rx="44" fill="#2E3CA8" stroke="#1E286E" stroke-width="10"/><rect x="654" y="452" width="96" height="132" rx="44" fill="#2E3CA8" stroke="#1E286E" stroke-width="10"/>
+  <rect x="292" y="472" width="60" height="92" rx="26" fill="#9DB0FF"/><rect x="672" y="472" width="60" height="92" rx="26" fill="#9DB0FF"/>
+  <g fill="none" stroke="#FFF6E0" stroke-linecap="round" opacity="0.95"><path d="M800 476 C 830 500, 830 552, 800 576" stroke-width="16"/><path d="M826 452 C 870 486, 870 566, 826 600" stroke-width="16"/></g>
+  <!-- CELEBRATORY: party hat, sparkles, huge grin -->
+  <g transform="translate(512 340) rotate(-5)">
+    <g stroke="#C95E1A" stroke-width="9" stroke-linecap="round" fill="none">
+      <path d="M58 12 C 96 -2, 126 -20, 146 -40"/><path d="M60 26 C 100 20, 134 12, 158 0"/><path d="M56 40 C 94 44, 124 52, 144 66"/>
+    </g>
+    <g stroke="#C95E1A" stroke-width="10" stroke-linecap="round"><path d="M-10 32 C -26 48, -36 62, -30 80"/><path d="M10 42 C -2 60, -8 74, -2 90"/><path d="M32 46 C 22 64, 20 78, 26 94"/></g>
+    <path d="M-96 -8 C -104 -32, -72 -50, -34 -48 C 12 -46, 48 -28, 78 0 C 96 16, 94 30, 70 30 C 34 28, -6 30, -40 22 C -70 14, -90 10, -96 -8 Z" fill="url(#wormBody)" stroke="#C95E1A" stroke-width="9" stroke-linejoin="round"/>
+    <path d="M-82 -4 C -84 12, -48 22, -18 20 C 14 18, 42 10, 58 4 C 30 8, -2 10, -28 8 C -56 6, -78 4, -82 -4 Z" fill="url(#wormBelly)" opacity="0.95"/>
+    <g stroke="#C95E1A" stroke-width="6" opacity="0.7"><path d="M-60 -36 C -64 -16, -62 4, -56 20"/><path d="M-24 -40 C -28 -18, -26 6, -18 24"/><path d="M14 -30 C 10 -10, 12 10, 22 26"/></g>
+    <g stroke="#C95E1A" stroke-width="9" stroke-linecap="round" fill="none"><path d="M-90 -16 C -122 -48, -144 -74, -150 -110"/><path d="M-82 -28 C -104 -68, -114 -98, -108 -134"/></g>
+    <circle cx="-150" cy="-114" r="10" fill="#FFD08A" stroke="#C95E1A" stroke-width="5"/><circle cx="-108" cy="-138" r="10" fill="#FFD08A" stroke="#C95E1A" stroke-width="5"/>
+    <!-- party hat -->
+    <g transform="translate(-70 -62) rotate(-14)">
+      <path d="M0 0 L 34 -52 L 68 0 Z" fill="url(#hat)" stroke="#C95E1A" stroke-width="5" stroke-linejoin="round"/>
+      <g fill="white" opacity="0.9"><circle cx="17" cy="-26" r="5"/><circle cx="34" cy="-14" r="4"/><circle cx="50" cy="-8" r="3"/></g>
+      <circle cx="34" cy="-58" r="10" fill="#FF6B9D" stroke="#C95E1A" stroke-width="4"/>
+    </g>
+    <!-- star eyes -->
+    <g fill="#3A2410">
+      <path d="M-82 -14 l 3 6 6 1 -5 4 1 6 -5 -4 -5 4 1 -6 -5 -4 6 -1 z"/>
+      <path d="M-52 -14 l 3 6 6 1 -5 4 1 6 -5 -4 -5 4 1 -6 -5 -4 6 -1 z"/>
+    </g>
+    <ellipse cx="-90" cy="2" rx="14" ry="10" fill="#FF8FA0" opacity="0.85"/><ellipse cx="-36" cy="2" rx="14" ry="10" fill="#FF8FA0" opacity="0.85"/>
+    <path d="M-78 6 C -70 16, -54 16, -46 6 C -52 10, -70 10, -78 6 Z" fill="#3A2410"/>
+    <path d="M-78 6 C -72 14, -58 14, -48 6" fill="none" stroke="#3A2410" stroke-width="5" stroke-linecap="round"/>
+    <g stroke="#C95E1A" stroke-width="7" stroke-linecap="round" fill="url(#wormBody)"><path d="M-48 22 C -58 36, -64 48, -62 58"/><path d="M-28 22 C -18 36, -12 48, -8 58"/></g>
+  </g>
+  <g fill="white" opacity="0.9"><path d="M 620 240 l 8 14 14 8 -14 8 -8 14 -8 -14 -14 -8 14 -8 z"/><path d="M 380 260 l 6 10 10 6 -10 6 -6 10 -6 -10 -10 -6 10 -6 z" opacity="0.7"/></g>
+</svg>

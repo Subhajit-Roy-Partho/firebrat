@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch: {}
+
+jobs:
+  backend:
+    name: Backend tests (serve env)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install serve deps
+        run: |
+          pip install -r backend/requirements-serve.txt 2>/dev/null || pip install fastapi uvicorn pydantic pytest anyio httpx pydub soundfile
+          pip install -e backend 2>/dev/null || true
+      - name: Run backend tests
+        run: PYTHONPATH=backend pytest backend/tests -v
+
+  frontend-analyze:
+    name: Flutter analyze + tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Flutter pub get
+        working-directory: frontend/firebrat_app
+        run: flutter pub get
+      - name: Analyze
+        working-directory: frontend/firebrat_app
+        run: flutter analyze
+      - name: Tests
+        working-directory: frontend/firebrat_app
+        run: flutter test
+
+  frontend-build:
+    name: Flutter build (debug APK)
+    runs-on: ubuntu-latest
+    needs: [frontend-analyze]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Flutter pub get
+        working-directory: frontend/firebrat_app
+        run: flutter pub get
+      - name: Build APK (debug)
+        working-directory: frontend/firebrat_app
+        run: flutter build apk --debug
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: firebrat-debug-apk
+          path: frontend/firebrat_app/build/app/outputs/flutter-apk/app-debug.apk
+
+  pipeline-smoke:
+    name: Pipeline import smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Import check (no torch/marker needed)
+        run: |
+          PYTHONPATH=backend python -c "from firebrat.pipeline.schema import Manifest; print('schema ok')"
+          PYTHONPATH=backend python -c "from firebrat.pipeline.compile_llm import _sanitize_latex; print('sanitize ok')"
+          PYTHONPATH=backend python -c "from firebrat.pipeline.manifest import build_manifest; print('manifest ok')"
