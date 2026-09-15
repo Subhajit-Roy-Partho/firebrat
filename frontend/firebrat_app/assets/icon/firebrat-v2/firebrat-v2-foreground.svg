@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Firebrat v2 — Android adaptive foreground (transparent, safe-zone scaled)</title>
+  <defs>
+    <linearGradient id="v2fgpage" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFF7E6"/>
+      <stop offset="1" stop-color="#FBD9A4"/>
+    </linearGradient>
+    <linearGradient id="v2fgbody" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFC66E"/>
+      <stop offset="1" stop-color="#EE7A26"/>
+    </linearGradient>
+  </defs>
+
+  <!-- same 0.72 safe-zone transform as v1 foreground: keeps art inside the
+       Android adaptive safe circle on all OEM masks -->
+  <g transform="translate(512 512) scale(0.72) translate(-512 -560)">
+    <ellipse cx="512" cy="792" rx="248" ry="30" fill="#10144A" opacity="0.45"/>
+    <g stroke-linejoin="round">
+      <path d="M512 560 C 452 528, 356 514, 272 532 C 258 535, 250 545, 250 559 L250 746 C250 760, 258 768, 272 765 C 356 749, 452 762, 512 794 Z"
+            fill="url(#v2fgpage)" stroke="#8A5A24" stroke-width="10"/>
+      <path d="M512 560 C 572 528, 668 514, 752 532 C 766 535, 774 545, 774 559 L774 746 C774 760, 766 768, 752 765 C 668 749, 572 762, 512 794 Z"
+            fill="url(#v2fgpage)" stroke="#8A5A24" stroke-width="10"/>
+    </g>
+    <path d="M512 560 L512 794" stroke="#8A5A24" stroke-width="10" stroke-linecap="round"/>
+    <g stroke="#E3B978" stroke-width="12" stroke-linecap="round" fill="none">
+      <path d="M300 606 C 360 596, 414 600, 464 616"/>
+      <path d="M298 644 C 358 634, 414 638, 466 654"/>
+      <path d="M560 616 C 610 600, 664 596, 724 606"/>
+      <path d="M558 654 C 608 638, 664 634, 726 644"/>
+    </g>
+    <path d="M310 452 C 310 242, 714 242, 714 452" fill="none" stroke="#1A2258" stroke-width="42" stroke-linecap="round"/>
+    <rect x="262" y="424" width="92" height="136" rx="44" fill="#232C6E" stroke="#141A52" stroke-width="10"/>
+    <rect x="670" y="424" width="92" height="136" rx="44" fill="#232C6E" stroke="#141A52" stroke-width="10"/>
+    <rect x="280" y="446" width="56" height="92" rx="26" fill="#A9B6FF"/>
+    <rect x="688" y="446" width="56" height="92" rx="26" fill="#A9B6FF"/>
+    <g fill="none" stroke="#FFF3DE" stroke-linecap="round">
+      <path d="M796 452 C 826 478, 826 536, 796 562" stroke-width="16"/>
+      <path d="M822 428 C 864 464, 864 548, 822 584" stroke-width="16"/>
+    </g>
+    <g transform="translate(500 356) rotate(6)">
+      <g stroke="#A34E12" stroke-width="9" stroke-linecap="round" fill="none">
+        <path d="M-112 6 C -142 -4, -162 -18, -176 -36"/>
+        <path d="M-114 22 C -144 22, -168 18, -186 8"/>
+      </g>
+      <path d="M-142 -6 C -142 -50, -86 -76, -10 -74 C 66 -72, 132 -48, 158 -6 C 173 17, 158 38, 120 42 C 56 49, -38 49, -98 38 C -132 30, -144 19, -142 -6 Z"
+            fill="url(#v2fgbody)" stroke="#A34E12" stroke-width="9" stroke-linejoin="round"/>
+      <g stroke="#A34E12" stroke-width="8" stroke-linecap="round" fill="none">
+        <path d="M142 -26 C 168 -54, 184 -80, 190 -112"/>
+        <path d="M122 -38 C 140 -70, 148 -98, 146 -128"/>
+      </g>
+      <circle cx="190" cy="-116" r="10" fill="#FFD08A" stroke="#A34E12" stroke-width="5"/>
+      <circle cx="146" cy="-132" r="10" fill="#FFD08A" stroke="#A34E12" stroke-width="5"/>
+      <circle cx="102" cy="-11" r="9" fill="#3A2410"/>
+      <circle cx="132" cy="-9" r="9" fill="#3A2410"/>
+      <path d="M104 11 C 113 22, 130 24, 139 13" fill="none" stroke="#3A2410" stroke-width="6" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>

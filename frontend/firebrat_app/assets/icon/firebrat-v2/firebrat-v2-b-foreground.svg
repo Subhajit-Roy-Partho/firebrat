@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Firebrat v2-B — Android adaptive foreground (transparent, safe-zone scaled)</title>
+  <defs>
+    <linearGradient id="v2bfgpage" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFF7E6"/>
+      <stop offset="1" stop-color="#FBD9A4"/>
+    </linearGradient>
+    <linearGradient id="v2bfgbody" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFC66E"/>
+      <stop offset="1" stop-color="#EE7A26"/>
+    </linearGradient>
+  </defs>
+
+  <!-- same 0.72 safe-zone transform as the A foreground -->
+  <g transform="translate(512 512) scale(0.72) translate(-512 -560)">
+    <ellipse cx="512" cy="792" rx="248" ry="30" fill="#10144A" opacity="0.45"/>
+    <g stroke-linejoin="round">
+      <path d="M512 566 C 450 536, 348 522, 264 540 C 250 543, 242 553, 242 567 L242 748 C242 762, 250 770, 264 767 C 348 751, 450 764, 512 796 Z"
+            fill="url(#v2bfgpage)" stroke="#8A5A24" stroke-width="10"/>
+      <path d="M512 566 C 574 536, 676 522, 760 540 C 774 543, 782 553, 782 567 L782 748 C782 762, 774 770, 760 767 C 676 751, 574 764, 512 796 Z"
+            fill="url(#v2bfgpage)" stroke="#8A5A24" stroke-width="10"/>
+    </g>
+    <path d="M512 566 L512 796" stroke="#8A5A24" stroke-width="10" stroke-linecap="round"/>
+    <g stroke="#E3B978" stroke-width="12" stroke-linecap="round" fill="none">
+      <path d="M292 612 C 356 602, 412 606, 464 622"/>
+      <path d="M290 650 C 354 640, 412 644, 466 660"/>
+      <path d="M560 622 C 610 606, 666 602, 732 612"/>
+      <path d="M558 660 C 608 644, 666 640, 734 650"/>
+    </g>
+    <g fill="none" stroke="#FFF3DE" stroke-linecap="round">
+      <path d="M784 436 C 820 468, 820 544, 784 576" stroke-width="18"/>
+      <path d="M812 408 C 860 452, 860 560, 812 604" stroke-width="18"/>
+    </g>
+    <g transform="translate(484 384) rotate(10) scale(1.12)">
+      <g stroke="#A34E12" stroke-width="9" stroke-linecap="round" fill="none">
+        <path d="M-112 6 C -142 -4, -162 -18, -176 -36"/>
+        <path d="M-114 22 C -144 22, -168 18, -186 8"/>
+      </g>
+      <path d="M-142 -6 C -142 -50, -86 -76, -10 -74 C 66 -72, 132 -48, 158 -6 C 173 17, 158 38, 120 42 C 56 49, -38 49, -98 38 C -132 30, -144 19, -142 -6 Z"
+            fill="url(#v2bfgbody)" stroke="#A34E12" stroke-width="9" stroke-linejoin="round"/>
+      <g stroke="#A34E12" stroke-width="8" stroke-linecap="round" fill="none">
+        <path d="M142 -26 C 172 -54, 190 -82, 196 -116"/>
+        <path d="M120 -40 C 142 -72, 150 -102, 148 -134"/>
+      </g>
+      <circle cx="196" cy="-120" r="10" fill="#FFD08A" stroke="#A34E12" stroke-width="5"/>
+      <circle cx="148" cy="-138" r="10" fill="#FFD08A" stroke="#A34E12" stroke-width="5"/>
+      <circle cx="98" cy="-13" r="9" fill="#3A2410"/>
+      <circle cx="130" cy="-11" r="9" fill="#3A2410"/>
+      <path d="M100 11 C 111 24, 130 26, 140 13" fill="none" stroke="#3A2410" stroke-width="6" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>

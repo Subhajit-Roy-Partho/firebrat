@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Firebrat v2-B — Lean-in (no headphones, sound-wave listening)</title>
+  <defs>
+    <linearGradient id="v2bbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4B56C6"/>
+      <stop offset="1" stop-color="#1B2050"/>
+    </linearGradient>
+    <linearGradient id="v2bpage" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFF7E6"/>
+      <stop offset="1" stop-color="#FBD9A4"/>
+    </linearGradient>
+    <linearGradient id="v2bbody" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFC66E"/>
+      <stop offset="1" stop-color="#EE7A26"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="1024" rx="224" fill="url(#v2bbg)"/>
+  <ellipse cx="540" cy="600" rx="310" ry="240" fill="#FFB25E" opacity="0.22"/>
+
+  <ellipse cx="512" cy="818" rx="270" ry="30" fill="#10144A" opacity="0.45"/>
+
+  <!-- open book, slightly larger than A since no headphones compete for space -->
+  <g stroke-linejoin="round">
+    <path d="M512 592 C 444 556, 340 540, 252 558 C 234 562, 224 574, 224 590 L224 756 C224 772, 234 782, 252 779 C 340 762, 444 776, 512 810 Z"
+          fill="url(#v2bpage)" stroke="#8A5A24" stroke-width="12"/>
+    <path d="M512 592 C 580 556, 684 540, 772 558 C 790 562, 800 574, 800 590 L800 756 C800 772, 790 782, 772 779 C 684 762, 580 776, 512 810 Z"
+          fill="url(#v2bpage)" stroke="#8A5A24" stroke-width="12"/>
+  </g>
+  <path d="M512 592 L512 810" stroke="#8A5A24" stroke-width="12" stroke-linecap="round"/>
+  <g stroke="#E3B978" stroke-width="14" stroke-linecap="round" fill="none">
+    <path d="M276 616 C 344 606, 408 610, 464 628"/>
+    <path d="M274 658 C 342 648, 406 652, 466 670"/>
+    <path d="M560 628 C 616 610, 680 606, 748 616"/>
+    <path d="M558 670 C 614 652, 678 648, 750 658"/>
+  </g>
+
+  <!-- the book speaks: big warm waves on the right, bug leans into them -->
+  <g fill="none" stroke="#FFF3DE" stroke-linecap="round">
+    <path d="M792 440 C 832 474, 832 556, 792 590" stroke-width="20"/>
+    <path d="M824 410 C 876 456, 876 574, 824 620" stroke-width="20"/>
+    <path d="M856 378 C 922 440, 922 590, 856 652" stroke-width="14" opacity="0.55"/>
+  </g>
+  <!-- faint echo left for balance -->
+  <g fill="none" stroke="#FFF3DE" stroke-linecap="round" opacity="0.4">
+    <path d="M212 500 C 190 520, 190 552, 212 572" stroke-width="14"/>
+  </g>
+
+  <!-- firebrat, larger and tilted 10deg head-first into the waves -->
+  <g transform="translate(480 400) rotate(10) scale(1.12)">
+    <g stroke="#A34E12" stroke-width="10" stroke-linecap="round" fill="none">
+      <path d="M-118 6 C -150 -4, -172 -18, -186 -38"/>
+      <path d="M-120 22 C -152 22, -178 18, -198 8"/>
+      <path d="M-116 38 C -146 46, -168 56, -182 72"/>
+    </g>
+    <path d="M-150 -6 C -150 -52, -90 -80, -10 -78 C 70 -76, 140 -50, 168 -6 C 184 18, 168 40, 128 44 C 60 52, -40 52, -104 40 C -140 32, -152 20, -150 -6 Z"
+          fill="url(#v2bbody)" stroke="#A34E12" stroke-width="10" stroke-linejoin="round"/>
+    <path d="M-120 22 C -90 38, -20 44, 50 38 C 90 34, 120 26, 140 14 C 100 24, 40 30, -20 28 C -70 26, -105 24, -120 22 Z"
+          fill="#FFE3AC" opacity="0.9"/>
+    <g stroke="#A34E12" stroke-width="7" opacity="0.65" fill="none">
+      <path d="M-84 -60 C -88 -34, -86 -8, -78 16"/>
+      <path d="M-36 -68 C -40 -40, -38 -10, -28 20"/>
+      <path d="M16 -62 C 12 -36, 14 -6, 26 24"/>
+    </g>
+    <!-- long antennae reaching toward the sound -->
+    <g stroke="#A34E12" stroke-width="10" stroke-linecap="round" fill="none">
+      <path d="M150 -28 C 182 -56, 202 -86, 210 -124"/>
+      <path d="M126 -42 C 150 -78, 160 -110, 158 -146"/>
+    </g>
+    <circle cx="210" cy="-128" r="11" fill="#FFD08A" stroke="#A34E12" stroke-width="5"/>
+    <circle cx="158" cy="-150" r="11" fill="#FFD08A" stroke="#A34E12" stroke-width="5"/>
+    <circle cx="104" cy="-14" r="10" fill="#3A2410"/>
+    <circle cx="138" cy="-12" r="10" fill="#3A2410"/>
+    <circle cx="107" cy="-17" r="3" fill="white" opacity="0.8"/>
+    <circle cx="141" cy="-15" r="3" fill="white" opacity="0.8"/>
+    <ellipse cx="86" cy="8" rx="13" ry="9" fill="#E86A4A" opacity="0.45"/>
+    <path d="M104 12 C 116 26, 136 28, 148 14" fill="none" stroke="#3A2410" stroke-width="7" stroke-linecap="round"/>
+    <path d="M36 44 C 26 62, 22 78, 28 94" fill="none" stroke="#A34E12" stroke-width="8" stroke-linecap="round"/>
+  </g>
+
+  <path d="M310 200 l10 18 18 10 -18 10 -10 18 -10 -18 -18 -10 18 -10 z" fill="white" opacity="0.9"/>
+</svg>

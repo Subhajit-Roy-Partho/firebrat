@@ -1,6 +1,7 @@
 flutter_launcher_icons:
   android: "ic_launcher"
-  image_path: "assets/icon/app_icon.png"
+  ios: true
+  image_path: "assets/icon/firebrat-v2/firebrat-v2-a.png"
   min_sdk_android: 21
-  adaptive_icon_background: "assets/icon/app_icon_background.png"
-  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  adaptive_icon_background: "assets/icon/firebrat-v2/firebrat-v2-background.png"
+  adaptive_icon_foreground: "assets/icon/firebrat-v2/firebrat-v2-foreground.png"

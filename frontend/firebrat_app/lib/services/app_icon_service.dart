@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Mood-driven launcher icon helper.
@@ -110,4 +111,84 @@ class AppIconService {
     final p = await SharedPreferences.getInstance();
     await p.setInt(_kBooksFinished, 0);
   }
+
+  // --- Launcher icon variants (home-screen icon, v2) ---
+  //
+  // `primary` is firebrat v2-A (headphones listener) — the default icon
+  // produced by `flutter_launcher_icons` from
+  // `assets/icon/firebrat-v2/firebrat-v2-a.png`.
+  // `leanIn` is v2-B (no-headphones lean-in) for special actions
+  // (celebrations, streaks): iOS `LeanIn` alternate (`AppIcon-LeanIn`
+  // via `CFBundleAlternateIcons`) and the Android `.MainActivityLeanIn`
+  // activity-alias (`@mipmap/ic_launcher_lean_in`).
+  //
+  // The choice is persisted immediately so in-app surfaces can follow it.
+  // The actual home-screen swap needs the pending platform handlers on
+  // channel `firebrat/launcher_icon` (`setAlternateIcon`): a Swift
+  // `UIApplication.setAlternateIconName` handler and a Kotlin
+  // `PackageManager.setComponentEnabledSetting` handler. Until those
+  // land, the setter returns false and the launcher icon stays primary.
+  static const _kLauncherVariant = 'launcher_icon_variant';
+  static const _launcherChannel = MethodChannel('firebrat/launcher_icon');
+
+  Future<LauncherIconVariant> launcherIconVariant() async {
+    final p = await SharedPreferences.getInstance();
+    final name = p.getString(_kLauncherVariant);
+    return LauncherIconVariant.values.firstWhere(
+      (v) => v.name == name,
+      orElse: () => LauncherIconVariant.primary,
+    );
+  }
+
+  /// Persist [variant] and ask the OS to swap the home-screen icon.
+  /// Returns true when the OS confirmed the swap.
+  Future<bool> setLauncherIconVariant(LauncherIconVariant variant) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_kLauncherVariant, variant.name);
+    try {
+      final applied = await _launcherChannel.invokeMethod<bool>(
+        'setAlternateIcon',
+        {'name': variant.nativeName},
+      );
+      return applied ?? false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// Show the special-action icon (v2-B). Call from celebration/streak
+  /// flows; the persisted mood logic in [currentMood] is unchanged.
+  Future<bool> enableSpecialActionIcon() =>
+      setLauncherIconVariant(LauncherIconVariant.leanIn);
+
+  Future<bool> restorePrimaryIcon() =>
+      setLauncherIconVariant(LauncherIconVariant.primary);
+}
+
+/// Home-screen launcher icon variants (firebrat v2 set).
+enum LauncherIconVariant {
+  /// v2-A listener (headphones) — default primary icon.
+  primary(
+    'assets/icon/firebrat-v2/firebrat-v2-a.png',
+    'assets/icon/firebrat-v2/firebrat-v2-a-listener.svg',
+    null,
+  ),
+
+  /// v2-B lean-in — special-action alternate.
+  leanIn(
+    'assets/icon/firebrat-v2/firebrat-v2-b.png',
+    'assets/icon/firebrat-v2/firebrat-v2-b-lean-in.svg',
+    'LeanIn',
+  );
+
+  final String assetPath;
+  final String svgPath;
+
+  /// Name passed to the platform handler over `firebrat/launcher_icon`;
+  /// null means the platform default (primary) icon.
+  final String? nativeName;
+
+  const LauncherIconVariant(this.assetPath, this.svgPath, this.nativeName);
 }
