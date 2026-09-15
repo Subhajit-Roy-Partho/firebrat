@@ -26,6 +26,9 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Bump Gradle heap for CI (16GB runner; repo default targets 6GB sandbox)
+        run: sed -i 's/-Xmx1200m/-Xmx4G/' frontend/firebrat_app/android/gradle.properties
+
       - name: Flutter pub get
         working-directory: frontend/firebrat_app
         run: flutter pub get
@@ -86,9 +89,14 @@ jobs:
         working-directory: frontend/firebrat_app
         run: flutter pub get
 
-      - name: Build unsigned IPA
+      - name: Build unsigned iOS app + hand-pack IPA (no codesign)
         working-directory: frontend/firebrat_app
-        run: flutter build ipa --release --no-codesign
+        run: |
+          flutter build ios --release --no-codesign
+          mkdir -p build/ios/ipa Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -r build/ios/ipa/firebrat-unsigned.ipa Payload
+          rm -rf Payload
 
       - name: Upload unsigned IPA
         if: always()
