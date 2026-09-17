@@ -155,6 +155,9 @@ class ManifestSection(BaseModel):
     formula_refs: list[str] = Field(default_factory=list)
     table_refs: list[str] = Field(default_factory=list)
     needs_review: bool = False
+    # 0-based PDF page indices behind this section (from compiled.json's
+    # source_pages). Optional/additive — old packages simply have [].
+    source_pages: list[int] = Field(default_factory=list)
 
 class Manifest(BaseModel):
     schema_version: str = "1.0"
@@ -162,6 +165,10 @@ class Manifest(BaseModel):
     title: str
     author: str = ""
     source_pdf: str
+    # Package-relative path to the embedded source PDF (e.g. "source.pdf"),
+    # or None when the package predates source-PDF embedding. Optional/
+    # additive — old packages omit it and keep working.
+    source_pdf_path: str | None = None
     generated_at: str  # ISO8601
     pipeline_version: str = "0.1.0"
     narrator_voice: ManifestNarratorVoice = Field(default_factory=ManifestNarratorVoice)

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import '../services/download_manager.dart';
 
 class DownloadProgressIndicator extends StatelessWidget {
-  final double progress; // 0.0 - 1.0
+  final DownloadProgress progress;
   const DownloadProgressIndicator({super.key, required this.progress});
 
   @override
@@ -11,10 +12,11 @@ class DownloadProgressIndicator extends StatelessWidget {
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(value: progress, minHeight: 6),
+          child: LinearProgressIndicator(
+              value: progress.fraction.clamp(0.0, 1.0), minHeight: 6),
         ),
         const SizedBox(height: 4),
-        Text('${(progress * 100).toStringAsFixed(0)}%', style: Theme.of(context).textTheme.bodySmall),
+        Text(progress.label, style: Theme.of(context).textTheme.bodySmall),
       ],
     );
   }

@@ -33,8 +33,11 @@ Output JSON schema (strict):
 }}
 
 Rules:
-- Group content into 1-3 logical sections per chunk (e.g. "Clock Tree", "NVIC Priority Grouping").
-- Each segment is ONE sentence/utterance (15-30 words ideal). Break long paragraphs into multiple prose segments.
+- COMPLETE, UNABRIDGED COVERAGE (most important rule): narrate the chunk's full substantive content in document order. Cover every concept, definition, example, derivation step, numeric result, and caveat — each gets its own segment(s). The listener is audio-first and cannot see the pages, so anything you omit is lost to them.
+- FORBIDDEN: summarizing, condensing, skipping "minor" or "redundant" points, or merging distinct ideas into one sentence. Do not write an overview "about" the pages; narrate the content itself, point by point. Paraphrase into spoken English for TTS clarity, but preserve every substantive proposition — paraphrase is rewording, not shortening. The only text you may drop is boilerplate: running headers/footers, page numbers, and repeated chapter-title lines. Preserve specifics — numbers, names, quantities, and worked-example arithmetic must be spoken in full, never rounded away or replaced with vague gestures.
+- Use as many sections and segments as you need (up to ~8 sections for a ~10-page chunk; there is no 1-3 section cap). Split into a new section whenever the topic shifts (e.g. "Clock Tree", "NVIC Priority Grouping"). Prefer more, shorter sections over one long one, and never drop content to fit a section budget.
+- Each segment is ONE sentence/utterance (15-30 words ideal). Break long paragraphs into multiple prose segments — one source paragraph typically becomes several segments, never zero.
+- Coverage self-check: do not advance to the next section (and do not finish the chunk) until every numbered point, worked example, equation, figure/table worth mentioning, and caveat on that section's source_pages has its own segment(s). Mentally tick off each page, in order, before moving on.
 - For formula_callout segments: rewrite the relationship into spoken English in "text" (e.g. "the clock period T equals one over the frequency f"), AND put real LaTeX in "latex" (e.g. "T = \\frac{{1}}{{f}}"). Leave ref null — a formula id is assigned automatically from your latex. Only emit formula_callout when the source text actually states a mathematical relationship (an equation, not just a numeric spec like "100 MHz").
 - For figures/tables: one callout segment that says "As shown in Figure X, ..." with ref set from the catalog. Don't repeat the same figure more than once per section. Never set latex on these.
 - Heading segments: short title, ref and latex null.
@@ -87,7 +90,12 @@ def _build_user_message(chunk: dict) -> str:
         if not txt.strip() and not md.strip():
             blob += "[no extractable text on this page]\n"
         pages_text_parts.append(blob)
-    pages_text = "\n".join(pages_text_parts)[:15000]
+    pages_text = "\n".join(pages_text_parts)[:40000]
+    # Total cap is 40000 (not 15000): a 10-page chunk of dense textbook text
+    # is routinely 15-25k chars, and anything the cap cuts off here is content
+    # the LLM can never narrate — a silent summarizer. Per-page caps above
+    # still bound pathological pages; this total admits full chunks in the
+    # common case at the cost of input tokens only.
     return (
         header + "\n\n"
         + "CATALOG of available ids (only these may appear as ref):\n" + catalog_str + "\n\n"

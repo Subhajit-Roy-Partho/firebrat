@@ -16,12 +16,13 @@ class ImportManager {
   /// Opens the system file picker filtered to archive files. Returns null
   /// if the user cancelled.
   Future<File?> pickArchiveFile() async {
-    final result = await FilePicker.pickFiles(
+    // file_picker 12 returns the picked files directly (empty = cancelled).
+    final files = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['gz', 'tgz', 'zip'],
-      withData: false,
     );
-    final path = result?.files.single.path;
+    if (files.isEmpty) return null;
+    final path = files.single.path;
     if (path == null) return null;
     return File(path);
   }

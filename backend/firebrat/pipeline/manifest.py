@@ -3,10 +3,14 @@ import json
 import logging
 import os
 import datetime
+import shutil
 
 from firebrat.config import PIPELINE_VERSION, SCHEMA_VERSION, SAMPLE_RATE, TTS_EXAGGERATION, TTS_CFG_WEIGHT
 
 log = logging.getLogger(__name__)
+
+#: Relative path of the shipped source PDF inside the package, when present.
+SOURCE_PDF_FILENAME = "source.pdf"
 
 
 def build_manifest(
@@ -15,11 +19,18 @@ def build_manifest(
     title: str,
     source_pdf: str,
     voice_ref: str | None = None,
+    source_pdf_path: str | None = None,
 ) -> str:
     """Assemble manifest.json inside package_dir.
 
     Reads raw/raw_pages.json + compiled.json + sections/*/segments.json to compute
     durations, refs, counts.
+
+    source_pdf_path: optional absolute path to the original input PDF. When
+    given and the file exists, it is copied to <package_dir>/source.pdf and
+    the manifest records ``source_pdf_path: "source.pdf"`` so readers can
+    offer a "view source page" feature. Old packages without the file keep
+    ``source_pdf_path: null`` and still validate (additive field).
 
     Returns path to written manifest.json.
     """
@@ -165,8 +176,34 @@ def build_manifest(
             "formula_refs": formula_refs,
             "table_refs": table_refs,
             "needs_review": needs_review_flag,
+            "source_pages": list(sec.get("source_pages") or []),
         })
         total_duration += duration
+
+    # Ship the original PDF inside the package so readers can show the
+    # source page a section was narrated from. A source.pdf at the package
+    # root needs zero route changes: GET /books/{id}/assets/{path} serves
+    # any file under the package dir via resolve_asset(), and
+    # GET /books/{id}/download zips the whole package dir (os.walk over
+    # everything) — both verified in server/storage.py + routes/books.py.
+    # package.py's .tar.gz likewise walks the whole dir with no excludes.
+    shipped_source_pdf: str | None = None
+    if source_pdf_path and os.path.isfile(source_pdf_path):
+        try:
+            dest = os.path.join(package_dir, SOURCE_PDF_FILENAME)
+            if not os.path.isfile(dest) or (
+                    os.path.realpath(source_pdf_path) != os.path.realpath(dest)
+                    and os.path.getsize(dest) != os.path.getsize(source_pdf_path)):
+                shutil.copyfile(source_pdf_path, dest)
+                log.info("Copied source PDF into package: %s", dest)
+            shipped_source_pdf = SOURCE_PDF_FILENAME
+        except OSError as e:
+            log.warning("Could not copy source PDF %s into package (non-fatal): %s",
+                        source_pdf_path, e)
+    elif os.path.isfile(os.path.join(package_dir, SOURCE_PDF_FILENAME)):
+        # Rebuild (e.g. --retry-failed manifest refresh) without the param:
+        # keep referencing the already-embedded file instead of wiping it.
+        shipped_source_pdf = SOURCE_PDF_FILENAME
 
     # Resolve calm female defaults if voice file exists but not explicitly passed
     _eff_voice_for_manifest = voice_ref
@@ -180,6 +217,9 @@ def build_manifest(
         "title": title or book_id,
         "author": "",
         "source_pdf": source_pdf or book_id,
+        # "source.pdf" once embedded (convert.py passes the input path, or
+        # the backfill script copied it directly); None for older packages.
+        "source_pdf_path": shipped_source_pdf,
         "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
         "pipeline_version": PIPELINE_VERSION,
         "narrator_voice": {

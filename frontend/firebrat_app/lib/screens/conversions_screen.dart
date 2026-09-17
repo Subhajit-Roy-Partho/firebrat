@@ -99,9 +99,11 @@ class ConversionsScreen extends ConsumerWidget {
   }
 
   Future<void> _pickAndConvert(BuildContext context, WidgetRef ref, ConversionModePref mode) async {
-    final result = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf'], withData: false);
-    final path = result?.files.single.path;
-    if (path == null) return; // user cancelled
+    // file_picker 12 returns the picked files directly (empty = cancelled).
+    final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
+    if (files.isEmpty) return; // user cancelled
+    final path = files.single.path;
+    if (path == null) return;
 
     if (!context.mounted) return;
     if (mode == ConversionModePref.onDevice) {

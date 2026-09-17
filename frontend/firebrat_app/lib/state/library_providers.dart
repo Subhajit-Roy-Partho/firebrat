@@ -60,12 +60,28 @@ void invalidateLibrary(WidgetRef ref) {
   ref.invalidate(catalogProvider);
 }
 
-/// Tracks in-progress download percentage per book_id (0.0-1.0), absent = not downloading.
-class DownloadProgressNotifier extends Notifier<Map<String, double>> {
+/// Tracks in-progress downloads per book_id (absent = not downloading).
+/// Values are already monotonic per book (DownloadManager emits throttled,
+/// never-backward snapshots); this layer additionally clamps and drops
+/// stale/duplicate emissions so a rebuild storm can never jitter the UI.
+class DownloadProgressNotifier extends Notifier<Map<String, DownloadProgress>> {
   @override
-  Map<String, double> build() => {};
+  Map<String, DownloadProgress> build() => {};
 
-  void setProgress(String bookId, double p) {
+  DateTime _lastEmit = DateTime.fromMillisecondsSinceEpoch(0);
+
+  void setProgress(String bookId, DownloadProgress p) {
+    final prev = state[bookId];
+    if (prev != null && p.fraction < prev.fraction) return; // never backward
+    final now = DateTime.now();
+    final done = p.fraction >= 1.0;
+    if (!done &&
+        prev != null &&
+        (p.fraction - prev.fraction) < 0.002 &&
+        now.difference(_lastEmit).inMilliseconds < 250) {
+      return; // throttle: at most ~4 rebuilds/sec for sub-0.2% moves
+    }
+    _lastEmit = now;
     state = {...state, bookId: p};
   }
 
@@ -75,8 +91,8 @@ class DownloadProgressNotifier extends Notifier<Map<String, double>> {
   }
 }
 
-final downloadProgressProvider =
-    NotifierProvider<DownloadProgressNotifier, Map<String, double>>(DownloadProgressNotifier.new);
+final downloadProgressProvider = NotifierProvider<DownloadProgressNotifier,
+    Map<String, DownloadProgress>>(DownloadProgressNotifier.new);
 
 /// True while a local-file import is being extracted.
 class ImportInProgressNotifier extends Notifier<bool> {

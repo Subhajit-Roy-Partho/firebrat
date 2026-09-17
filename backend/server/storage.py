@@ -61,6 +61,15 @@ def resolve_asset(book_id: str, asset_path: str) -> str | None:
         return None
     return full
 
+def _sha256_file(path: str) -> str:
+    """Streamed sha256 (chunked reads — never loads a ~500MB zip whole)."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(4 * 1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _dir_size(path: str) -> int:
     total = 0
     for dirpath, _, filenames in os.walk(path):
@@ -110,8 +119,10 @@ def delete_book(book_id: str) -> bool:
             pass
     return True
 
-# Simple zip cache: {book_id: (mtime, zip_path)}
-_zip_cache: dict[str, tuple[float, str]] = {}
+# Simple zip cache: {book_id: (mtime, zip_path, size_bytes, sha256)}
+# size/sha256 are computed once at build time (hashing ~500MB takes a few
+# seconds) so the checksum endpoint and clients never pay for it twice.
+_zip_cache: dict[str, tuple[float, str, int, str]] = {}
 
 def get_or_build_zip(book_id: str) -> str | None:
     """Return path to zip for book_id, building/caching as needed. Caller should not delete."""
@@ -133,5 +144,24 @@ def get_or_build_zip(book_id: str) -> str | None:
                 full = os.path.join(dirpath, fn)
                 arc = os.path.relpath(full, pkg)
                 z.write(full, arc)
-    _zip_cache[book_id] = (mtime, zpath)
+    size_bytes = os.path.getsize(zpath)
+    sha256 = _sha256_file(zpath)
+    _zip_cache[book_id] = (mtime, zpath, size_bytes, sha256)
     return zpath
+
+
+def get_zip_info(book_id: str) -> dict | None:
+    """Size + sha256 of the book's download zip, building it first if needed.
+
+    Lets the app verify a completed download (and resume a partial one from
+    the right total) without trusting a truncated/retried transfer. Returns
+    None if book_id doesn't resolve to a real package.
+    """
+    zpath = get_or_build_zip(book_id)
+    if zpath is None:
+        return None
+    cached = _zip_cache.get(book_id)
+    if cached is None or not os.path.isfile(cached[1]):
+        return None
+    _, _, size_bytes, sha256 = cached
+    return {"book_id": book_id, "size_bytes": size_bytes, "sha256": sha256}

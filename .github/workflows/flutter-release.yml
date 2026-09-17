@@ -30,6 +30,16 @@ jobs:
         working-directory: frontend/firebrat_app
         run: flutter pub get
 
+      # CI-only heap bump: the committed gradle.properties pins -Xmx1200m +
+      # daemon=false for the 6GB SLURM sandbox (see that file's header — that
+      # constraint is real locally, so the file itself stays small). CI
+      # runners have 16GB and release R8 minification over the heavy native
+      # libs (llama.cpp, ONNX Runtime, syncfusion viewer) OOMs at 1200m —
+      # raise to -Xmx6g here only.
+      - name: Raise Gradle heap for CI (release)
+        working-directory: frontend/firebrat_app
+        run: sed -i 's/-Xmx1200m/-Xmx6g/; s/MaxMetaspaceSize=512m/MaxMetaspaceSize=2g/' android/gradle.properties
+
       - name: Analyze
         working-directory: frontend/firebrat_app
         run: flutter analyze

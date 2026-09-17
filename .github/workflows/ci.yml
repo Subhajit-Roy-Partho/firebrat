@@ -16,7 +16,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: pip
+        # NOTE: no `cache: pip` here — the repo has no requirements*.txt or
+        # pyproject.toml (serve deps are a conda env + the inline pip line
+        # below), and setup-python errors when its cache globs match no file.
       - name: Install serve deps
         run: |
           pip install -r backend/requirements-serve.txt 2>/dev/null || pip install fastapi uvicorn pydantic pytest anyio httpx pydub soundfile
@@ -60,6 +62,14 @@ jobs:
       - name: Flutter pub get
         working-directory: frontend/firebrat_app
         run: flutter pub get
+      # CI-only heap bump: the committed gradle.properties pins -Xmx1200m +
+      # daemon=false for the 6GB SLURM sandbox (see that file's header). CI
+      # runners have 16GB, and dexing the heavy native libs (llama.cpp,
+      # ONNX Runtime, syncfusion viewer) still wants headroom even though
+      # debug skips R8 — so raise to -Xmx4g here only. Local file untouched.
+      - name: Raise Gradle heap for CI (debug)
+        working-directory: frontend/firebrat_app
+        run: sed -i 's/-Xmx1200m/-Xmx4g/; s/MaxMetaspaceSize=512m/MaxMetaspaceSize=1g/' android/gradle.properties
       - name: Build APK (debug)
         working-directory: frontend/firebrat_app
         run: flutter build apk --debug
@@ -77,6 +87,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Install smoke-test deps
+        run: pip install pydantic requests
       - name: Import check (no torch/marker needed)
         run: |
           PYTHONPATH=backend python -c "from firebrat.pipeline.schema import Manifest; print('schema ok')"

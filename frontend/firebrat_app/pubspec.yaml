@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.3.0+3
+version: 1.3.1+4
 
 environment:
   sdk: ^3.11.1
@@ -40,14 +40,25 @@ dependencies:
   photo_view: ^0.15.0
   flutter_math_fork: ^0.7.4
   dio: ^5.11.0
-  path_provider: ^2.1.6
-  shared_preferences: ^2.5.3
-  file_picker: ^11.0.3
-  archive: ^4.0.7
-  audio_service: ^0.18.19
+  crypto: ^3.0.6
+  flutter_foreground_task: ^10.0.0
   mobile_backend_pipeline:
     path: ../../mobile-Backend
-  flutter_foreground_task: ^10.0.0
+  path_provider: ^2.1.6
+  shared_preferences: ^2.5.3
+  file_picker: ^12.0.0
+  archive: ^4.0.7
+  audio_service: ^0.18.19
+  syncfusion_flutter_pdfviewer: ^34.2.4
+
+# syncfusion_flutter_pdfviewer 34.x needs device_info_plus ^13 while
+# mobile_backend_pipeline's cactus 1.3.0 pins ^11.5.0. Cactus only uses
+# stable DeviceInfoPlugin getters (androidInfo.model/brand,
+# iosInfo.modelName, ...) present in v13, so force v13 here. Re-check
+# this override when cactus releases >1.3.0.
+dependency_overrides:
+  device_info_plus: ^13.1.0
+  win32: ^6.0.1
 
 dev_dependencies:
   flutter_test:

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import '../models/book.dart';
+import '../services/download_manager.dart';
 import 'download_progress_indicator.dart';
 
 class BookCard extends StatelessWidget {
   final BookSummary book;
   final bool isDownloaded;
-  final double? downloadProgress; // null = not downloading
+  final DownloadProgress? downloadProgress; // null = not downloading
   final VoidCallback onTap;
 
   const BookCard({

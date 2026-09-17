@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/book.dart';
+import '../services/download_manager.dart';
 import '../state/library_providers.dart';
 import '../state/theme_providers.dart';
 import '../widgets/book_card.dart';
@@ -114,9 +115,19 @@ class LibraryScreen extends ConsumerWidget {
     }
     final dm = ref.read(downloadManagerProvider);
     final notifier = ref.read(downloadProgressProvider.notifier);
-    notifier.setProgress(book.bookId, 0.0);
+    // Tap guard: an in-flight download for this book already exists
+    // (single-flight in DownloadManager) — don't stack another one.
+    if (DownloadManager.isDownloading(book.bookId)) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Download already in progress…')),
+        );
+      }
+      return;
+    }
     try {
-      await dm.downloadAndExtract(book.bookId, onProgress: (p) => notifier.setProgress(book.bookId, p));
+      await dm.downloadAndExtract(book.bookId,
+          onProgress: (p) => notifier.setProgress(book.bookId, p));
       notifier.clear(book.bookId);
       invalidateLibrary(ref);
     } catch (e) {

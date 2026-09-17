@@ -70,6 +70,20 @@ class MobileConversionPipeline {
     final bookDir = '$booksRootDir/$bookId';
     await Directory(bookDir).create(recursive: true);
 
+    // Ship the source PDF inside the package so the reader can offer a
+    // "view source page" feature (mirrors the server pipeline's
+    // source.pdf handling — same relative path, same manifest fields).
+    const sourcePdfPath = 'source.pdf';
+    String? shippedSourcePdf;
+    try {
+      await File(pdfPath).copy('$bookDir/$sourcePdfPath');
+      shippedSourcePdf = sourcePdfPath;
+    } catch (_) {
+      // A book without its source PDF is still fully readable — the
+      // reader simply hides the "Source page" button (old-package path).
+      shippedSourcePdf = null;
+    }
+
     _report('extracting', 'reading PDF text layer', 0.0);
     final extraction = await MobilePdfTextExtractor.extractPages(pdfPath);
     if (extraction.ocrCandidatePageIndices.isNotEmpty) {
@@ -170,6 +184,7 @@ class MobileConversionPipeline {
           figureRefs: const [],
           formulaRefs: formulaRefs,
           tableRefs: const [],
+          sourcePages: section.sourcePages,
         ));
 
         _report('synthesizing', '${i + 1}/${compiledSections.length} sections', (i + 1) / compiledSections.length);
@@ -189,6 +204,7 @@ class MobileConversionPipeline {
       formulas: manifestFormulas,
       tables: const [],
       narratorEngine: narratorEngineName,
+      sourcePdfPath: shippedSourcePdf,
     );
     await File('$bookDir/manifest.json').writeAsString(jsonEncode(manifest.toJson()));
 

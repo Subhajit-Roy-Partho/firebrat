@@ -53,8 +53,14 @@ tts/on_device_tts.dart               — flutter_tts per segment, assembled
  │                                      tts/caf_utils.dart (iOS, CAF)
  ▼
 pipeline/mobile_conversion_pipeline.dart  — orchestrates the above, writes
-                                             manifest.json + sections/*/
-                                             (docs/DATA_SCHEMA.md shape)
+                                              manifest.json + sections/*/
+                                              (docs/DATA_SCHEMA.md shape),
+                                              including `source.pdf` (a copy of
+                                              the input PDF) with manifest
+                                              `source_pdf_path` + per-section
+                                              `source_pages`, so the reader's
+                                              "View source page" works for
+                                              on-device conversions too
 ```
 
 ### Background execution + notifications

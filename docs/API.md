@@ -46,6 +46,10 @@ Streams a zip of the entire package (manifest + all section audio + all assets).
 
 This is the only endpoint the Flutter app calls beyond `/books` and this download — once extracted locally, the reader never talks to the server again.
 
+## `GET /books/{book_id}/checksum`
+
+`{"book_id", "size_bytes", "sha256"}` for the exact bytes `/download` currently serves (same mtime-keyed cache, so both always agree). The app fetches this before downloading — a partial `.part` file resumes via `Range` against the right total — and verifies the completed file's sha256 before extracting, redownloading from scratch on mismatch. 404 if the book doesn't exist.
+
 ## `GET /books/{book_id}/assets/{path}`
 
 Serves one file from inside the package by its relative path (e.g. `assets/figures/fig_0001.png`, or `sections/sec_0001/audio.m4a`). Guards against path traversal — a `path` that resolves outside the book's directory 404s rather than serving anything. Exists for partial/lazy fetch of individual assets; the app's main flow uses the bulk `/download` zip instead.

@@ -1,14 +1,22 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Firebrat — Audiobooks for technical books, built to be listened to</title>
 <meta name="description" content="Firebrat converts technical PDFs into narrated audiobooks that keep figures and formulas visible and synced — built for readers who find sustained silent reading difficult.">
+<meta name="theme-color" content="#0b0714">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
+
+<div class="bg-scene" aria-hidden="true">
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+  <div class="orb orb-c"></div>
+  <div class="gridlines"></div>
+</div>
 
 <nav class="site-nav">
   <div class="wrap">
@@ -34,43 +42,45 @@
   </div>
 </nav>
 
-<header class="hero">
-  <div class="hero-glow" aria-hidden="true"></div>
-  <div class="wrap">
-    <span class="eyebrow">Audio-first reading, built for real technical books</span>
-    <h1>Listen to the book. See what matters, right when it matters.</h1>
-    <p class="lede">Firebrat turns a technical PDF — the kind with circuit diagrams, register tables, and equations — into a narrated audiobook that keeps the right figure or formula visible and highlighted exactly while it's being talked about. Nothing gets flattened into noise.</p>
-    <div class="hero-actions">
-      <a class="btn btn-primary btn-lg" href="https://github.com/Subhajit-Roy-Partho/firebrat/releases/latest">Download the app</a>
-      <a class="btn btn-ghost btn-lg" href="architecture.html">See how it works</a>
-    </div>
-    <div class="hero-stats">
-      <div class="stat"><b>3</b><span>pipeline stages, one command</span></div>
-      <div class="stat"><b>100%</b><span>offline after one download</span></div>
-      <div class="stat"><b>AGPL-3.0</b><span>free and open source</span></div>
+<header class="hero hero-future">
+  <canvas id="wave" aria-hidden="true"></canvas>
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <span class="eyebrow eyebrow-glow"><span class="pulse-dot" aria-hidden="true"></span>Audio-first reading · built for real technical books</span>
+      <h1>Listen to the book.<br><span class="grad-text">See what matters,</span><br>right when it matters.</h1>
+      <p class="lede">Firebrat turns a technical PDF — the kind with circuit diagrams, register tables, and equations — into a narrated audiobook that keeps the right figure or formula visible and highlighted exactly while it's being talked about. Nothing gets flattened into noise.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary btn-lg btn-glow" href="https://github.com/Subhajit-Roy-Partho/firebrat/releases/latest">Download the app</a>
+        <a class="btn btn-ghost btn-lg" href="architecture.html">See how it works</a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat"><b><span class="count" data-count="242">0</span></b><span>narrated sections in the flagship book</span></div>
+        <div class="stat"><b><span class="count" data-count="659">0</span></b><span>pages converted, figures intact</span></div>
+        <div class="stat"><b><span class="count" data-count="441">0</span>+ min</b><span>of synced audio per book</span></div>
+      </div>
     </div>
 
     <div class="mockup-wrap">
-      <div class="phone" role="img" aria-label="Illustration of the Firebrat reader screen: a figure gallery, a highlighted formula, narration text, and playback controls">
+      <div class="phone phone-live" role="img" aria-label="Animated preview of the Firebrat reader: narration lines highlight in turn, the formula chip glows, and the equalizer dances while the progress bar advances">
         <div class="phone-screen">
-          <div class="phone-topbar"><b>Ch. 8 — Synchronous DRAM</b></div>
+          <div class="phone-topbar"><b>Ch. 8 — Synchronous DRAM</b><span class="live-badge"><span class="pulse-dot"></span>LIVE SYNC</span></div>
           <div class="phone-progress"><i></i></div>
           <div class="gallery-row" aria-hidden="true">
-            <div class="thumb active"></div>
-            <div class="thumb"></div>
-            <div class="thumb"></div>
-            <div class="thumb"></div>
+            <div class="thumb t1"></div>
+            <div class="thumb t2"></div>
+            <div class="thumb t3"></div>
+            <div class="thumb t4"></div>
           </div>
           <div class="phone-lines" aria-hidden="true">
-            <div class="line"></div>
-            <div class="line short"></div>
+            <div class="nline n1"><span>SDRAM samples everything on the</span></div>
+            <div class="nline n2"><span>rising edge of the clock…</span></div>
             <div class="formula-chip">t<sub>CK</sub> = 1 / f = 10 ns</div>
-            <div class="line"></div>
-            <div class="line short"></div>
+            <div class="nline n3"><span>…so the period sets the tempo.</span></div>
           </div>
+          <div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
           <div class="phone-transport" aria-hidden="true">
             <span class="transport-dot"></span>
-            <span class="transport-play">
+            <span class="transport-play pulse-ring">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
             </span>
             <span class="transport-dot"></span>
@@ -81,40 +91,47 @@
   </div>
 </header>
 
+<div class="marquee" aria-hidden="true">
+  <div class="marquee-track">
+    <span>Figure-synced narration</span><span class="mq-dot">◆</span><span>Formula callouts</span><span class="mq-dot">◆</span><span>100% offline</span><span class="mq-dot">◆</span><span>Voice-cloned narrator</span><span class="mq-dot">◆</span><span>Tap-any-sentence seeking</span><span class="mq-dot">◆</span><span>Open source</span><span class="mq-dot">◆</span>
+    <span>Figure-synced narration</span><span class="mq-dot">◆</span><span>Formula callouts</span><span class="mq-dot">◆</span><span>100% offline</span><span class="mq-dot">◆</span><span>Voice-cloned narrator</span><span class="mq-dot">◆</span><span>Tap-any-sentence seeking</span><span class="mq-dot">◆</span><span>Open source</span><span class="mq-dot">◆</span>
+  </div>
+</div>
+
 <section id="features">
   <div class="wrap">
-    <div class="section-head">
+    <div class="section-head reveal">
       <span class="eyebrow">Why it's different</span>
       <h2>A plain text-to-speech pass destroys a technical book. Firebrat doesn't.</h2>
       <p>Most audiobook tools treat a PDF as a wall of text to flatten into speech. That breaks the moment a book says "as shown in Figure 6.65" or writes out an equation.</p>
     </div>
     <div class="grid grid-3">
-      <div class="card">
+      <div class="card card-glow reveal">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12h8M8 8h5M8 16h5"/></svg></div>
         <h3>Formulas, spoken and shown</h3>
         <p>An LLM recognizes the mathematical relationship in the page text, writes real narration for it, and Firebrat renders and highlights the actual formula on screen at the exact moment it's spoken.</p>
       </div>
-      <div class="card">
+      <div class="card card-glow reveal">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 15l5-5 4 4 5-6 4 4"/></svg></div>
         <h3>Every figure stays visible</h3>
         <p>The diagram currently being described gets emphasized — a glow, a border — but every other figure and table for that section stays in view and tappable. Nothing is ever hidden from you.</p>
       </div>
-      <div class="card">
+      <div class="card card-glow reveal">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l7-5 7 5M5 8v9l7 5 7-5V8"/></svg></div>
         <h3>Free to wander, never stuck</h3>
         <p>Tap any sentence to jump straight there. Skip forward, skip back, jump sections — always, regardless of whether autoplay is on. Autoplay is a convenience layered on top, never a constraint.</p>
       </div>
-      <div class="card">
+      <div class="card card-glow reveal">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zM2 12h20M12 2a15 15 0 010 20M12 2a15 15 0 000 20"/></svg></div>
         <h3>Fully offline once downloaded</h3>
         <p>Download or import a book once and the reader never needs a network again. Books are ordinary portable <code>.tar.gz</code> files — copy one to a phone over USB and open it directly, no server required at all.</p>
       </div>
-      <div class="card">
+      <div class="card card-glow reveal">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h13"/></svg></div>
         <h3>Text sized for you</h3>
         <p>Adjustable text scale, high-contrast highlighting, and short, sentence-length segments are core design decisions from day one — not accessibility bolted on after the fact.</p>
       </div>
-      <div class="card">
+      <div class="card card-glow reveal">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
         <h3>Locally-run narration</h3>
         <p>Narration is synthesized with an open-source TTS model running on your own hardware — no per-minute cloud TTS bill, no audio ever leaving the machine that converts the book.</p>
@@ -123,14 +140,31 @@
   </div>
 </section>
 
-<section class="alt" id="how-it-works">
+<section class="alt" id="sync-demo">
   <div class="wrap">
-    <div class="section-head">
+    <div class="section-head reveal">
+      <span class="eyebrow">The sync engine</span>
+      <h2>Audio and image, locked together in a loop</h2>
+      <p>Every section plays as a repeating cycle: the sentence sounds, the visual lights up. This is that loop, live.</p>
+    </div>
+    <div class="sync-loop" aria-hidden="true">
+      <div class="sync-node s1"><b>① Narration</b><span>"…as the timing diagram shows"</span><div class="eq eq-sm"><i></i><i></i><i></i><i></i><i></i></div></div>
+      <div class="sync-beam"></div>
+      <div class="sync-node s2"><b>② Figure</b><span>fig_0042 glows on screen</span><div class="fig-mini"></div></div>
+      <div class="sync-beam"></div>
+      <div class="sync-node s3"><b>③ Formula</b><span>t<sub>CK</sub> = 1/f renders + highlights</span><div class="formula-mini">t<sub>CK</sub> = 1/f</div></div>
+    </div>
+  </div>
+</section>
+
+<section id="how-it-works">
+  <div class="wrap">
+    <div class="section-head reveal">
       <span class="eyebrow">Under the hood</span>
       <h2>One command, three stages, a portable book</h2>
       <p>The full technical breakdown lives on the <a href="architecture.html">how it works</a> page — here's the shape of it.</p>
     </div>
-    <div class="pipeline">
+    <div class="pipeline pipeline-flow reveal">
       <div class="pipe-step">
         <span class="num">1</span>
         <h3>Extract</h3>
@@ -164,9 +198,31 @@
   </div>
 </section>
 
+<section class="alt" id="books">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Already converted</span>
+      <h2>Real books, ready to listen to</h2>
+      <p>Full technical textbooks — hundreds of pages each — converted end to end and served from the companion server.</p>
+    </div>
+    <div class="grid grid-2">
+      <div class="card card-glow book-card reveal">
+        <span class="eyebrow">Flagship · 659 pages</span>
+        <h3>Arm Fundamentals: System-on-Chip Design</h3>
+        <div class="book-stats"><span><b>242</b> sections</span><span><b>135</b> figures</span><span><b>73</b> formulas</span><span><b>~7.4h</b> audio</span></div>
+      </div>
+      <div class="card card-glow book-card reveal">
+        <span class="eyebrow">196 sections · 158 formulas</span>
+        <h3>Digital Design and Computer Architecture</h3>
+        <div class="book-stats"><span><b>196</b> sections</span><span><b>46</b> figures</span><span><b>158</b> formulas</span><span><b>~4.4h</b> audio</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="mission">
   <div class="wrap">
-    <div class="quote-block">
+    <div class="quote-block quote-future reveal">
       <p>"I'm dyslexic. Sustained silent reading of a 600-page technical textbook is genuinely exhausting and painful for me. Listening is how I actually get through dense material — but a technical book can't just be read aloud, the diagrams and formulas are load-bearing. Firebrat is the reader I built so I could stop choosing between the two."</p>
       <span>— from the project README</span>
     </div>
@@ -175,11 +231,11 @@
 
 <section class="alt">
   <div class="wrap">
-    <div class="cta">
+    <div class="cta cta-future reveal">
       <h2>Bring your own technical book</h2>
       <p>Firebrat is free, open source, and self-hosted. Convert a PDF on your own hardware, then read it on your phone — online or off.</p>
       <div class="hero-actions" style="justify-content:center">
-        <a class="btn btn-primary" href="https://github.com/Subhajit-Roy-Partho/firebrat/releases/latest">Download the app</a>
+        <a class="btn btn-primary btn-glow" href="https://github.com/Subhajit-Roy-Partho/firebrat/releases/latest">Download the app</a>
         <a class="btn btn-ghost" href="https://github.com/Subhajit-Roy-Partho/firebrat">View source on GitHub</a>
       </div>
     </div>

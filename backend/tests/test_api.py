@@ -58,3 +58,35 @@ def test_api_endpoints():
             assert client.delete("/books/testbook").status_code == 404  # already gone
         finally:
             cfg.OUTPUT_DIR = orig
+
+
+def test_checksum_endpoint():
+    """GET /books/{id}/checksum returns the exact size+sha256 of the
+    bytes /download serves, so the app can resume against the right total
+    and verify before extracting. 404 for unknown books."""
+    import hashlib
+    from fastapi.testclient import TestClient
+    import server.config as cfg
+    from server import storage
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _make_package(tmpdir, book_id="sumbook")
+        orig = cfg.OUTPUT_DIR
+        cfg.OUTPUT_DIR = tmpdir
+        try:
+            from server.main import app
+            client = TestClient(app)
+            assert client.get("/books/nonexistent/checksum").status_code == 404
+            info = client.get("/books/sumbook/checksum").json()
+            assert info["book_id"] == "sumbook"
+            assert info["size_bytes"] > 0 and len(info["sha256"]) == 64
+            z = client.get("/books/sumbook/download")
+            assert z.status_code == 200
+            assert len(z.content) == info["size_bytes"]
+            assert hashlib.sha256(z.content).hexdigest() == info["sha256"]
+            # second call is served from cache and agrees
+            again = client.get("/books/sumbook/checksum").json()
+            assert again == info
+        finally:
+            cfg.OUTPUT_DIR = orig
+            storage._zip_cache.pop("sumbook", None)

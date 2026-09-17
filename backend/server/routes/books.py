@@ -4,7 +4,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from server.storage import (
     list_book_ids, read_manifest, resolve_asset,
-    book_summary, get_or_build_zip, delete_book,
+    book_summary, get_or_build_zip, get_zip_info, delete_book,
 )
 
 router = APIRouter()
@@ -33,6 +33,20 @@ def download_book(book_id: str):
         raise HTTPException(status_code=404, detail="book not found or not packaged yet")
     return FileResponse(zpath, media_type="application/zip",
                         filename=f"{book_id}.zip")
+
+@router.get("/books/{book_id}/checksum")
+def get_checksum(book_id: str):
+    """Size + sha256 of the exact bytes `/download` serves for this book.
+
+    The app fetches this BEFORE downloading (so a partial `.part` file can
+    resume against the right total) and AFTER (to verify the completed file
+    before extracting). Building the zip the first time takes a while for
+    big books — that cost is paid once and cached by manifest mtime.
+    """
+    info = get_zip_info(book_id)
+    if info is None:
+        raise HTTPException(status_code=404, detail="book not found or not packaged yet")
+    return JSONResponse(content=info)
 
 @router.delete("/books/{book_id}")
 def remove_book(book_id: str):

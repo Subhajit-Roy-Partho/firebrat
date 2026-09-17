@@ -75,6 +75,7 @@ class ManifestSection {
   final List<String> formulaRefs;
   final List<String> tableRefs;
   final bool needsReview;
+  final List<int> sourcePages; // 0-based PDF page indices, from compilation
 
   const ManifestSection({
     required this.sectionId,
@@ -87,6 +88,7 @@ class ManifestSection {
     required this.formulaRefs,
     required this.tableRefs,
     this.needsReview = false,
+    this.sourcePages = const [],
   });
 
   Map<String, dynamic> toJson() => {
@@ -101,6 +103,7 @@ class ManifestSection {
         'formula_refs': formulaRefs,
         'table_refs': tableRefs,
         'needs_review': needsReview,
+        'source_pages': sourcePages,
       };
 }
 
@@ -115,6 +118,7 @@ class Manifest {
   final List<ManifestFormula> formulas;
   final List<ManifestTable> tables;
   final String narratorEngine; // "on_device_tts" for this pipeline's narration, distinguishing it from "chatterbox-tts"
+  final String? sourcePdfPath; // relative path of the shipped source PDF (e.g. "source.pdf"), null for old packages
 
   const Manifest({
     required this.bookId,
@@ -127,6 +131,7 @@ class Manifest {
     required this.formulas,
     required this.tables,
     required this.narratorEngine,
+    this.sourcePdfPath,
   });
 
   Map<String, dynamic> toJson() => {
@@ -150,6 +155,7 @@ class Manifest {
           'fallback_codec': null,
         },
         'total_duration_ms': totalDurationMs,
+        'source_pdf_path': sourcePdfPath,
         'sections': sections.map((s) => s.toJson()).toList(),
         'figures': figures.map((f) => f.toJson()).toList(),
         'formulas': formulas.map((f) => f.toJson()).toList(),

@@ -85,6 +85,7 @@ class ManifestSection {
   final List<String> formulaRefs;
   final List<String> tableRefs;
   final bool needsReview;
+  final List<int> sourcePages; // 0-based PDF page indices; empty for old packages
 
   const ManifestSection({
     required this.sectionId,
@@ -98,6 +99,7 @@ class ManifestSection {
     required this.formulaRefs,
     required this.tableRefs,
     required this.needsReview,
+    this.sourcePages = const [],
   });
 
   factory ManifestSection.fromJson(Map<String, dynamic> json) => ManifestSection(
@@ -112,6 +114,7 @@ class ManifestSection {
         formulaRefs: (json['formula_refs'] as List? ?? []).cast<String>(),
         tableRefs: (json['table_refs'] as List? ?? []).cast<String>(),
         needsReview: json['needs_review'] as bool? ?? false,
+        sourcePages: (json['source_pages'] as List? ?? []).map((e) => (e as num).toInt()).toList(),
       );
 }
 
@@ -126,6 +129,7 @@ class Manifest {
   final List<ManifestFigure> figures;
   final List<ManifestFormula> formulas;
   final List<ManifestTable> tables;
+  final String? sourcePdfPath; // relative path of the shipped source PDF (e.g. "source.pdf"); null for old packages
 
   const Manifest({
     required this.bookId,
@@ -138,6 +142,7 @@ class Manifest {
     required this.figures,
     required this.formulas,
     required this.tables,
+    this.sourcePdfPath,
   });
 
   factory Manifest.fromJson(Map<String, dynamic> json) => Manifest(
@@ -147,6 +152,7 @@ class Manifest {
         sourcePdf: json['source_pdf'] as String? ?? '',
         generatedAt: json['generated_at'] as String? ?? '',
         totalDurationMs: json['total_duration_ms'] as int? ?? 0,
+        sourcePdfPath: json['source_pdf_path'] as String?,
         sections: (json['sections'] as List? ?? [])
             .map((e) => ManifestSection.fromJson(e as Map<String, dynamic>))
             .toList(),

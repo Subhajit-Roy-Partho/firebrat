@@ -1,16 +1,74 @@
 import 'dart:io';
 import 'package:archive/archive_io.dart';
+import 'package:crypto/crypto.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart'
+    show BackgroundConversionRunner;
 import 'package:path_provider/path_provider.dart';
 import 'api_client.dart';
+import 'download_task_handler.dart';
+
+/// Phase-aware progress snapshot. The UI shows `downloadedMb/totalMb · pct`
+/// from this instead of a bare fraction — raw Dio chunk callbacks fire
+/// hundreds of times per second and bare fractions visibly jitter; the
+/// notifier smooths those into these stable snapshots.
+class DownloadProgress {
+  final double fraction; // 0.0–1.0, download mapped to 0–0.92, verify/extract above
+  final int receivedBytes;
+  final int? totalBytes; // null while the checksum endpoint is unreachable
+  final String phase; // 'downloading' | 'verifying' | 'extracting' | 'done'
+
+  const DownloadProgress({
+    required this.fraction,
+    required this.receivedBytes,
+    required this.totalBytes,
+    required this.phase,
+  });
+
+  String get label {
+    final got = _mb(receivedBytes);
+    final pct = (fraction.clamp(0.0, 1.0) * 100).toStringAsFixed(0);
+    if (totalBytes == null || totalBytes == 0) return '$got MB · $pct%';
+    return '$got / ${_mb(totalBytes!)} MB · $pct%';
+  }
+
+  static String _mb(int bytes) => (bytes / (1024 * 1024)).toStringAsFixed(0);
+}
 
 /// Downloads a book's zip package once and extracts it into the app's
 /// documents directory. After this, the reader reads only local files —
 /// no network needed (offline-first, per the project's design). Also used
 /// by ImportManager to locate/write into the same on-device book storage
 /// for books brought in from a local .tar.gz/.zip file instead.
+///
+/// Reliability contract (books are 300–500MB over an often-relayed
+/// Tailscale link, and Android kills backgrounded network):
+/// - Single-flight per bookId: concurrent taps share one future instead
+///   of interleaving two progress streams into the same file (that was
+///   the violent progress-bar fluctuation).
+/// - Resume: an interrupted transfer leaves a `.part` file; the next run
+///   continues from its length via HTTP Range (server answers 206), so a
+///   killed app or dropped relay never restarts from zero.
+/// - Integrity: the finished file's sha256 must match the server's
+///   `/checksum` before anything is extracted; mismatch deletes the part
+///   and retries fresh, up to [maxAttempts].
+/// - Streaming extract (`extractFileToDisk`) instead of readAsBytes +
+///   decodeBytes — the old path held the whole ~500MB zip plus the
+///   decoded archive in RAM at once (OOM → "error even after downloading
+///   all the files").
+/// - Foreground keep-alive: unless an on-device conversion already holds
+///   the foreground service, downloads run under their own lightweight
+///   service (see `download_task_handler.dart`) so backgrounding the app
+///   doesn't stall the transfer.
 class DownloadManager {
   final ApiClient api;
   DownloadManager(this.api);
+
+  static const int maxAttempts = 3;
+  static const int _downloadServiceId = 4202;
+
+  /// bookIds with a live download future. Cleared in `finally`.
+  static final Map<String, Future<Directory>> _inFlight = {};
 
   Future<Directory> booksDir() async {
     final docs = await getApplicationDocumentsDirectory();
@@ -66,18 +124,138 @@ class DownloadManager {
 
   Future<Directory> downloadAndExtract(
     String bookId, {
-    void Function(double progress)? onProgress,
-  }) async {
+    void Function(DownloadProgress progress)? onProgress,
+  }) {
+    // Single-flight: a second tap while downloading joins the same future
+    // instead of starting a rival transfer into the same `.part` file.
+    return _inFlight.putIfAbsent(bookId, () => _run(bookId, onProgress).whenComplete(() {
+          _inFlight.remove(bookId);
+        }));
+  }
+
+  /// True while [bookId] has a live download (UI tap guard).
+  static bool isDownloading(String bookId) => _inFlight.containsKey(bookId);
+
+  Future<Directory> _run(
+    String bookId,
+    void Function(DownloadProgress progress)? onProgress,
+  ) async {
     final books = await booksDir();
     final zipPath = '${books.path}/$bookId.zip';
-    await api.downloadBook(bookId, zipPath, onProgress: onProgress);
-
     final target = await bookDir(bookId);
-    final bytes = await File(zipPath).readAsBytes();
-    final archive = ZipDecoder().decodeBytes(bytes);
-    await extractArchiveTo(archive, target);
-    await File(zipPath).delete();
-    return target;
+
+    void emit(double fraction, int received, int? total, String phase) {
+      onProgress?.call(DownloadProgress(
+        fraction: fraction.clamp(0.0, 1.0),
+        receivedBytes: received,
+        totalBytes: total,
+        phase: phase,
+      ));
+    }
+
+    final serviceMine = await _ensureKeepAlive(bookId);
+    try {
+      final checksum = await api.getPackageChecksum(bookId);
+      final total = checksum.sizeBytes;
+      if (total <= 0) {
+        throw const DownloadIntegrityException('Server reported an empty package');
+      }
+
+      var attempt = 0;
+      while (true) {
+        attempt++;
+        try {
+          await api.downloadBook(
+            bookId,
+            zipPath,
+            expectedTotal: total,
+            onBytes: (received, _) {
+              emit(received / total * 0.92, received, total, 'downloading');
+              _updateNotification(bookId, received, total);
+            },
+          );
+          emit(0.94, total, total, 'verifying');
+          await _verifySha256(zipPath, checksum.sha256);
+          break; // verified — fall through to extraction
+        } on DownloadIntegrityException {
+          // Stale/mismatched part file or a failed verification: discard
+          // and retry from zero. Bounded — a persistently bad server file
+          // must surface, not loop forever.
+          await _deleteQuietly(File('$zipPath.part'));
+          await _deleteQuietly(File(zipPath));
+          if (attempt >= maxAttempts) rethrow;
+        }
+      }
+
+      emit(0.96, total, total, 'extracting');
+      if (await target.exists()) await target.delete(recursive: true);
+      await target.create(recursive: true);
+      // Streaming extract — entries are written as they are read, so peak
+      // memory stays flat instead of spiking to ~2x the zip size.
+      extractFileToDisk(zipPath, target.path);
+      if (!await File('${target.path}/manifest.json').exists()) {
+        throw StateError('Package at ${target.path} is missing manifest.json');
+      }
+      await _deleteQuietly(File(zipPath));
+      emit(1.0, total, total, 'done');
+      return target;
+    } finally {
+      if (serviceMine) {
+        try {
+          await FlutterForegroundTask.stopService();
+        } catch (_) {}
+      }
+    }
+  }
+
+  /// Verifies the downloaded zip against the server's sha256, streaming
+  /// the file (never loads a 500MB package into memory for hashing).
+  Future<void> _verifySha256(String zipPath, String expected) async {
+    final digest = await sha256.bind(File(zipPath).openRead()).first;
+    if (digest.toString() != expected.toLowerCase()) {
+      throw DownloadIntegrityException(
+          'Checksum mismatch for $zipPath — expected $expected');
+    }
+  }
+
+  /// Starts the lightweight download keep-alive service unless an
+  /// on-device conversion already holds the foreground service (its
+  /// service keeps the process alive just as well). Returns true when
+  /// this download owns the service and must stop it afterwards.
+  Future<bool> _ensureKeepAlive(String bookId) async {
+    try {
+      await BackgroundConversionRunner.requestPermissions();
+      if (await FlutterForegroundTask.isRunningService) return false;
+      final res = await FlutterForegroundTask.startService(
+        serviceId: _downloadServiceId,
+        notificationTitle: 'Downloading book…',
+        notificationText: 'Starting…',
+        callback: downloadTaskCallback,
+      );
+      return res is! ServiceRequestFailure;
+    } catch (_) {
+      // Keep-alive is best-effort: resume + checksum still make a killed
+      // download recoverable with one tap, so never fail the download
+      // itself because the service couldn't start.
+      return false;
+    }
+  }
+
+  void _updateNotification(String bookId, int received, int total) {
+    try {
+      final pct = (received / total * 100).toStringAsFixed(0);
+      FlutterForegroundTask.updateService(
+        notificationTitle: 'Downloading book… $pct%',
+        notificationText:
+            '${DownloadProgress._mb(received)} / ${DownloadProgress._mb(total)} MB',
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _deleteQuietly(File f) async {
+    try {
+      if (await f.exists()) await f.delete();
+    } catch (_) {}
   }
 
   Future<void> deleteBook(String bookId) async {

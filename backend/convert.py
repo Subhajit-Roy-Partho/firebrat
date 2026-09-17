@@ -221,9 +221,11 @@ def main():
 
     # ── Pre-stage 3: build a minimal manifest early so we have section ids before TTS ──
     # If compiled exists but no manifest yet, create one (TTS will populate audio later)
+    # (source_pdf_path lets build_manifest embed the source PDF as source.pdf)
     if compiled_path and not os.path.isfile(os.path.join(pkg_dir, "manifest.json")):
         try:
-            build_manifest(pkg_dir, book_id, title, os.path.basename(pdf_path), voice_ref=args.voice_ref)
+            build_manifest(pkg_dir, book_id, title, os.path.basename(pdf_path), voice_ref=args.voice_ref,
+                           source_pdf_path=pdf_path)
         except Exception as e:
             log.warning("Early manifest build failed (non-fatal): %s", e)
 
@@ -341,7 +343,8 @@ def main():
 
     # ── Final manifest ───────────────────────────────────────────
     try:
-        mpath = build_manifest(pkg_dir, book_id, title, os.path.basename(pdf_path), voice_ref=args.voice_ref)
+        mpath = build_manifest(pkg_dir, book_id, title, os.path.basename(pdf_path), voice_ref=args.voice_ref,
+                               source_pdf_path=pdf_path)
         log.info("Manifest: %s", mpath)
         # Brief summary
         with open(mpath, "r", encoding="utf-8") as f:
