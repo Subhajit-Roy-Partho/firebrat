@@ -42,7 +42,12 @@ class MobileConversionTaskHandler extends TaskHandler {
         llmBaseUrl: request.llmBaseUrl,
         llmApiKey: request.llmApiKey,
         llmModel: request.llmModel,
-        onDeviceModelSlug: request.onDeviceModelSlug,
+        onDeviceLlmModelId: request.onDeviceLlmModelId,
+        onDeviceGpuLayers: request.onDeviceGpuLayers,
+        voiceEngine: request.voiceEngine == 'kokoroOnnx'
+            ? OnDeviceVoiceEngine.kokoroOnnx
+            : OnDeviceVoiceEngine.stockTts,
+        kokoroVoice: request.kokoroVoice,
       ),
       onProgress: (p) {
         FlutterForegroundTask.sendDataToMain({
@@ -61,6 +66,7 @@ class MobileConversionTaskHandler extends TaskHandler {
       final bookId = await pipeline.convert(
         pdfPath: request.pdfPath,
         booksRootDir: request.booksRootDir,
+        modelsDir: request.modelsDir,
         titleOverride: request.titleOverride,
       );
       await ConversionRequest.clear(stateDir);

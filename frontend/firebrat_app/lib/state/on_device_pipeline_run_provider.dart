@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart' show ServiceRequestFailure;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart';
+import 'package:path_provider/path_provider.dart';
 import 'library_providers.dart';
 import 'on_device_conversion_providers.dart';
 
@@ -77,6 +78,9 @@ Future<String> runOnDeviceConversion(WidgetRef ref, String pdfPath) async {
   final request = ConversionRequest(
     pdfPath: pdfPath,
     booksRootDir: booksDir.path,
+    // Stable app-storage dir (not temp) so multi-GB GGUF/ONNX weights
+    // survive across conversions — see MobileConversionPipeline.convert.
+    modelsDir: '${(await getApplicationSupportDirectory()).path}/firebrat_models',
     llmBaseUrl: settings.onDeviceLlmUrl,
     llmApiKey: settings.onDeviceLlmApiKey,
     llmModel: settings.onDeviceLlmModel,

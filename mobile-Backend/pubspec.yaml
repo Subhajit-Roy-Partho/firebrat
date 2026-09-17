@@ -13,8 +13,10 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_foreground_task: ^10.0.0
+  flutter_kokoro_tts: ^0.0.1
   flutter_tts: ^4.2.5
   google_mlkit_text_recognition: ^0.16.0
+  llama_cpp_dart: ^0.2.2
   path_provider: ^2.1.6
   syncfusion_flutter_pdf: ^34.2.4
 

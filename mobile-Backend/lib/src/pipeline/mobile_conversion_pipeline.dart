@@ -3,11 +3,14 @@ import 'dart:io';
 import '../compilation/chunker.dart';
 import '../compilation/cloud_compiler.dart';
 import '../compilation/compilation_router.dart';
+import '../compilation/model_catalog.dart';
 import '../compilation/on_device_compiler.dart';
 import '../extraction/pdf_text_extractor.dart';
 import '../models/compiled_models.dart';
 import '../models/conversion_settings.dart';
 import '../models/manifest_models.dart';
+import '../tts/kokoro_tts_engine.dart';
+import '../tts/narration_engine.dart';
 import '../tts/on_device_tts.dart';
 import '../util/ids.dart';
 
@@ -33,8 +36,9 @@ typedef ProgressCallback = void Function(MobileConversionProgress progress);
 /// indistinguishable to the reader from one downloaded from a server.
 ///
 /// See package README "Known limitations" — no figure/table extraction in
-/// this v1 (empty catalog), and TTS is a fixed on-device voice, not the
-/// cloud pipeline's cloned narrator voice.
+/// this v1 (empty catalog), and both on-device voice options (stock TTS or
+/// Kokoro-82M, see `models/conversion_settings.dart`'s `OnDeviceVoiceEngine`)
+/// are fixed-preset voices, not the cloud pipeline's cloned narrator voice.
 class MobileConversionPipeline {
   final OnDeviceModeSettings settings;
   final ProgressCallback? onProgress;
@@ -50,9 +54,14 @@ class MobileConversionPipeline {
   /// same directory `DownloadManager.booksDir()` uses in the host app so
   /// the result shows up in the existing library listing with zero glue
   /// code beyond calling this pipeline instead of the network download path.
+  /// [modelsDir] is where downloaded on-device model weights (LLM GGUF,
+  /// Kokoro's ONNX model) are cached across conversions — pass a stable
+  /// app-storage directory (e.g. application-support, not a temp dir) so
+  /// a multi-GB model isn't re-downloaded on every book.
   Future<String> convert({
     required String pdfPath,
     required String booksRootDir,
+    required String modelsDir,
     String? titleOverride,
   }) async {
     final fileName = pdfPath.split(Platform.pathSeparator).last;
@@ -78,9 +87,13 @@ class MobileConversionPipeline {
     final chunks = chunkPages(extraction.pages, chunkPages: 10);
     _report('compiling', '0/${chunks.length} chunks', 0.0);
 
-    final onDeviceCompiler = OnDeviceCompiler(modelSlug: settings.onDeviceModelSlug ?? 'qwen3-0.6');
+    final onDeviceCompiler = OnDeviceCompiler(
+      model: findOnDeviceLlmModel(settings.onDeviceLlmModelId),
+      gpuLayers: settings.onDeviceGpuLayers,
+    );
     await onDeviceCompiler.ensureReady(
-      onProgress: (progress, status) => _report('compiling', 'downloading on-device model: $status', progress),
+      modelsDir: '$modelsDir/llm',
+      onProgress: (progress, status) => _report('compiling', status, progress),
     );
     final cloudCompiler = CloudCompiler(settings);
     final router = CompilationRouter(onDeviceCompiler: onDeviceCompiler, cloudCompiler: cloudCompiler);
@@ -97,7 +110,19 @@ class MobileConversionPipeline {
     }
 
     _report('synthesizing', '0/${compiledSections.length} sections', 0.0);
-    final tts = OnDeviceTts();
+    final NarrationEngine tts;
+    final String narratorEngineName;
+    if (settings.voiceEngine == OnDeviceVoiceEngine.kokoroOnnx) {
+      final kokoro = KokoroTtsEngine(voice: settings.kokoroVoice);
+      await kokoro.ensureReady(
+        onProgress: (progress, status) => _report('synthesizing', status, progress),
+      );
+      tts = kokoro;
+      narratorEngineName = 'kokoro_onnx';
+    } else {
+      tts = OnDeviceTts();
+      narratorEngineName = 'on_device_tts';
+    }
     final manifestSections = <ManifestSection>[];
     final manifestFormulas = <ManifestFormula>[];
     var totalDurationMs = 0;
@@ -163,7 +188,7 @@ class MobileConversionPipeline {
       figures: const [],
       formulas: manifestFormulas,
       tables: const [],
-      narratorEngine: 'on_device_tts',
+      narratorEngine: narratorEngineName,
     );
     await File('$bookDir/manifest.json').writeAsString(jsonEncode(manifest.toJson()));
 

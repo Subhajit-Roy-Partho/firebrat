@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/book.dart';
 import '../state/on_device_conversion_providers.dart';
 import '../state/server_books_providers.dart';
+import '../utils/server_url.dart';
 
 /// The one choice this app needs from the user for "how do I convert a new
 /// book": send it to a Firebrat server, or convert it on this device. Cloud
@@ -75,11 +76,18 @@ class _ConversionSettingsScreenState extends ConsumerState<ConversionSettingsScr
           FilledButton(
             onPressed: () async {
               if (settings.mode == ConversionModePref.cloud) {
-                await notifier.setCloudServerUrl(_cloudUrlController.text.trim());
+                // Normalize first so a bare `100.87.251.5` becomes
+                // `http://100.87.251.5:8000` — and write it back into the
+                // field so the user sees the scheme/port appear.
+                final normalized = normalizeServerUrl(_cloudUrlController.text);
+                _cloudUrlController.text = normalized;
+                await notifier.setCloudServerUrl(normalized);
                 await ref.read(serverBooksProvider.notifier).check();
               } else {
+                final normalizedUrl = normalizeLlmUrl(_llmUrlController.text);
+                _llmUrlController.text = normalizedUrl;
                 await notifier.setOnDeviceLlm(
-                  url: _llmUrlController.text.trim(),
+                  url: normalizedUrl,
                   apiKey: _llmKeyController.text.trim(),
                   model: _llmModelController.text.trim(),
                 );

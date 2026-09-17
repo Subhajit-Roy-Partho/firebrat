@@ -4,6 +4,7 @@ import '../services/api_client.dart';
 import '../services/download_manager.dart';
 import '../services/import_manager.dart';
 import '../services/library_repository.dart';
+import '../utils/server_url.dart';
 import 'on_device_conversion_providers.dart';
 
 /// Compile-time fallback only — override at build time with
@@ -22,7 +23,10 @@ const _defaultApiBaseUrl = String.fromEnvironment(
 /// there takes effect app-wide immediately.
 final apiClientProvider = Provider<ApiClient>((ref) {
   final savedUrl = ref.watch(conversionModeProvider).cloudServerUrl.trim();
-  return ApiClient(baseUrl: savedUrl.isNotEmpty ? savedUrl : _defaultApiBaseUrl);
+  // Defensive: values saved before URL normalization existed may lack a
+  // scheme/port — normalizing here keeps them working without a re-save.
+  final baseUrl = savedUrl.isNotEmpty ? normalizeServerUrl(savedUrl) : _defaultApiBaseUrl;
+  return ApiClient(baseUrl: baseUrl);
 });
 
 final downloadManagerProvider =

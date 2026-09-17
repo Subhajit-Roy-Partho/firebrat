@@ -6,6 +6,7 @@ import '../models/segment_models.dart';
 import '../models/compiled_models.dart';
 import '../util/ids.dart';
 import 'caf_utils.dart';
+import 'narration_engine.dart';
 import 'wav_utils.dart';
 
 /// Narrates one section's segments using the platform's built-in TTS
@@ -21,7 +22,7 @@ import 'wav_utils.dart';
 /// unverified — see `caf_utils.dart`'s doc comment. Both run through the
 /// same [WavAudio] assembly code once parsed, so a CAF-parsing bug would
 /// affect only iOS output, not Android's.
-class OnDeviceTts {
+class OnDeviceTts implements NarrationEngine {
   final FlutterTts _tts = FlutterTts();
   bool _configured = false;
 
@@ -40,6 +41,7 @@ class OnDeviceTts {
   /// Segments whose synthesis fails are still included with an estimated
   /// duration (silence) so one bad segment can't sink the whole section —
   /// mirrors `audio_assemble.py`'s fallback-duration behavior server-side.
+  @override
   Future<({String audioPath, SegmentsFile segmentsFile})> narrateSection({
     required String sectionId,
     required List<CompiledSegment> segments,
@@ -104,6 +106,7 @@ class OnDeviceTts {
   /// no need to write anything into it.
   static Uint8List _silencePcm(int sampleRate, int ms) => Uint8List((sampleRate * ms ~/ 1000) * 2);
 
+  @override
   void dispose() {
     _tts.stop();
   }

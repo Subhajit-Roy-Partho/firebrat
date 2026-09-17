@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/server_url.dart';
 
 /// How the app should convert a new PDF: send it to a Firebrat server
 /// (existing upload flow, `state/conversions_providers.dart`), or convert
@@ -73,14 +74,16 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
   }
 
   Future<void> setCloudServerUrl(String url) async {
-    state = state.copyWith(cloudServerUrl: url);
-    (await SharedPreferences.getInstance()).setString(_kCloudUrl, url);
+    final normalized = normalizeServerUrl(url);
+    state = state.copyWith(cloudServerUrl: normalized);
+    (await SharedPreferences.getInstance()).setString(_kCloudUrl, normalized);
   }
 
   Future<void> setOnDeviceLlm({required String url, required String apiKey, required String model}) async {
-    state = state.copyWith(onDeviceLlmUrl: url, onDeviceLlmApiKey: apiKey, onDeviceLlmModel: model);
+    final normalizedUrl = normalizeLlmUrl(url);
+    state = state.copyWith(onDeviceLlmUrl: normalizedUrl, onDeviceLlmApiKey: apiKey, onDeviceLlmModel: model);
     final prefs = await SharedPreferences.getInstance();
-    prefs.setString(_kLlmUrl, url);
+    prefs.setString(_kLlmUrl, normalizedUrl);
     prefs.setString(_kLlmKey, apiKey);
     prefs.setString(_kLlmModel, model);
   }

@@ -11,40 +11,56 @@ import 'dart:io';
 class ConversionRequest {
   final String pdfPath;
   final String booksRootDir;
+  final String modelsDir;
   final String? titleOverride;
   final String llmBaseUrl;
   final String llmApiKey;
   final String llmModel;
-  final String? onDeviceModelSlug;
+  final String? onDeviceLlmModelId;
+  final int onDeviceGpuLayers;
+  final String voiceEngine;
+  final String kokoroVoice;
 
   const ConversionRequest({
     required this.pdfPath,
     required this.booksRootDir,
+    required this.modelsDir,
     this.titleOverride,
     required this.llmBaseUrl,
     required this.llmApiKey,
     required this.llmModel,
-    this.onDeviceModelSlug,
+    this.onDeviceLlmModelId,
+    this.onDeviceGpuLayers = 99,
+    this.voiceEngine = 'stockTts',
+    this.kokoroVoice = 'Bella',
   });
 
   Map<String, dynamic> toJson() => {
         'pdfPath': pdfPath,
         'booksRootDir': booksRootDir,
+        'modelsDir': modelsDir,
         'titleOverride': titleOverride,
         'llmBaseUrl': llmBaseUrl,
         'llmApiKey': llmApiKey,
         'llmModel': llmModel,
-        'onDeviceModelSlug': onDeviceModelSlug,
+        'onDeviceLlmModelId': onDeviceLlmModelId,
+        'onDeviceGpuLayers': onDeviceGpuLayers,
+        'voiceEngine': voiceEngine,
+        'kokoroVoice': kokoroVoice,
       };
 
   factory ConversionRequest.fromJson(Map<String, dynamic> json) => ConversionRequest(
         pdfPath: json['pdfPath'] as String,
         booksRootDir: json['booksRootDir'] as String,
+        modelsDir: json['modelsDir'] as String,
         titleOverride: json['titleOverride'] as String?,
         llmBaseUrl: json['llmBaseUrl'] as String,
         llmApiKey: json['llmApiKey'] as String,
         llmModel: json['llmModel'] as String,
-        onDeviceModelSlug: json['onDeviceModelSlug'] as String?,
+        onDeviceLlmModelId: json['onDeviceLlmModelId'] as String?,
+        onDeviceGpuLayers: json['onDeviceGpuLayers'] as int? ?? 99,
+        voiceEngine: json['voiceEngine'] as String? ?? 'stockTts',
+        kokoroVoice: json['kokoroVoice'] as String? ?? 'Bella',
       );
 
   static String _filePath(String stateDir) => '$stateDir/firebrat_pending_conversion.json';

@@ -37,10 +37,14 @@ NANO_API_KEY = os.environ.get("NANO_API_KEY") or os.environ.get("MODEL_API_KEY",
 # as requested. See AGENTS.md.
 # NOTE 2026-08-21 full-book run: flash timed out on ~40% of chunks (240s x5 retries)
 # while pro:thinking succeeded on same pages — flash endpoint appears overloaded.
-# Both models are overridable via env so a run can force pro for all chunks:
-#   FIREBRAT_SPARK_MODEL=deepseek/deepseek-v4-pro:thinking python convert.py ...
-SPARK_MODEL = os.environ.get("FIREBRAT_SPARK_MODEL", "deepseek/deepseek-v4-flash")
-DEEPSEEK_MODEL = os.environ.get("FIREBRAT_DEEPSEEK_MODEL", "deepseek/deepseek-v4-pro:thinking")
+# 2026-09-16: switched both tiers from deepseek to z-ai/glm-5.3-flash per request.
+# Not yet verified against a live call — MODEL_API_KEY in backend/.env is currently
+# rejected by nano-gpt.com ("invalid_api_key") for every model, including the prior
+# deepseek default, so this couldn't be confirmed end-to-end. Re-check once the key
+# is refreshed. Both are overridable via env, e.g. to fall back to deepseek:
+#   FIREBRAT_SPARK_MODEL=deepseek/deepseek-v4-flash python convert.py ...
+SPARK_MODEL = os.environ.get("FIREBRAT_SPARK_MODEL", "z-ai/glm-5.3-flash")
+DEEPSEEK_MODEL = os.environ.get("FIREBRAT_DEEPSEEK_MODEL", "z-ai/glm-5.3-flash")
 
 # ── Audio / TTS ──────────────────────────────────────────────────
 SAMPLE_RATE = 24000
