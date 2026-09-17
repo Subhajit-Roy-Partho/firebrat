@@ -15,6 +15,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # softprops/action-gh-release creates the GitHub Release + uploads
+    # assets via GITHUB_TOKEN, which needs contents:write (this repo's
+    # workflow permissions default to read-only — without this the build
+    # succeeds but release creation 403s, as happened for v1.3.2).
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
