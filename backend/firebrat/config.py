@@ -56,7 +56,11 @@ TTS_CFG_WEIGHT = 0.45
 DEFAULT_VOICE_REF = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "voice", "narrator_ref.wav")
 
 # ── Pipeline ─────────────────────────────────────────────────────
-CHUNK_PAGES = 10           # pages per LLM chunk
+# Env-overridable for tests: smaller chunks keep each LLM generation short
+# enough to fit inside the endpoint's ~340s connection window (observed:
+# nano-gpt drops thinking-tier generations past ~5m40s). Production default
+# stays 10.
+CHUNK_PAGES = int(os.environ.get("FIREBRAT_CHUNK_PAGES", "10"))
 PIPELINE_VERSION = "0.1.0"
 SCHEMA_VERSION = "1.0"
 MIG_UUID = "MIG-b36117af-4e57-514f-a05d-13fb7d1c4280"

@@ -337,8 +337,15 @@ def run_compilation(raw_pages_path: str, output_dir: str, book_id: str | None = 
         ]
         log.info("Chunk %d/%d model=%s pages=%s", chunk["chunk_idx"]+1, len(chunks), model, chunk["page_range"])
         try:
-            parsed, used_model = chat_json(messages, model, temperature=0.2, max_tokens=7000,
-                                           retries_parse=3, fallback_model=fallback)
+            # Unabridged narration needs a large completion budget: a dense
+            # 10-page chunk can legitimately produce ~8 sections and 60+
+            # segments. A tight cap truncates mid-JSON, which fails
+            # validation and degrades the chunk to a placeholder (silent
+            # summarization by another name). Timeout is generous for the
+            # same reason — thinking-tier calls routinely run several
+            # minutes on long outputs.
+            parsed, used_model = chat_json(messages, model, temperature=0.2, max_tokens=16000,
+                                           retries_parse=3, fallback_model=fallback, timeout=600)
             parsed = _normalize_wrapper(parsed)
             parsed = _sanitize_refs(parsed)
             parsed = _sanitize_latex(parsed)
@@ -354,7 +361,7 @@ def run_compilation(raw_pages_path: str, output_dir: str, book_id: str | None = 
                 # retry once with fallback stronger model before giving up
                 if fallback and model != fallback:
                     log.warning("Chunk %d validation failed with %s (%s), retrying with fallback %s", chunk["chunk_idx"], model, ve, fallback)
-                    parsed2, _ = chat_json(messages, fallback, temperature=0.2, max_tokens=7000, retries_parse=3, fallback_model=None)
+                    parsed2, _ = chat_json(messages, fallback, temperature=0.2, max_tokens=16000, retries_parse=3, fallback_model=None, timeout=600)
                     parsed2 = _normalize_wrapper(parsed2)
                     parsed2 = _sanitize_refs(parsed2)
                     parsed2 = _sanitize_latex(parsed2)
