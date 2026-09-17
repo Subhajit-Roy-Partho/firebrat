@@ -16,6 +16,17 @@ class ConversionModeSettings {
   final String onDeviceLlmUrl;
   final String onDeviceLlmApiKey;
   final String onDeviceLlmModel;
+  /// Catalog id of the on-device GGUF model (see mobile_backend_pipeline's
+  /// kOnDeviceLlmCatalog), e.g. 'qwen3-4b'. Used for easy chunks; hard
+  /// chunks still go to the cloud LLM above.
+  final String onDeviceLlmModelId;
+  /// llama.cpp GPU offload layers: 99 = everything that fits (accelerated),
+  /// 0 = pure CPU fallback for uncooperative GPU drivers.
+  final int onDeviceGpuLayers;
+  /// 'stockTts' (platform voice, default) or 'kokoroOnnx' (on-device neural).
+  final String voiceEngine;
+  /// Kokoro preset voice name (kKokoroVoices), only used for kokoroOnnx.
+  final String kokoroVoice;
 
   const ConversionModeSettings({
     this.mode = ConversionModePref.cloud,
@@ -23,6 +34,10 @@ class ConversionModeSettings {
     this.onDeviceLlmUrl = '',
     this.onDeviceLlmApiKey = '',
     this.onDeviceLlmModel = '',
+    this.onDeviceLlmModelId = 'qwen3-4b',
+    this.onDeviceGpuLayers = 99,
+    this.voiceEngine = 'stockTts',
+    this.kokoroVoice = 'Bella',
   });
 
   ConversionModeSettings copyWith({
@@ -31,6 +46,10 @@ class ConversionModeSettings {
     String? onDeviceLlmUrl,
     String? onDeviceLlmApiKey,
     String? onDeviceLlmModel,
+    String? onDeviceLlmModelId,
+    int? onDeviceGpuLayers,
+    String? voiceEngine,
+    String? kokoroVoice,
   }) =>
       ConversionModeSettings(
         mode: mode ?? this.mode,
@@ -38,10 +57,16 @@ class ConversionModeSettings {
         onDeviceLlmUrl: onDeviceLlmUrl ?? this.onDeviceLlmUrl,
         onDeviceLlmApiKey: onDeviceLlmApiKey ?? this.onDeviceLlmApiKey,
         onDeviceLlmModel: onDeviceLlmModel ?? this.onDeviceLlmModel,
+        onDeviceLlmModelId: onDeviceLlmModelId ?? this.onDeviceLlmModelId,
+        onDeviceGpuLayers: onDeviceGpuLayers ?? this.onDeviceGpuLayers,
+        voiceEngine: voiceEngine ?? this.voiceEngine,
+        kokoroVoice: kokoroVoice ?? this.kokoroVoice,
       );
 
   bool get isOnDeviceConfigured =>
       onDeviceLlmUrl.trim().isNotEmpty && onDeviceLlmApiKey.trim().isNotEmpty && onDeviceLlmModel.trim().isNotEmpty;
+
+  bool get isKokoroVoice => voiceEngine == 'kokoroOnnx';
 }
 
 class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
@@ -50,6 +75,10 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
   static const _kLlmUrl = 'conversion.onDeviceLlmUrl';
   static const _kLlmKey = 'conversion.onDeviceLlmApiKey';
   static const _kLlmModel = 'conversion.onDeviceLlmModel';
+  static const _kLocalLlmId = 'conversion.onDeviceLlmModelId';
+  static const _kGpuLayers = 'conversion.onDeviceGpuLayers';
+  static const _kVoiceEngine = 'conversion.voiceEngine';
+  static const _kKokoroVoice = 'conversion.kokoroVoice';
 
   @override
   ConversionModeSettings build() {
@@ -65,6 +94,10 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
       onDeviceLlmUrl: prefs.getString(_kLlmUrl) ?? '',
       onDeviceLlmApiKey: prefs.getString(_kLlmKey) ?? '',
       onDeviceLlmModel: prefs.getString(_kLlmModel) ?? '',
+      onDeviceLlmModelId: prefs.getString(_kLocalLlmId) ?? 'qwen3-4b',
+      onDeviceGpuLayers: prefs.getInt(_kGpuLayers) ?? 99,
+      voiceEngine: prefs.getString(_kVoiceEngine) ?? 'stockTts',
+      kokoroVoice: prefs.getString(_kKokoroVoice) ?? 'Bella',
     );
   }
 
@@ -86,6 +119,27 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
     prefs.setString(_kLlmUrl, normalizedUrl);
     prefs.setString(_kLlmKey, apiKey);
     prefs.setString(_kLlmModel, model);
+  }
+
+  Future<void> setLocalLlmModel(String id) async {
+    state = state.copyWith(onDeviceLlmModelId: id);
+    (await SharedPreferences.getInstance()).setString(_kLocalLlmId, id);
+  }
+
+  Future<void> setGpuLayers(int layers) async {
+    state = state.copyWith(onDeviceGpuLayers: layers);
+    (await SharedPreferences.getInstance()).setInt(_kGpuLayers, layers);
+  }
+
+  Future<void> setVoiceEngine(String engine) async {
+    assert(engine == 'stockTts' || engine == 'kokoroOnnx');
+    state = state.copyWith(voiceEngine: engine);
+    (await SharedPreferences.getInstance()).setString(_kVoiceEngine, engine);
+  }
+
+  Future<void> setKokoroVoice(String voice) async {
+    state = state.copyWith(kokoroVoice: voice);
+    (await SharedPreferences.getInstance()).setString(_kKokoroVoice, voice);
   }
 }
 

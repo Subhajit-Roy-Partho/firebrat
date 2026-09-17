@@ -84,6 +84,13 @@ Future<String> runOnDeviceConversion(WidgetRef ref, String pdfPath) async {
     llmBaseUrl: settings.onDeviceLlmUrl,
     llmApiKey: settings.onDeviceLlmApiKey,
     llmModel: settings.onDeviceLlmModel,
+    // Local model / voice choices from "On-device models & voice" —
+    // previously hardcoded defaults, which is why the catalog and Kokoro
+    // existed in the pipeline but were unreachable from the app.
+    onDeviceLlmModelId: settings.onDeviceLlmModelId,
+    onDeviceGpuLayers: settings.onDeviceGpuLayers,
+    voiceEngine: settings.voiceEngine,
+    kokoroVoice: settings.kokoroVoice,
   );
   final result = await BackgroundConversionRunner.start(request);
   if (result is ServiceRequestFailure) {

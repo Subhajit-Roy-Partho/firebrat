@@ -4,6 +4,8 @@ import '../models/book.dart';
 import '../state/on_device_conversion_providers.dart';
 import '../state/server_books_providers.dart';
 import '../utils/server_url.dart';
+import 'on_device_models_screen.dart';
+import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart';
 
 /// The one choice this app needs from the user for "how do I convert a new
 /// book": send it to a Firebrat server, or convert it on this device. Cloud
@@ -153,7 +155,34 @@ class _ConversionSettingsScreenState extends ConsumerState<ConversionSettingsScr
             border: OutlineInputBorder(),
           ),
         ),
+        const SizedBox(height: 12),
+        const _OnDeviceModelsEntry(),
       ];
+}
+
+/// Entry point to the local-LLM + voice screen (model catalog download,
+/// GPU layers, Kokoro vs system voice) — the options that used to be
+/// missing here entirely (only the cloud-LLM API fields were shown).
+class _OnDeviceModelsEntry extends ConsumerWidget {
+  const _OnDeviceModelsEntry();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(conversionModeProvider);
+    final model = findOnDeviceLlmModel(settings.onDeviceLlmModelId);
+    final voice = settings.isKokoroVoice ? 'Kokoro · ${settings.kokoroVoice}' : 'System voice';
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.memory_rounded),
+        title: const Text('On-device models & voice'),
+        subtitle: Text('${model.displayName} · GPU ${settings.onDeviceGpuLayers} · $voice'),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const OnDeviceModelsScreen()),
+        ),
+      ),
+    );
+  }
 }
 
 class _ServerBooksSection extends ConsumerWidget {
