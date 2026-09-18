@@ -1,5 +1,12 @@
 # AGENTS.md — orientation for a coding agent picking this up cold
 
+> 2026-09-18 addendum: Stage-2 LLM provider is now switchable — see
+> `docs/LLM_PROVIDERS.md` (nano-gpt vs local Qwen3-4B via
+> `backend/scripts/llm_server.py`, the endpoint's ~340s generation wall,
+> `FIREBRAT_CHUNK_PAGES`, and the `LLM_PROVIDER=local` Docker mode).
+> `NANO_API_URL` env var is the entire switch. Backend key in
+> `backend/.env` (gitignored, 0600).
+
 Read this before touching anything. It exists so a fresh agent (or a future you) doesn't have to re-derive the environment quirks that already cost real time to figure out once.
 
 ## What this project is

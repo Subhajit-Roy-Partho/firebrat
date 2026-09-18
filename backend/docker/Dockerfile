@@ -43,10 +43,14 @@ COPY backend/ /app/backend/
 # Also runs convert.py itself plus Stages 1/2/2b/manifest/package (only
 # Stage 3 TTS delegates out to the tts venv) — pydantic/requests are for
 # firebrat/pipeline/schema.py and notify.py respectively, not marker-pdf.
+# transformers/accelerate/fastapi/uvicorn power the optional LOCAL Stage-2
+# LLM backend (backend/scripts/llm_server.py, chosen via LLM_PROVIDER=local
+# in backend/docker/entrypoint.sh) — they ride here because this venv
+# already carries torch, and the serve venv must stay torch-free.
 RUN python -m venv /opt/venvs/extract && \
     /opt/venvs/extract/bin/pip install --no-cache-dir --upgrade pip && \
     /opt/venvs/extract/bin/pip install --no-cache-dir --extra-index-url "$TORCH_INDEX_URL" \
-        marker-pdf==1.9.3 pymupdf pydantic requests
+        marker-pdf==1.9.3 pymupdf pydantic requests transformers accelerate "fastapi" "uvicorn[standard]"
 
 # ── firebrat-tts venv (chatterbox-tts) ───────────────────────────────────
 RUN python -m venv /opt/venvs/tts && \
@@ -77,5 +81,14 @@ RUN mkdir -p /data/output /data/uploads /data/hf-cache
 EXPOSE 8000
 VOLUME ["/data"]
 
+# LLM provider switch (default: nano-gpt cloud endpoint). See
+# backend/docker/entrypoint.sh for LLM_PROVIDER=local mode, which runs
+# backend/scripts/llm_server.py on the container GPU against a mounted
+# model dir. Weights are intentionally NOT baked into the image — mount
+# them (e.g. -v /host/models:/models) so the image stays lean.
+COPY backend/docker/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 WORKDIR /app/backend
-ENTRYPOINT ["/opt/venvs/serve/bin/python", "-m", "uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["/opt/venvs/serve/bin/python", "-m", "uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]

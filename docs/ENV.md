@@ -8,6 +8,10 @@ All variables are read at process start via `firebrat/config.py:12` `_load_doten
 |---|---|---|---|
 | `MODEL_API_KEY` | `""` | **yes** for Stage 2 | nano-gpt / OpenAI-compatible key. `NANO_API_KEY` is an alias (`config.py:31`). Set in `~/.zshrc` on this cluster; `backend/.env` is the portable place. Test with a real `chat/completions` call, not just `models` listing (see `AGENTS.md`). |
 | `NANO_API_URL` | `https://nano-gpt.com/api/v1` | no | Override for self-hosted OpenAI-compatible endpoint. |
+| `LLM_PROVIDER` | `nanogpt` | no | Docker entrypoint only: `local` also boots `backend/scripts/llm_server.py` on the container GPU. Bare-metal runs set `NANO_API_URL` directly. See `docs/LLM_PROVIDERS.md`. |
+| `LOCAL_MODEL_DIR` | — | yes, for `LLM_PROVIDER=local` | Mounted HF snapshot dir (e.g. `/models/qwen3-4b`). Weights are never baked into the image. |
+| `LOCAL_LLM_PORT` / `LOCAL_MAX_SEQ_LEN` | `8080` / `16384` | no | Local shim port and context cap (KV cache must fit VRAM). |
+| `FIREBRAT_CHUNK_PAGES` | `10` | no | Pages per LLM chunk. Lower (e.g. `2`) when the endpoint kills long generations — see `docs/LLM_PROVIDERS.md`. |
 | `FIREBRAT_SPARK_MODEL` | `deepseek/deepseek-v4-flash` | no | Cheap tier model. Set to `deepseek/deepseek-v4-pro:thinking` if flash times out (~40% of chunks on 659-page book). |
 | `FIREBRAT_DEEPSEEK_MODEL` | `deepseek/deepseek-v4-pro:thinking` | no | Strong tier model (auto-selected for equation/table-heavy chunks). |
 | `TELEGRAM_BOT_TOKEN` | `""` | no | Telegram progress pings (`pipeline/notify.py:14`). Already exported in `~/.zshrc` on this host; optional but recommended for long runs (`backend/scripts/run_conversion.sh` loads it). |
