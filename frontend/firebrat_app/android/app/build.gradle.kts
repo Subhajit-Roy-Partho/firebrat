@@ -32,9 +32,28 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // CI injects android/key.properties from secrets (see
+            // .github/workflows/flutter-release.yml) so every release APK
+            // shares ONE signature. Without it (local sandbox builds),
+            // fall back to debug keys so `flutter run --release` works.
+            // (Debug-signed CI builds each had a fresh random key, which is
+            // why installing one release over another failed signature checks.)
+            val keystoreProps = java.util.Properties()
+            val keystoreFile = rootProject.file("key.properties")
+            if (keystoreFile.exists()) {
+                keystoreProps.load(java.io.FileInputStream(keystoreFile))
+            }
+            if (keystoreProps.containsKey("keyAlias")) {
+                signingConfigs.create("release") {
+                    keyAlias = keystoreProps["keyAlias"] as String
+                    keyPassword = keystoreProps["keyPassword"] as String
+                    storeFile = file(keystoreProps["storeFile"] as String)
+                    storePassword = keystoreProps["storePassword"] as String
+                }
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

@@ -46,6 +46,27 @@ jobs:
         working-directory: frontend/firebrat_app
         run: sed -i 's/-Xmx1200m/-Xmx6g/; s/MaxMetaspaceSize=512m/MaxMetaspaceSize=2g/' android/gradle.properties
 
+      # Every release APK must share ONE signature (repo secrets
+      # ANDROID_KEYSTORE_BASE64 / KEY_STORE_PASSWORD / KEY_ALIAS /
+      # KEY_PASSWORD hold the upload keystore — generated once, never in
+      # git). CI-only debug-signed builds each minted a fresh random key,
+      # so installing one release over another failed signature checks.
+      - name: Inject release keystore (CI only)
+        working-directory: frontend/firebrat_app
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/release.jks
+          cat > android/key.properties <<EOF
+          storeFile=app/release.jks
+          storePassword=$KEY_STORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
       - name: Analyze
         working-directory: frontend/firebrat_app
         run: flutter analyze
