@@ -5,6 +5,9 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+import java.io.FileInputStream
+import java.util.Properties
+
 android {
     namespace = "com.firebrat.firebrat_app"
     compileSdk = flutter.compileSdkVersion
@@ -38,17 +41,17 @@ android {
             // fall back to debug keys so `flutter run --release` works.
             // (Debug-signed CI builds each had a fresh random key, which is
             // why installing one release over another failed signature checks.)
-            val keystoreProps = java.util.Properties()
-            val keystoreFile = rootProject.file("key.properties")
-            if (keystoreFile.exists()) {
-                keystoreProps.load(java.io.FileInputStream(keystoreFile))
-            }
-            if (keystoreProps.containsKey("keyAlias")) {
-                signingConfigs.create("release") {
-                    keyAlias = keystoreProps["keyAlias"] as String
-                    keyPassword = keystoreProps["keyPassword"] as String
-                    storeFile = file(keystoreProps["storeFile"] as String)
-                    storePassword = keystoreProps["storePassword"] as String
+            val keystorePropsFile = rootProject.file("key.properties")
+            if (keystorePropsFile.exists()) {
+                val keystoreProps = Properties()
+                keystoreProps.load(FileInputStream(keystorePropsFile))
+                signingConfigs {
+                    create("release") {
+                        keyAlias = keystoreProps["keyAlias"] as String
+                        keyPassword = keystoreProps["keyPassword"] as String
+                        storeFile = rootProject.file(keystoreProps["storeFile"] as String)
+                        storePassword = keystoreProps["storePassword"] as String
+                    }
                 }
                 signingConfig = signingConfigs.getByName("release")
             } else {
