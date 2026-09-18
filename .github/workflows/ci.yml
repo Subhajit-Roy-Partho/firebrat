@@ -70,6 +70,13 @@ jobs:
       - name: Raise Gradle heap for CI (debug)
         working-directory: frontend/firebrat_app
         run: sed -i 's/-Xmx1200m/-Xmx4g/; s/MaxMetaspaceSize=512m/MaxMetaspaceSize=1g/' android/gradle.properties
+      # google-services.json is gitignored; without it the google-services
+      # Gradle plugin fails the build on a fresh checkout.
+      - name: Inject google-services.json (CI only)
+        working-directory: frontend/firebrat_app
+        run: echo "$GOOGLE_SERVICES_JSON" | base64 -d > android/app/google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
       - name: Build APK (debug)
         working-directory: frontend/firebrat_app
         run: flutter build apk --debug

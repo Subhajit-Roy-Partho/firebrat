@@ -131,7 +131,10 @@ class ConversionsScreen extends ConsumerWidget {
     progressNotifier.set(0.0);
     try {
       final api = ref.read(apiClientProvider);
-      await api.uploadBook(path, onProgress: progressNotifier.set);
+      final job = await api.uploadBook(path, onProgress: progressNotifier.set);
+      // Follow this job's FCM topic so the server's done/failed push finds
+      // the device even with this screen closed.
+      await JobsNotifier.trackJob(job.jobId);
       await ref.read(jobsProvider.notifier).refresh();
     } catch (e) {
       if (context.mounted) {
@@ -301,6 +304,7 @@ class _JobCard extends ConsumerWidget {
   Future<void> _retry(BuildContext context, WidgetRef ref) async {
     try {
       await ref.read(apiClientProvider).retryJob(job.jobId);
+      await JobsNotifier.trackJob(job.jobId);
       await ref.read(jobsProvider.notifier).refresh();
     } catch (e) {
       if (context.mounted) {
@@ -312,6 +316,7 @@ class _JobCard extends ConsumerWidget {
   Future<void> _resume(BuildContext context, WidgetRef ref) async {
     try {
       await ref.read(apiClientProvider).resumeJob(job.jobId);
+      await JobsNotifier.trackJob(job.jobId);
       await ref.read(jobsProvider.notifier).refresh();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Put back on the queue.')));

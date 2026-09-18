@@ -1,128 +1,63 @@
-# Firebase — Push Notifications for Firebrat
+# Firebase — Auth + Push for Firebrat
 
-Firebrat currently uses two notification paths:
+Status (2026-09-18): wired end to end. Project `firebrat-8c597`, Android app
+`com.firebrat.firebrat_app` (ID `1:657440934081:android:ffa7b93d66d61efd1bac40`),
+release SHA-1 registered, `google-services.json` in place (gitignored) and
+in CI secrets. Remaining: enable Google sign-in (one console click, below)
+and optionally a service-account key for server-side push.
 
-1. **Telegram** (`backend/firebrat/pipeline/notify.py`) — pipeline progress pings for the developer/operator (`TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`). This is already configured via `~/.zshrc` and `backend/.env` (see `docs/ENV.md`). It is *operator-facing*, not end-user.
-2. **Local Android notifications** — `audio_service` (playback controls) + `flutter_foreground_task` (on-device conversion `Converting…` persistent notification). These require `POST_NOTIFICATIONS` + `FOREGROUND_SERVICE` permissions already in `AndroidManifest.xml:8`. No Firebase needed for these.
+## What the app does
 
-If you want **remote push notifications** (e.g. “Your book is ready” when a server conversion finishes while the app is in background), add **Firebase Cloud Messaging (FCM)** as below. This is optional — the app and pipeline work without it.
+- `lib/firebase_options.dart` — hand-written options mirroring
+  `android/app/google-services.json` (flutterfire_cli was never run).
+- `lib/services/auth_service.dart` — Google sign-in (`google_sign_in` v7
+  `instance.authenticate()` API), sign-out, ID-token minting. Degrades to
+  signed-out instead of red-screening when Firebase is unavailable.
+- `lib/screens/sign_in_screen.dart` + `AuthGate` in `lib/app.dart` —
+  signed-out users sign in; the stream flips to the library on login.
+- `lib/services/api_client.dart` — Dio interceptor attaches
+  `Authorization: Bearer <ID token>` when signed in (unsigned otherwise).
+- `lib/services/notification_service.dart` — FCM permission, `new-books`
+  topic, foreground re-display via `flutter_local_notifications` v22
+  (named-parameter API), `@pragma('vm:entry-point')` background handler.
+- `lib/state/conversions_providers.dart` — subscribes `job-<id>` on
+  upload/retry/resume, unsubscribes at terminal state, raises a local
+  notification from the already-polled job state (works keyless).
 
-## What you need to do in the Firebase Console
+## What the server does (`backend/server/auth.py`)
 
-### 1. Create / select a Firebase project
+- READS stay open: `/books`, manifest, assets, `/download`, `/checksum`,
+  `/health` — anonymous shelf browsing for a wider audience.
+- MUTATIONS need a Firebase user: upload, jobs list/detail/retry/resume/
+  log, book delete. `require_user` dependency → 401 otherwise. (Any
+  signed-in user for now — job rows carry no owner; per-user libraries
+  are a future step, stated in code.)
+- `verify_id_token` needs NO credentials file (Google public certs);
+  `firebase-admin` is in the serve env. FCM *sending* additionally needs
+  `GOOGLE_APPLICATION_CREDENTIALS` — without it `notify_topic` logs and
+  no-ops, and `job_runner` still notifies via topic when keyed.
+- Tests: `tests/conftest.py` overrides `require_user` with a fixed
+  test user; `tests/test_auth.py` proves 401s + open reads + verifier
+  rejection of garbage.
 
-1. Go to **https://console.firebase.google.com** → *Add project* (or select existing).
-2. Name: `firebrat` (any). Disable Google Analytics if you don't need it.
-3. Wait for provisioning.
+## CI
 
-### 2. Register the Android app
+`GOOGLE_SERVICES_JSON` repo secret (base64) is decoded to
+`android/app/google-services.json` in both `flutter-release.yml` and
+`ci.yml` — the google-services Gradle plugin (4.4.4, applied in
+`settings.gradle.kts` + app `build.gradle.kts`) fails the build without
+the file. Same pattern as the release keystore.
 
-1. In Project Overview → *Project settings* → *Your apps* → **Add app** → Android.
-2. **Android package name:** `com.firebrat.firebrat_app` (must match `android/app/build.gradle.kts: applicationId`).
-3. **App nickname:** `Firebrat` .
-4. **SHA-1:** leave blank for debug; for release, add your keystore SHA-1 (`keytool -list -v -keystore ~/.keystore`).
-5. **Download `google-services.json`** → save to `frontend/firebrat_app/android/app/google-services.json` (gitignored — never commit the real file; commit `google-services.json.example` instead).
+## Still manual (console)
 
-### 3. Enable Cloud Messaging
-
-1. Left nav → *Build* → *Cloud Messaging* (or *Engagement* → *Messaging*).
-2. No extra enable step is needed on the new console — FCM is on by default.
-3. Note the **Server key / Sender ID** is now managed via *Project settings* → *Cloud Messaging* → *Firebase Cloud Messaging API (V1)*. If you use the backend to send via FCM HTTP v1, you will need a **service account** JSON (see backend section below).
-
-### 4. APNs (iOS) — only if you target iOS
-
-1. *Project settings* → *Cloud Messaging* → *Apple app configuration* → Upload APNs key (from Apple Developer → *Certificates, Identifiers & Profiles* → *Keys*).
-
-## What to do in the repo
-
-### Flutter app
-
-Add to `frontend/firebrat_app/pubspec.yaml`:
-
-```yaml
-dependencies:
-  firebase_core: ^3.8.0
-  firebase_messaging: ^15.1.3
-  flutter_local_notifications: ^18.0.1  # for foreground display
-```
-
-Then:
-
-```bash
-cd frontend/firebrat_app
-flutter pub get
-# Install Firebase CLI if not already
-npm i -g firebase-tools
-firebase login
-flutterfire configure --project=firebrat --platforms=android,ios
-# This generates firebase_options.dart and updates build files
-```
-
-Update `lib/main.dart` before `runApp`:
-
-```dart
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'firebase_options.dart';
-
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  // Request permission (Android 13+ and iOS)
-  await FirebaseMessaging.instance.requestPermission();
-  // Handle background
-  FirebaseMessaging.onBackgroundMessage(_bgHandler);
-  // On-device conversion runner still uses flutter_foreground_task for its own persistent notification
-  runApp(...);
-}
-
-@pragma('vm:entry-point')
-Future<void> _bgHandler(RemoteMessage m) async {}
-```
-
-Android `android/app/build.gradle.kts` — add after `com.android.application`:
-
-```kts
-plugins {
-  id("com.google.gms.google-services")
-}
-```
-
-and `android/build.gradle.kts`:
-
-```kts
-plugins {
-  id("com.google.gms.google-services") version "4.4.2" apply false
-}
-```
-
-No change to `AndroidManifest.xml` is needed — FCM adds its service automatically.
-
-### Backend (optional — send “book ready” push)
-
-If `FIREBASE_SERVICE_ACCOUNT_JSON` env points to a service-account file, `server/routes/jobs.py` can send on `status=done` via FCM HTTP v1:
-
-```python
-# pip install firebase-admin
-import firebase_admin
-from firebase_admin import messaging, credentials
-cred = credentials.Certificate(os.environ["FIREBASE_SERVICE_ACCOUNT_JSON"])
-firebase_admin.initialize_app(cred)
-messaging.send(messaging.Message(
-    topic=f"book-{book_id}",
-    notification=messaging.Notification(title="Firebrat", body=f"{title} is ready"),
-))
-```
-
-The app would `subscribeToTopic("book-${bookId}")` after upload.
-
-## Verifying
-
-1. Build: `flutter build apk --debug` — should succeed with `google-services.json` present; without it Gradle fails with `File google-services.json is missing`.
-2. Run on device → logcat `adb logcat | grep Firebase` should show `FirebaseApp initialization successful`.
-3. Console → *Cloud Messaging* → *Send test message* → paste FCM token (log it via `FirebaseMessaging.instance.getToken().then(print)`) → device should receive notification even when app is backgrounded.
-
-## Current repo state
-
-- No `google-services.json` is committed (and none is required to build the debug APK without FCM — local notifications work without it).
-- No `firebase_*` dependencies are in `pubspec.yaml` yet — add them only when you need remote push. The `docs/ENV.md` lists the new `FIREBASE_*` env vars if you do.
+1. **Enable Google sign-in:** console → Build → Authentication → Get
+   started → Sign-in method → enable **Google**. (Everything else —
+   project, Android app, SHA-1, OAuth client — was done via CLI; Auth
+   itself has no CONFIGURATION until this click. Until then,
+   `signInWithCredential` fails `operation-not-allowed` and the app
+   shows the error inline, still fully usable signed-out for reads.)
+2. **Server push key (optional):** Project settings → Service accounts →
+   Generate new private key → set `GOOGLE_APPLICATION_CREDENTIALS` to it
+   on the server host (and/or a matching secret for Docker). Without it,
+   job-done pushes only arrive via the app's own poll-raised local
+   notification — no crash, no missing feature, just no background push.

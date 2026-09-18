@@ -66,6 +66,15 @@ jobs:
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      # google-services.json is gitignored (carries the Firebase API key);
+      # CI restores it from the GOOGLE_SERVICES_JSON secret — same pattern
+      # as the release keystore above. The build fails without it now that
+      # the google-services Gradle plugin is applied.
+      - name: Inject google-services.json (CI only)
+        working-directory: frontend/firebrat_app
+        run: echo "$GOOGLE_SERVICES_JSON" | base64 -d > android/app/google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
 
       - name: Analyze
         working-directory: frontend/firebrat_app

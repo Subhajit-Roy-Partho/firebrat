@@ -10,7 +10,7 @@ import 'package:firebrat_app/models/book.dart';
 import 'package:firebrat_app/state/library_providers.dart';
 
 void main() {
-  testWidgets('FirebratApp builds and shows the library app bar', (WidgetTester tester) async {
+  testWidgets('FirebratApp builds and shows the sign-in screen when signed out', (WidgetTester tester) async {
     await tester.pumpWidget(ProviderScope(
       overrides: [
         catalogProvider.overrideWith((ref) async => const <BookSummary>[]),
@@ -20,5 +20,6 @@ void main() {
     ));
     await tester.pump();
     expect(find.text('Firebrat'), findsOneWidget);
+    expect(find.text('Sign in with Google'), findsOneWidget);
   });
 }

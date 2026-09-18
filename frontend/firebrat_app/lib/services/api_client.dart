@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import '../models/book.dart';
 import '../models/job.dart';
+import 'auth_service.dart';
 
 /// Server answered a byte-range request from an unexpected offset (or with
 /// an unexpected status) — the local `.part` file can't be trusted, the
@@ -21,7 +22,22 @@ class ApiClient {
   final String baseUrl;
 
   ApiClient({required this.baseUrl})
-      : _dio = Dio(BaseOptions(baseUrl: baseUrl, connectTimeout: const Duration(seconds: 10)));
+      : _dio = Dio(BaseOptions(baseUrl: baseUrl, connectTimeout: const Duration(seconds: 10))) {
+    // Firebase ID token on every call when signed in (anonymous otherwise —
+    // the server decides per-endpoint what anonymous callers may do).
+    // Token fetch failures must never break a call: fall through unsigned.
+    _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        try {
+          final token = await AuthService.instance.idToken();
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+        } catch (_) {}
+        handler.next(options);
+      },
+    ));
+  }
 
   /// True if the server at [baseUrl] is reachable and responding — used to
   /// validate a server URL as soon as the user enters one, before trying

@@ -3,10 +3,10 @@ clean. See docs/API.md for the full contract.
 """
 import os
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-from server import config, job_runner, jobs
+from server import auth, config, job_runner, jobs
 from firebrat.pipeline.status import read_status
 from firebrat.utils.ids import sanitize_book_id
 
@@ -37,7 +37,11 @@ def _job_view(job: dict) -> dict:
 
 
 @router.post("/books/upload")
-async def upload_book(file: UploadFile = File(...), title: str | None = Form(None)):
+async def upload_book(
+    file: UploadFile = File(...),
+    title: str | None = Form(None),
+    _user: dict = Depends(auth.require_user),
+):
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="only .pdf uploads are accepted")
 
@@ -71,12 +75,12 @@ async def upload_book(file: UploadFile = File(...), title: str | None = Form(Non
 
 
 @router.get("/jobs")
-def list_jobs():
+def list_jobs(_user: dict = Depends(auth.require_user)):
     return [_job_view(j) for j in jobs.list_jobs()]
 
 
 @router.get("/jobs/{job_id}")
-def get_job(job_id: str):
+def get_job(job_id: str, _user: dict = Depends(auth.require_user)):
     job = jobs.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
@@ -84,7 +88,7 @@ def get_job(job_id: str):
 
 
 @router.post("/jobs/{job_id}/retry")
-def retry_job(job_id: str):
+def retry_job(job_id: str, _user: dict = Depends(auth.require_user)):
     """Re-run a failed (or needs_review) job, reusing whatever already
     succeeded on disk rather than starting over. Which stages get skipped
     depends on how far the previous attempt got — see docs/API.md.
@@ -112,7 +116,7 @@ def retry_job(job_id: str):
 
 
 @router.post("/jobs/{job_id}/resume")
-def resume_job(job_id: str):
+def resume_job(job_id: str, _user: dict = Depends(auth.require_user)):
     """Puts a stuck job back on the queue, unchanged — for a job left in
     `queued` or `running` state by something that isn't the pipeline's own
     logic (a server restart while it was mid-flight is the common case: the
@@ -142,7 +146,7 @@ def resume_job(job_id: str):
 
 
 @router.get("/jobs/{job_id}/log")
-def get_job_log(job_id: str, tail_lines: int = 200):
+def get_job_log(job_id: str, tail_lines: int = 200, _user: dict = Depends(auth.require_user)):
     job = jobs.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")

@@ -1,7 +1,8 @@
 import os
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 
+from server import auth
 from server.storage import (
     list_book_ids, read_manifest, resolve_asset,
     book_summary, get_or_build_zip, get_zip_info, delete_book,
@@ -49,7 +50,7 @@ def get_checksum(book_id: str):
     return JSONResponse(content=info)
 
 @router.delete("/books/{book_id}")
-def remove_book(book_id: str):
+def remove_book(book_id: str, _user: dict = Depends(auth.require_user)):
     """Permanently deletes a converted book's package (audio, assets,
     manifest — everything) to free space on the server. Irreversible —
     the app should confirm with the user before calling this.

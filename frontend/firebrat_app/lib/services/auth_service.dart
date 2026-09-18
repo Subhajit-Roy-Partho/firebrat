@@ -1,0 +1,59 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+
+/// Firebase Authentication for a wider audience: Google sign-in (plus
+/// anonymous upgrade path later). The backend verifies the ID token on
+/// every sensitive call (see `backend/server/auth.py`), so this class only
+/// ever handles sign-in state + minting tokens — no custom auth logic.
+class AuthService {
+  AuthService._();
+  static final AuthService instance = AuthService._();
+
+  // Lazy: FirebaseAuth.instance throws when no Firebase app exists
+  // (misconfigured build, or the flutter_test harness) — first access
+  // happens inside authStateChanges()'s try/catch, never at class load.
+  late final FirebaseAuth _auth = FirebaseAuth.instance;
+  late final GoogleSignIn _google = GoogleSignIn.instance;
+
+  Stream<User?> authStateChanges() {
+    // Resilient: if Firebase isn't initialized (missing google-services
+    // config, or the flutter_test harness with no platform channels), the
+    // app must still open — signed out — instead of red-screening.
+    try {
+      return _auth.authStateChanges();
+    } catch (_) {
+      return Stream.value(null);
+    }
+  }
+  User? get currentUser => _auth.currentUser;
+
+  /// Fresh ID token for `Authorization: Bearer` on API calls, or null
+  /// when signed out (ApiClient then sends no header — server treats the
+  /// call as anonymous, see `server/auth.py`).
+  Future<String?> idToken({bool forceRefresh = false}) async {
+    final user = _auth.currentUser;
+    if (user == null) return null;
+    try {
+      return await user.getIdToken(forceRefresh);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<UserCredential> signInWithGoogle() async {
+    // google_sign_in v7: authenticate() then credential-based sign-in.
+    final account = await _google.authenticate();
+    final auth = account.authentication;
+    final credential = GoogleAuthProvider.credential(
+      idToken: auth.idToken,
+    );
+    return _auth.signInWithCredential(credential);
+  }
+
+  Future<void> signOut() async {
+    try {
+      await _google.signOut();
+    } catch (_) {}
+    await _auth.signOut();
+  }
+}

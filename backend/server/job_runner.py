@@ -68,9 +68,29 @@ def _run_job(job_id: str, extra_args: list[str]) -> None:
         if result.returncode == 0:
             jobs.set_state(job_id, "done")
             log.info("Job %s (%s) finished successfully", job_id, job["book_id"])
+            # Push to topic job-<id> (no-op without FCM credentials — the
+            # app also polls this same state, so nothing is lost).
+            try:
+                from server import auth as _auth
+                _auth.notify_topic(
+                    _auth.job_topic(job_id),
+                    "Conversion finished",
+                    f"{job['title']} is ready to download.",
+                )
+            except Exception:
+                log.exception("FCM notify failed for job %s", job_id)
         else:
             jobs.set_state(job_id, "failed", error=f"convert.py exited {result.returncode} — see {log_path}")
             log.error("Job %s (%s) failed with exit code %d", job_id, job["book_id"], result.returncode)
+            try:
+                from server import auth as _auth
+                _auth.notify_topic(
+                    _auth.job_topic(job_id),
+                    "Conversion failed",
+                    f"{job['title']} failed — check the job log and retry.",
+                )
+            except Exception:
+                log.exception("FCM notify failed for job %s", job_id)
     except Exception as e:  # subprocess launch itself failed (bad path, etc.)
         log.exception("Job %s failed to launch", job_id)
         jobs.set_state(job_id, "failed", error=str(e))
