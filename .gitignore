@@ -48,3 +48,4 @@ frontend/firebrat_app/*.iml
 
 # Logs
 *.log
+secrets/

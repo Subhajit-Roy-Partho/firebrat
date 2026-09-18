@@ -50,6 +50,12 @@ class AuthService {
     return _auth.signInWithCredential(credential);
   }
 
+  Future<UserCredential> signInWithEmail(String email, String password) =>
+      _auth.signInWithEmailAndPassword(email: email.trim(), password: password);
+
+  Future<UserCredential> registerWithEmail(String email, String password) =>
+      _auth.createUserWithEmailAndPassword(email: email.trim(), password: password);
+
   Future<void> signOut() async {
     try {
       await _google.signOut();

@@ -14,15 +14,25 @@ class SignInScreen extends StatefulWidget {
 
 class _SignInScreenState extends State<SignInScreen> {
   bool _busy = false;
+  bool _registerMode = false;
   String? _error;
+  final _email = TextEditingController();
+  final _password = TextEditingController();
 
-  Future<void> _signIn() async {
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await AuthService.instance.signInWithGoogle();
+      await action();
       // AuthGate flips to the library on authStateChanges — nothing to push.
     } catch (e) {
       if (mounted) {
@@ -32,6 +42,20 @@ class _SignInScreenState extends State<SignInScreen> {
         });
       }
     }
+  }
+
+  Future<void> _signIn() => _run(AuthService.instance.signInWithGoogle);
+
+  Future<void> _emailAuth() {
+    final email = _email.text.trim();
+    final password = _password.text;
+    if (email.isEmpty || password.length < 6) {
+      setState(() => _error = 'Enter an email and a password of 6+ characters.');
+      return Future.value();
+    }
+    return _run(() => _registerMode
+        ? AuthService.instance.registerWithEmail(email, password)
+        : AuthService.instance.signInWithEmail(email, password));
   }
 
   @override
@@ -60,6 +84,40 @@ class _SignInScreenState extends State<SignInScreen> {
                       )
                     : const Icon(Icons.login_rounded),
                 label: const Text('Sign in with Google'),
+              ),
+              const SizedBox(height: 16),
+              const Divider(),
+              TextField(
+                controller: _email,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                enabled: !_busy,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _password,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+                enabled: !_busy,
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: _busy ? null : _emailAuth,
+                child: Text(_registerMode ? 'Create account' : 'Sign in with email'),
+              ),
+              TextButton(
+                onPressed: _busy
+                    ? null
+                    : () => setState(() => _registerMode = !_registerMode),
+                child: Text(_registerMode
+                    ? 'Have an account? Sign in'
+                    : 'New here? Create an account'),
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),

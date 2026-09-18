@@ -61,3 +61,10 @@ the file. Same pattern as the release keystore.
    on the server host (and/or a matching secret for Docker). Without it,
    job-done pushes only arrive via the app's own poll-raised local
    notification — no crash, no missing feature, just no background push.
+
+   Status 2026-09-18: key lives in `secrets/` (gitignored, 0600), wired
+   into the running server + `backend/.env`, dry-run push validated.
+   Docker: `-v /host/secrets:/secrets -e
+   GOOGLE_APPLICATION_CREDENTIALS=/secrets/<key>.json` (env passes
+   straight through the entrypoint). FCM send needs internet egress to
+   `*.googleapis.com` (this host already reaches nano-gpt/HF, fine).
