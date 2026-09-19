@@ -4,6 +4,7 @@ import '../models/book.dart';
 import '../services/download_manager.dart';
 import '../state/library_providers.dart';
 import '../state/theme_providers.dart';
+import '../widgets/app_drawer.dart';
 import '../widgets/book_card.dart';
 import 'conversions_screen.dart';
 import 'reader_screen.dart';
@@ -20,6 +21,7 @@ class LibraryScreen extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('Firebrat'),
         actions: [

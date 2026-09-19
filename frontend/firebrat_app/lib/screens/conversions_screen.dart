@@ -18,11 +18,11 @@ class ConversionsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final jobsAsync = ref.watch(jobsProvider);
     final uploadProgress = ref.watch(uploadProgressProvider);
     final conversionMode = ref.watch(conversionModeProvider);
     final onDeviceRun = ref.watch(onDeviceRunProvider);
     final busy = uploadProgress != null || (onDeviceRun != null && !onDeviceRun.done);
+    final isOnDevice = conversionMode.mode == ConversionModePref.onDevice;
 
     return Scaffold(
       appBar: AppBar(
@@ -41,39 +41,13 @@ class ConversionsScreen extends ConsumerWidget {
         children: [
           if (onDeviceRun != null && !onDeviceRun.done) _OnDeviceRunBanner(state: onDeviceRun),
           if (onDeviceRun?.error != null) _OnDeviceErrorBanner(message: onDeviceRun!.error!),
+          // Server job queue is meaningless in on-device mode (nothing is
+          // uploaded anywhere) — polling it here is what made the screen
+          // "still look for the server". On-device runs surface above.
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: () => ref.read(jobsProvider.notifier).refresh(),
-              child: jobsAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (err, _) => _ErrorView(message: 'Could not reach the server.\n$err'),
-                data: (jobs) {
-                  if (jobs.isEmpty) {
-                    return LayoutBuilder(
-                      builder: (context, _) => ListView(
-                        children: const [
-                          SizedBox(height: 120),
-                          Center(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 24),
-                              child: Text(
-                                'No conversions yet. Tap "Upload a PDF" to convert a book.',
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                  return ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
-                    itemCount: jobs.length,
-                    itemBuilder: (context, i) => _JobCard(job: jobs[i]),
-                  );
-                },
-              ),
-            ),
+            child: isOnDevice
+                ? const _OnDeviceJobsPlaceholder()
+                : const _ServerJobsList(),
           ),
         ],
       ),
@@ -146,8 +120,76 @@ class ConversionsScreen extends ConsumerWidget {
   }
 }
 
-class _OnDeviceRunBanner extends StatelessWidget {
-  final OnDeviceRunState state;
+/// Shown instead of the server queue when conversion mode is on-device:
+/// there is no server involved, so polling GET /jobs would only produce a
+/// connection error. On-device runs surface as banners above.
+class _OnDeviceJobsPlaceholder extends StatelessWidget {
+  const _OnDeviceJobsPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      children: const [
+        SizedBox(height: 120),
+        Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              'On-device mode: conversions run on this phone and finished '
+              'books appear in your library.\n\nTap "Convert a PDF" to start one.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The server job queue — only ever built in cloud mode, so it never fires
+/// a request (or shows an error) when the user converts on-device.
+class _ServerJobsList extends ConsumerWidget {
+  const _ServerJobsList();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final jobsAsync = ref.watch(jobsProvider);
+    return RefreshIndicator(
+      onRefresh: () => ref.read(jobsProvider.notifier).refresh(),
+      child: jobsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, _) => _ErrorView(message: 'Could not reach the server.\n$err'),
+        data: (jobs) {
+          if (jobs.isEmpty) {
+            return LayoutBuilder(
+              builder: (context, _) => ListView(
+                children: const [
+                  SizedBox(height: 120),
+                  Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 24),
+                      child: Text(
+                        'No conversions yet. Tap "Upload a PDF" to convert a book.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+            itemCount: jobs.length,
+            itemBuilder: (context, i) => _JobCard(job: jobs[i]),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _OnDeviceRunBanner extends StatelessWidget {  final OnDeviceRunState state;
   const _OnDeviceRunBanner({required this.state});
 
   @override

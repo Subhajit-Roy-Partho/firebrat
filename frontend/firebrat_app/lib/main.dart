@@ -13,8 +13,12 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Firebase (auth + messaging). google-services.json is gitignored and
   // injected by CI; options here mirror it for project firebrat-8c597.
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await GoogleSignIn.instance.initialize();
+  // Best-effort: a misconfigured Firebase must never stop the app from
+  // booting (reads work fully offline, AuthService degrades to signed-out).
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await GoogleSignIn.instance.initialize();
+  } catch (_) {}
   // Push setup is best-effort: the reader works fully offline and must
   // never fail to start because notifications couldn't initialize.
   try {
