@@ -1,4 +1,6 @@
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart'
+    show BackgroundConversionRunner;
 
 /// Entry point for the lightweight foreground service that keeps book
 /// downloads alive when the app is backgrounded (Android Doze / app
@@ -45,4 +47,73 @@ class _DownloadTaskHandler extends TaskHandler {
 
   @override
   void onNotificationDismissed() {}
+}
+
+/// Refcounted keep-alive for transfers (book zips AND model weights).
+/// The old design gave each download a boolean "serviceMine" — with two
+/// concurrent transfers the first finisher stopped the service out from
+/// under the second. Now N holders share one service; it stops when the
+/// last holder releases (or never started, when a conversion service
+/// already keeps the process alive — which we must NOT disturb).
+class DownloadKeepAlive {
+  DownloadKeepAlive._();
+  static const int _serviceId = 4202; // conversions use 4201, never collide
+  static int _users = 0;
+  static bool _ours = false;
+
+  /// Returned handle; call [release] exactly once (e.g. in `finally`).
+  static Future<KeepAliveHandle> acquire(String reason) async {
+    try {
+      await BackgroundConversionRunner.requestPermissions();
+      if (await FlutterForegroundTask.isRunningService) return KeepAliveHandle._(false);
+      if (_users == 0 || !_ours) {
+        final res = await FlutterForegroundTask.startService(
+          serviceId: _serviceId,
+          notificationTitle: 'Downloading…',
+          notificationText: reason,
+          callback: downloadTaskCallback,
+        );
+        if (res is ServiceRequestFailure) return KeepAliveHandle._(false);
+        _ours = true;
+      }
+      _users++;
+      return KeepAliveHandle._(true);
+    } catch (_) {
+      // Best-effort: resume + checksum still make a killed transfer
+      // recoverable, so never fail the transfer over the service.
+      return KeepAliveHandle._(false);
+    }
+  }
+
+  /// Throttled progress text for the shared notification. Callers pass
+  /// their own already-throttled progress; this additionally drops
+  /// duplicate percentages so the notification never jitters.
+  static String? _lastText;
+  static void updateProgress(String title, String text) {
+    if (text == _lastText) return;
+    _lastText = title + text;
+    try {
+      FlutterForegroundTask.updateService(
+        notificationTitle: title,
+        notificationText: text,
+      );
+    } catch (_) {}
+  }
+}
+
+/// Returned by [DownloadKeepAlive.acquire]; call [release] exactly once.
+class KeepAliveHandle {
+  final bool _held;
+  KeepAliveHandle._(this._held);
+
+  Future<void> release() async {
+    if (!_held) return;
+    DownloadKeepAlive._users = (DownloadKeepAlive._users - 1).clamp(0, 1 << 30);
+    if (DownloadKeepAlive._users == 0 && DownloadKeepAlive._ours) {
+      DownloadKeepAlive._ours = false;
+      try {
+        await FlutterForegroundTask.stopService();
+      } catch (_) {}
+    }
+  }
 }

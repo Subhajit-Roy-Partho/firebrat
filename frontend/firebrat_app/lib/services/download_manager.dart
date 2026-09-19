@@ -1,9 +1,6 @@
 import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart'
-    show BackgroundConversionRunner;
 import 'package:path_provider/path_provider.dart';
 import 'api_client.dart';
 import 'download_task_handler.dart';
@@ -65,7 +62,6 @@ class DownloadManager {
   DownloadManager(this.api);
 
   static const int maxAttempts = 3;
-  static const int _downloadServiceId = 4202;
 
   /// bookIds with a live download future. Cleared in `finally`.
   static final Map<String, Future<Directory>> _inFlight = {};
@@ -153,7 +149,7 @@ class DownloadManager {
       ));
     }
 
-    final serviceMine = await _ensureKeepAlive(bookId);
+    final keepAlive = await DownloadKeepAlive.acquire('book $bookId');
     try {
       final checksum = await api.getPackageChecksum(bookId);
       final total = checksum.sizeBytes;
@@ -200,11 +196,7 @@ class DownloadManager {
       emit(1.0, total, total, 'done');
       return target;
     } finally {
-      if (serviceMine) {
-        try {
-          await FlutterForegroundTask.stopService();
-        } catch (_) {}
-      }
+      await keepAlive.release();
     }
   }
 
@@ -218,38 +210,12 @@ class DownloadManager {
     }
   }
 
-  /// Starts the lightweight download keep-alive service unless an
-  /// on-device conversion already holds the foreground service (its
-  /// service keeps the process alive just as well). Returns true when
-  /// this download owns the service and must stop it afterwards.
-  Future<bool> _ensureKeepAlive(String bookId) async {
-    try {
-      await BackgroundConversionRunner.requestPermissions();
-      if (await FlutterForegroundTask.isRunningService) return false;
-      final res = await FlutterForegroundTask.startService(
-        serviceId: _downloadServiceId,
-        notificationTitle: 'Downloading book…',
-        notificationText: 'Starting…',
-        callback: downloadTaskCallback,
-      );
-      return res is! ServiceRequestFailure;
-    } catch (_) {
-      // Keep-alive is best-effort: resume + checksum still make a killed
-      // download recoverable with one tap, so never fail the download
-      // itself because the service couldn't start.
-      return false;
-    }
-  }
-
   void _updateNotification(String bookId, int received, int total) {
-    try {
-      final pct = (received / total * 100).toStringAsFixed(0);
-      FlutterForegroundTask.updateService(
-        notificationTitle: 'Downloading book… $pct%',
-        notificationText:
-            '${DownloadProgress._mb(received)} / ${DownloadProgress._mb(total)} MB',
-      );
-    } catch (_) {}
+    final pct = (received / total * 100).toStringAsFixed(0);
+    DownloadKeepAlive.updateProgress(
+      'Downloading book… $pct%',
+      '$bookId · ${DownloadProgress._mb(received)} / ${DownloadProgress._mb(total)} MB',
+    );
   }
 
   Future<void> _deleteQuietly(File f) async {
