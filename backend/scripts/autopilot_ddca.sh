@@ -77,8 +77,11 @@ tg "Phase 2 done — LLM server stopped, VRAM free (${VRAM} MiB used). Launching
 
 # ── Phase 3: parallel TTS ───────────────────────────────────────────
 COMMON="export PYTHONUNBUFFERED=1 HF_HOME=/scratch/sroy85/.cache/huggingface CUDA_VISIBLE_DEVICES=0; export PATH=\"/packages/apps/spack/21.2/opt/spack/x86_64_v3/gcc-12.3.0/ffmpeg-6.0-2ac3emh/bin:\$PATH\""
+# NOTE: sessions run with -c "$REPO" (which IS backend/), so the script
+# path below is relative to backend/, not the repo root. (An earlier
+# revision used backend/scripts/... here and both shards died instantly.)
 for i in 0 1; do
-  tmux new-session -d -s fb_tts$i -c "$REPO" "$COMMON; $TTSPY backend/scripts/tts_shard.py --pkg-dir $PKG --compiled $COMPILED --index $i --count 2 2>&1 | tee /scratch/sroy85/tts-shard$i.log"
+  tmux new-session -d -s fb_tts$i -c "$REPO" "$COMMON; $TTSPY scripts/tts_shard.py --pkg-dir $PKG --compiled $COMPILED --index $i --count 2 2>&1 | tee /scratch/sroy85/tts-shard$i.log"
 done
 for i in 0 1; do
   # Relaunch-on-death loop: a dead shard that didn't FINISH gets relaunched
@@ -93,7 +96,7 @@ for i in 0 1; do
     if ! tmux has-session -t fb_tts$i 2>/dev/null; then
       echo "shard $i died without FINISHED — relaunching (resume skips done)"
       tg "Autopilot: TTS shard $i died mid-flight — relaunching, completed sections are safe on disk."
-      tmux new-session -d -s fb_tts$i -c "$REPO" "$COMMON; $TTSPY backend/scripts/tts_shard.py --pkg-dir $PKG --compiled $COMPILED --index $i --count 2 2>&1 | tee -a /scratch/sroy85/tts-shard$i.log"
+      tmux new-session -d -s fb_tts$i -c "$REPO" "$COMMON; $TTSPY scripts/tts_shard.py --pkg-dir $PKG --compiled $COMPILED --index $i --count 2 2>&1 | tee -a /scratch/sroy85/tts-shard$i.log"
     fi
     if [ "$waited" -ge 216000 ]; then
       tg "AUTOPILOT TIMEOUT: TTS shard $i after 60h. Check tmux fb_tts$i."
