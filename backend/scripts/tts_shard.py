@@ -48,6 +48,22 @@ def main() -> int:
     with open(args.compiled, "r", encoding="utf-8") as f:
         compiled = json.load(f)
     sections = compiled.get("sections", [])
+    # Same id normalization as convert.py's Stage 3 prologue (setdefault —
+    # deterministic given the same section order), persisted back so every
+    # stage agrees. Both shards compute byte-identical content, so the
+    # concurrent write is harmless; the final package run normalizes the
+    # same way on the same file before building the manifest.
+    # (Why needed at all: retry-only runs rewrite compiled.json without
+    # ids. Stale outputs from an older ordering become orphans and get
+    # re-synthesized under current ids — wasted minutes, never wrong audio.)
+    from firebrat.utils.ids import make_section_id as _ms
+    from firebrat.utils.ids import make_segment_id as _mg
+    for oi, sec in enumerate(sections):
+        sec.setdefault("section_id", _ms(oi + 1))
+        for si, seg in enumerate(sec.get("segments", [])):
+            seg.setdefault("segment_id", _mg(sec["section_id"], si))
+    with open(args.compiled, "w", encoding="utf-8") as f:
+        json.dump(compiled, f, ensure_ascii=False, indent=2)
     mine = [s for i, s in enumerate(sections) if i % args.count == args.index]
     log.info("shard %d/%d: %d of %d sections", args.index, args.count, len(mine), len(sections))
 
