@@ -94,6 +94,14 @@ class DownloadProgressNotifier extends Notifier<Map<String, DownloadProgress>> {
 final downloadProgressProvider = NotifierProvider<DownloadProgressNotifier,
     Map<String, DownloadProgress>>(DownloadProgressNotifier.new);
 
+/// Cover image path per downloaded book (null = no cover shipped).
+/// File check per card; cheap local stat calls, auto-disposed.
+final bookCoverProvider =
+    FutureProvider.family<String?, String>((ref, bookId) async {
+  final dm = ref.watch(downloadManagerProvider);
+  return dm.coverPath(bookId);
+});
+
 /// True while a local-file import is being extracted.
 class ImportInProgressNotifier extends Notifier<bool> {
   @override

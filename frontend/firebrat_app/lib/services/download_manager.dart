@@ -279,6 +279,19 @@ class DownloadManager {
     } catch (_) {}
   }
 
+  /// Absolute path of the book's cover image if the package ships one
+  /// (`cover.png/.jpg/.jpeg/.webp` at the package root — written by
+  /// chapter-zip imports and future backend packaging), else null.
+  /// Library cards show it instead of the generic book icon.
+  Future<String?> coverPath(String bookId) async {
+    final dir = await bookDir(bookId);
+    for (final name in ['cover.png', 'cover.jpg', 'cover.jpeg', 'cover.webp']) {
+      final f = File('${dir.path}/$name');
+      if (await f.exists()) return f.path;
+    }
+    return null;
+  }
+
   Future<void> deleteBook(String bookId) async {
     final dir = await bookDir(bookId);
     if (await dir.exists()) await dir.delete(recursive: true);

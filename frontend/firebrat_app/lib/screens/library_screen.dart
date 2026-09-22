@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/book.dart';
+import '../models/manifest.dart';
 import '../services/analytics_service.dart';
 import '../services/download_manager.dart';
 import '../services/drive_sync_service.dart';
@@ -11,6 +12,7 @@ import '../state/on_device_conversion_providers.dart';
 import '../state/theme_providers.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/book_card.dart';
+import 'chapter_reader_screen.dart';
 import 'conversions_screen.dart';
 import 'reader_screen.dart';
 
@@ -104,6 +106,9 @@ class LibraryScreen extends ConsumerWidget {
                   book: book,
                   isDownloaded: isLocal,
                   downloadProgress: progress[book.bookId],
+                  coverPath: isLocal
+                      ? ref.watch(bookCoverProvider(book.bookId)).value
+                      : null,
                   onTap: () => _openOrDownload(context, ref, book, isLocal),
                   onPauseDownload: progress[book.bookId] == null
                       ? null
@@ -123,10 +128,20 @@ class LibraryScreen extends ConsumerWidget {
   Future<void> _openOrDownload(BuildContext context, WidgetRef ref, BookSummary book, bool isLocal) async {
     if (isLocal) {
       if (!context.mounted) return;
+      // Chapter-PDF books have no audio — open the chapter list instead
+      // of the narrated reader (which would have nothing to play).
+      final repo = ref.read(libraryRepositoryProvider);
+      Manifest? manifest;
+      try {
+        manifest = await repo.loadLocalManifest(book.bookId);
+      } catch (_) {}
       await FirestoreSyncService.instance.touchOpened(book.bookId);
       await AnalyticsService.instance.logBookOpened(sectionCount: book.sectionCount);
       if (!context.mounted) return;
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReaderScreen(bookId: book.bookId)));
+      Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => (manifest != null && manifest.isChapters)
+              ? ChapterReaderScreen(bookId: book.bookId)
+              : ReaderScreen(bookId: book.bookId)));
       return;
     }
     final dm = ref.read(downloadManagerProvider);

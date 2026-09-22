@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import '../models/book.dart';
 import '../services/download_manager.dart';
@@ -10,6 +12,9 @@ class BookCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onPauseDownload;
   final VoidCallback? onDiscardDownload;
+  /// Absolute cover image path, or null for the generic icon. Resolved by
+  /// the library screen via bookCoverProvider (packages may ship cover.*).
+  final String? coverPath;
 
   const BookCard({
     super.key,
@@ -19,7 +24,19 @@ class BookCard extends StatelessWidget {
     required this.onTap,
     this.onPauseDownload,
     this.onDiscardDownload,
+    this.coverPath,
   });
+
+  Widget _fallbackIcon(ColorScheme scheme) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Icon(Icons.menu_book_rounded, color: scheme.onPrimaryContainer),
+    );
+  }
 
   String _duration() {
     final mins = (book.totalDurationMs / 60000).round();
@@ -43,14 +60,19 @@ class BookCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: scheme.primaryContainer,
+                  if (coverPath != null)
+                    ClipRRect(
                       borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(Icons.menu_book_rounded, color: scheme.onPrimaryContainer),
-                  ),
+                      child: Image.file(
+                        File(coverPath!),
+                        width: 44,
+                        height: 60,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => _fallbackIcon(scheme),
+                      ),
+                    )
+                  else
+                    _fallbackIcon(scheme),
                   const Spacer(),
                   if (isDownloaded)
                     Icon(Icons.check_circle_rounded, color: scheme.primary, size: 20)
