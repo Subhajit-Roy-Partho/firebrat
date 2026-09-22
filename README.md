@@ -50,7 +50,21 @@ Full rationale for each design decision is in [docs/ARCHITECTURE.md](docs/ARCHIT
 
 ## Quick start
 
-### Option A: Docker (easiest)
+### Option A: one command (`./run.sh`)
+
+```bash
+./run.sh                        # asks GPU? provider? key — then boots
+./run.sh --provider local --model qwen3-1.7b   # small-VRAM laptop, no key needed
+./run.sh --provider nanogpt     # cloud LLM (needs MODEL_API_KEY)
+```
+
+Detects docker + NVIDIA runtime, sizes the local model to your VRAM
+(1.7B <6GB, 4B ~12GB, 8B 20GB+), writes `.env` (gitignored), and boots
+the right compose profile. Then open **http://localhost:8000** — the
+built-in web control room (upload PDFs, watch parallel jobs, download
+books, switch provider/model) — or point the app at the same URL.
+
+### Option B: Docker, by hand
 
 Published images: [`subhajitroy/firebrat`](https://hub.docker.com/r/subhajitroy/firebrat) on Docker Hub, built by [`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml). Three tags:
 

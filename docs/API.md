@@ -60,7 +60,7 @@ Permanently deletes a converted book's package (audio, assets, manifest — ever
 
 ## `POST /books/upload`
 
-Upload a PDF for conversion. `multipart/form-data`: `file` (required, `.pdf` only, capped at `FIREBRAT_MAX_UPLOAD_MB` — default 500), `title` (optional, defaults to a title-cased version of the filename). Returns the newly-created job immediately (state `queued`); conversion runs in the background.
+Upload a PDF for conversion. `multipart/form-data`: `file` (required, `.pdf` only, capped at `FIREBRAT_MAX_UPLOAD_MB` — default 500), `title` (optional, defaults to a title-cased version of the filename), `provider` (`nanogpt`|`local`, empty = server default from `/settings`), `chunk_pages` (0 = server default; smaller fits endpoints that kill long generations). Requires sign-in. Returns the newly-created job immediately (state `queued`); conversion runs in the background — several jobs may convert at once, up to `FIREBRAT_MAX_CONCURRENT_JOBS` workers.
 
 ```json
 {
@@ -100,6 +100,29 @@ Puts a stuck `queued`/`running` job back on the work queue, unchanged (no `--ret
 
 ## `GET /jobs/{job_id}/log?tail_lines=200`
 
+## `GET /settings` · `POST /settings`
+
+Server defaults + capabilities for external users. GET returns
+`default_provider`, `default_chunk_pages`, `local_model_preset` (+ its
+entry), the full `presets` table (repo + VRAM notes), `gpu` presence,
+`max_concurrent_jobs`, and the auth model. POST (sign-in required) saves
+`default_provider` / `default_chunk_pages` / `local_model_preset`
+(validated, unknown values fall back); the preset applies when the LLM
+shim (re)starts — restart the container or `llm_server.py` for new
+weights. Uploads that omit provider/chunk inherit these defaults.
+
+## `GET /firebase-config`
+
+Public Firebase web config (`apiKey`, `authDomain`, `projectId`) for the
+browser UI's Google sign-in. Public by design.
+
+## `GET /` (web control room)
+
+Dependency-free static UI (`backend/server/static/`): server health/GPU/
+workers, settings form, multi-PDF upload with per-book provider + chunk
+options, live job table with retry/resume, book shelf with download +
+delete. Same-origin fetch, Firebase compat SDK for sign-in; reads work
+anonymous, mutations send the ID token.
 The last N lines of that job's raw `convert.py` stdout/stderr, for debugging a failure beyond what `error` summarizes. `{"lines": ["...", "..."]}`.
 
 ## Error shape

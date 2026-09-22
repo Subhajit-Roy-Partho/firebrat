@@ -31,6 +31,8 @@ def _job_view(job: dict) -> dict:
         # the subprocess died before ever writing a status.json at all.
         "error": status.get("error") or job["error"],
         "retry_count": job["retry_count"],
+        "provider": job.get("provider") or "nanogpt",
+        "chunk_pages": job.get("chunk_pages") or 0,
         "created_at": job["created_at"],
         "updated_at": job["updated_at"],
     }
@@ -40,6 +42,8 @@ def _job_view(job: dict) -> dict:
 async def upload_book(
     file: UploadFile = File(...),
     title: str | None = Form(None),
+    provider: str = Form(""),
+    chunk_pages: int = Form(0),
     _user: dict = Depends(auth.require_user),
 ):
     if not file.filename or not file.filename.lower().endswith(".pdf"):
@@ -69,7 +73,22 @@ async def upload_book(
             out.write(chunk)
 
     book_title = title or book_id.replace("-", " ").title()
-    job_id = jobs.create_job(book_id=book_id, filename=file.filename, title=book_title, pdf_path=dest_path)
+    # Empty provider/chunk (the mobile app sends neither) inherits the
+    # server defaults from /settings.
+    from server.routes.settings import read_settings as _read_settings
+    _defaults = _read_settings()
+    eff_provider = (provider or _defaults.get("default_provider") or "nanogpt")
+    try:
+        eff_chunk = int(chunk_pages or 0)
+    except (TypeError, ValueError):
+        eff_chunk = 0
+    if eff_chunk <= 0:
+        try:
+            eff_chunk = int(_defaults.get("default_chunk_pages") or 0)
+        except (TypeError, ValueError):
+            eff_chunk = 0
+    job_id = jobs.create_job(book_id=book_id, filename=file.filename, title=book_title, pdf_path=dest_path,
+                             provider=eff_provider, chunk_pages=eff_chunk)
     job_runner.enqueue(job_id)
     return _job_view(jobs.get_job(job_id))
 

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Firebrat Server</title>
+<link rel="stylesheet" href="/static/styles.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+</head>
+<body>
+<header>
+  <h1>Firebrat Server</h1>
+  <div id="authbar">
+    <span id="whoami">Not signed in (reads work; uploads need sign-in)</span>
+    <button id="signin">Sign in with Google</button>
+    <button id="signout" hidden>Sign out</button>
+  </div>
+  <div id="health">checking server…</div>
+</header>
+<main>
+  <section>
+    <h2>Convert a book</h2>
+    <form id="upload">
+      <input type="file" id="pdf" accept=".pdf" required>
+      <input type="text" id="title" placeholder="Title (optional)">
+      <label>LLM provider
+        <select id="provider">
+          <option value="nanogpt">nano-gpt (cloud)</option>
+          <option value="local">local GPU model</option>
+        </select>
+      </label>
+      <label>Pages per LLM chunk (0 = server default)
+        <input type="number" id="chunk_pages" min="0" value="0">
+      </label>
+      <button type="submit">Upload + convert</button>
+    </form>
+    <div id="uploadmsg"></div>
+  </section>
+  <section>
+    <h2>Jobs <small>(sign-in required)</small></h2>
+    <table id="jobs"><thead><tr>
+      <th>Title</th><th>State</th><th>Stage</th><th>Provider</th><th>Actions</th>
+    </tr></thead><tbody></tbody></table>
+  </section>
+  <section>
+    <h2>Books</h2>
+    <div id="books"></div>
+  </section>
+  <section>
+    <h2>Server settings</h2>
+    <div id="settings"></div>
+  </section>
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>

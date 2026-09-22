@@ -50,7 +50,7 @@ COPY backend/ /app/backend/
 RUN python -m venv /opt/venvs/extract && \
     /opt/venvs/extract/bin/pip install --no-cache-dir --upgrade pip && \
     /opt/venvs/extract/bin/pip install --no-cache-dir --extra-index-url "$TORCH_INDEX_URL" \
-        marker-pdf==1.9.3 pymupdf pydantic requests transformers accelerate "fastapi" "uvicorn[standard]"
+        marker-pdf==1.9.3 pymupdf pydantic requests transformers accelerate huggingface_hub "fastapi" "uvicorn[standard]"
 
 # ── firebrat-tts venv (chatterbox-tts) ───────────────────────────────────
 RUN python -m venv /opt/venvs/tts && \

@@ -38,6 +38,15 @@ def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(config.JOBS_DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute(_SCHEMA)
+    # Per-job conversion options (added after v1.0): migrate old DBs.
+    for col in ("provider TEXT NOT NULL DEFAULT 'nanogpt'",
+                "chunk_pages INTEGER NOT NULL DEFAULT 0",
+                "local_model TEXT NOT NULL DEFAULT ''"):
+        try:
+            conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
+        except sqlite3.OperationalError:
+            pass  # already migrated
+    conn.commit()
     return conn
 
 
@@ -45,15 +54,25 @@ def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
-def create_job(book_id: str, filename: str, title: str, pdf_path: str) -> str:
+def create_job(book_id: str, filename: str, title: str, pdf_path: str,
+               provider: str = "nanogpt", chunk_pages: int = 0,
+               local_model: str = "") -> str:
+    """Queue a conversion. provider: 'nanogpt' (cloud endpoint) or 'local'
+    (on-server GPU model via FIREBRAT_LOCAL_LLM_URL). chunk_pages > 0
+    overrides FIREBRAT_CHUNK_PAGES for this job only (smaller chunks fit
+    endpoints that kill long generations). local_model is informational
+    (the loaded server-side model serves all local jobs)."""
+    if provider not in ("nanogpt", "local"):
+        provider = "nanogpt"
     job_id = uuid.uuid4().hex[:16]
     now = _now()
     conn = _connect()
     try:
         conn.execute(
-            "INSERT INTO jobs (job_id, book_id, filename, title, pdf_path, state, retry_count, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?)",
-            (job_id, book_id, filename, title, pdf_path, now, now),
+            "INSERT INTO jobs (job_id, book_id, filename, title, pdf_path, state, retry_count, created_at, updated_at, provider, chunk_pages, local_model) "
+            "VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?, ?)",
+            (job_id, book_id, filename, title, pdf_path, now, now,
+             provider, chunk_pages, local_model),
         )
         conn.commit()
     finally:

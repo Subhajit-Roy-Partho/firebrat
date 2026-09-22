@@ -28,6 +28,24 @@ if [ "$PROVIDER" = "local" ]; then
     : "${LOCAL_MODEL_DIR:?LLM_PROVIDER=local requires LOCAL_MODEL_DIR (mount your HF model snapshot there)}"
     LOCAL_LLM_PORT="${LOCAL_LLM_PORT:-8080}"
     LOCAL_MAX_SEQ_LEN="${LOCAL_MAX_SEQ_LEN:-16384}"
+    # Preset convenience: LOCAL_MODEL_PRESET (qwen3-1.7b|qwen3-4b|qwen3-8b,
+    # see backend/server/models.py) auto-downloads the weights when the
+    # dir is empty, so small-VRAM laptops don't hand-assemble snapshots.
+    # Skip with LOCAL_MODEL_PRESET="" when you mount weights yourself.
+    if [ -n "${LOCAL_MODEL_PRESET:-}" ] && [ -z "$(ls -A "$LOCAL_MODEL_DIR" 2>/dev/null)" ]; then
+        echo "[entrypoint] downloading preset $LOCAL_MODEL_PRESET into $LOCAL_MODEL_DIR"
+        /opt/venvs/extract/bin/python - "$LOCAL_MODEL_DIR" "$LOCAL_MODEL_PRESET" <<'EOF'
+import json, os, sys
+from huggingface_hub import snapshot_download
+sys.path.insert(0, "/app/backend")
+from server.models import preset_or_default
+target, entry = preset_or_default(os.environ.get("LOCAL_MODEL_PRESET", ""))
+d = sys.argv[1]
+snapshot_download(entry["repo"], local_dir=d,
+                  allow_patterns=["*.json", "*.safetensors", "tokenizer*", "*.txt"])
+print("preset ready:", target, entry["repo"])
+EOF
+    fi
     echo "[entrypoint] starting local LLM: $LOCAL_MODEL_DIR (port $LOCAL_LLM_PORT, ctx $LOCAL_MAX_SEQ_LEN)"
     /opt/venvs/extract/bin/python /app/backend/scripts/llm_server.py \
         --model-dir "$LOCAL_MODEL_DIR" \

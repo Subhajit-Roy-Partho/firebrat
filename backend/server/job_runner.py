@@ -59,12 +59,35 @@ def _run_job(job_id: str, extra_args: list[str]) -> None:
         "--title", job["title"],
         *extra_args,
     ]
+    # Per-job conversion options (see jobs.create_job): a local-provider
+    # job points the pipeline at the on-server LLM shim, and a chunk_pages
+    # override rides along as FIREBRAT_CHUNK_PAGES for this subprocess
+    # only — the server default is untouched.
+    run_env = dict(os.environ)
+    provider = (job.get("provider") or "nanogpt")
+    if provider == "local":
+        run_env["NANO_API_URL"] = config.LOCAL_LLM_URL
+        log.info("Job %s uses LOCAL provider (%s)", job_id, config.LOCAL_LLM_URL)
+    try:
+        chunk_pages = int(job.get("chunk_pages") or 0)
+    except (TypeError, ValueError):
+        chunk_pages = 0
+    if chunk_pages <= 0:
+        # Callers that omit chunk_pages (the mobile app) inherit the
+        # server default from /settings instead of the hardcoded 10.
+        try:
+            from server.routes.settings import read_settings
+            chunk_pages = int(read_settings().get("default_chunk_pages") or 0)
+        except Exception:
+            chunk_pages = 0
+    if chunk_pages > 0:
+        run_env["FIREBRAT_CHUNK_PAGES"] = str(chunk_pages)
     log.info("Starting conversion job %s: %s", job_id, " ".join(cmd))
     try:
         with open(log_path, "a", encoding="utf-8") as logf:
             logf.write(f"\n=== job {job_id} start: {' '.join(cmd)} ===\n")
             logf.flush()
-            result = subprocess.run(cmd, stdout=logf, stderr=subprocess.STDOUT)
+            result = subprocess.run(cmd, stdout=logf, stderr=subprocess.STDOUT, env=run_env)
         if result.returncode == 0:
             jobs.set_state(job_id, "done")
             log.info("Job %s (%s) finished successfully", job_id, job["book_id"])
