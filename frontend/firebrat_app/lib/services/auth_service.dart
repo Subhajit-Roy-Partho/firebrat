@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -18,9 +20,16 @@ class AuthService {
   Stream<User?> authStateChanges() {
     // Resilient: if Firebase isn't initialized (missing google-services
     // config, or the flutter_test harness with no platform channels), the
-    // app must still open — signed out — instead of red-screening.
+    // app must still open — signed out — instead of red-screening. The
+    // failure surfaces ASYNCHRONOUSLY (on stream listen), so a sync
+    // try/catch is not enough: map any stream error to a signed-out event.
     try {
-      return _auth.authStateChanges();
+      return _auth.authStateChanges().transform(
+        StreamTransformer<User?, User?>.fromHandlers(
+          handleError: (Object e, StackTrace st, EventSink<User?> sink) =>
+              sink.add(null),
+        ),
+      );
     } catch (_) {
       return Stream.value(null);
     }
@@ -43,12 +52,41 @@ class AuthService {
   Future<UserCredential> signInWithGoogle() async {
     // google_sign_in v7: authenticate() then credential-based sign-in.
     final account = await _google.authenticate();
+    _lastAccount = account;
     final auth = account.authentication;
     final credential = GoogleAuthProvider.credential(
       idToken: auth.idToken,
     );
     return _auth.signInWithCredential(credential);
   }
+
+  GoogleSignInAccount? _lastAccount;
+
+  /// The Google account, preferring a silent restore (returning user)
+  /// before falling back to interactive sign-in. When [driveScope] is
+  /// true, consent for Drive file access is requested as well —
+  /// incremental: normal sign-in never asks for Drive.
+  Future<GoogleSignInAccount?> signInSilentlyOrInteractiveDrive({bool driveScope = true}) async {
+    if (_lastAccount != null) return _lastAccount;
+    try {
+      final silent = await _google.attemptLightweightAuthentication();
+      if (silent != null) {
+        _lastAccount = silent;
+        if (!driveScope) return silent;
+      }
+    } catch (_) {}
+    try {
+      final account = await _google.authenticate(
+        scopeHint: driveScope ? const ['https://www.googleapis.com/auth/drive.file'] : const [],
+      );
+      _lastAccount = account;
+      return account;
+    } catch (_) {
+      return _lastAccount;
+    }
+  }
+
+  GoogleSignInAccount? get currentGoogleUser => _lastAccount;
 
   Future<UserCredential> signInWithEmail(String email, String password) =>
       _auth.signInWithEmailAndPassword(email: email.trim(), password: password);

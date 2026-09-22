@@ -1,7 +1,8 @@
-# Firebase — Auth + Push for Firebrat
+# Firebase — Auth + Push + Sync for Firebrat
 
-Status (2026-09-18): wired end to end. Project `firebrat-8c597`, Android app
-`com.firebrat.firebrat_app` (ID `1:657440934081:android:ffa7b93d66d61efd1bac40`),
+Status (2026-09-22): auth + push shipped; Drive sync + Firestore metadata
+in v1.5.6. Project `firebrat-8c597`, Android app
+`com.firebrat.firebrat_app`.
 release SHA-1 registered, `google-services.json` in place (gitignored) and
 in CI secrets. Remaining: enable Google sign-in (one console click, below)
 and optionally a service-account key for server-side push.
@@ -47,6 +48,34 @@ and optionally a service-account key for server-side push.
 `ci.yml` — the google-services Gradle plugin (4.4.4, applied in
 `settings.gradle.kts` + app `build.gradle.kts`) fails the build without
 the file. Same pattern as the release keystore.
+
+## Cross-device sync: Drive blobs + Firestore Database (no Storage)
+
+Book zips live in the user's own Google Drive (`Firebrat/` folder,
+`drive.file` scope — only files the app created). Firestore holds
+KILOBYTES of metadata: `users/{uid}/library/{bookId}` →
+`{title, source, sha256?, updatedAt, lastOpenedAt}`.
+
+Firestore rules (console → Firestore Database → Create database →
+Rules tab, paste exactly this):
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+```
+
+Drive consent is incremental: plain sign-in never asks for Drive; the
+scope is requested only when the user enables Drive sync in Conversion
+settings → storage. Uploads resume (8MB chunks), downloads resume via
+Range, integrity via Drive's `sha256Checksum` vs the server checksum.
+Analytics (`firebase_analytics`, observer + 6 events) carries counts and
+ids only — never titles, emails, or file contents.
 
 ## Still manual (console)
 

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/conversion_settings_screen.dart';
 import '../screens/conversions_screen.dart';
-import '../screens/on_device_models_screen.dart';
 import '../services/auth_service.dart';
 
 /// Left drawer: who is signed in, where to go, and the way out.
@@ -75,12 +74,13 @@ class AppDrawer extends ConsumerWidget {
           ),
           ListTile(
             leading: const Icon(Icons.memory_rounded),
-            title: const Text('On-device models & voice'),
+            title: const Text('Models & voice'),
+            subtitle: const Text('Local LLM, GPU, narrator — all on one settings page'),
             onTap: () {
               Navigator.of(context).pop();
               Navigator.of(context).push(
                 MaterialPageRoute(
-                    builder: (_) => const OnDeviceModelsScreen()),
+                    builder: (_) => const ConversionSettingsScreen()),
               );
             },
           ),

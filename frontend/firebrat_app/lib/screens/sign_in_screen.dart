@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/analytics_service.dart';
 import '../services/auth_service.dart';
 
 /// First screen for signed-out users. Google sign-in only for now —
@@ -26,13 +27,14 @@ class _SignInScreenState extends State<SignInScreen> {
     super.dispose();
   }
 
-  Future<void> _run(Future<void> Function() action) async {
+  Future<void> _run(String method, Future<void> Function() action) async {
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
       await action();
+      await AnalyticsService.instance.logLogin(method);
       // AuthGate flips to the library on authStateChanges — nothing to push.
     } catch (e) {
       if (mounted) {
@@ -44,7 +46,7 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
-  Future<void> _signIn() => _run(AuthService.instance.signInWithGoogle);
+  Future<void> _signIn() => _run('google', AuthService.instance.signInWithGoogle);
 
   Future<void> _emailAuth() {
     final email = _email.text.trim();
@@ -53,7 +55,7 @@ class _SignInScreenState extends State<SignInScreen> {
       setState(() => _error = 'Enter an email and a password of 6+ characters.');
       return Future.value();
     }
-    return _run(() => _registerMode
+    return _run(_registerMode ? 'password_signup' : 'password', () => _registerMode
         ? AuthService.instance.registerWithEmail(email, password)
         : AuthService.instance.signInWithEmail(email, password));
   }

@@ -1,9 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/analytics_service.dart';
+import '../services/auth_service.dart';
 import 'screens/library_screen.dart';
 import 'screens/sign_in_screen.dart';
-import 'services/auth_service.dart';
 import 'state/theme_providers.dart';
 import 'theme/app_theme.dart';
 
@@ -19,6 +20,8 @@ class FirebratApp extends ConsumerWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,
+      // Automatic screen-view tracking (screen names only, no content).
+      navigatorObservers: AnalyticsService.observerOrNull(),
       home: const AuthGate(),
     );
   }

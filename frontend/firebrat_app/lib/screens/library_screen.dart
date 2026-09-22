@@ -1,8 +1,13 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/book.dart';
+import '../services/analytics_service.dart';
 import '../services/download_manager.dart';
+import '../services/drive_sync_service.dart';
+import '../services/firestore_sync_service.dart';
 import '../state/library_providers.dart';
+import '../state/on_device_conversion_providers.dart';
 import '../state/theme_providers.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/book_card.dart';
@@ -100,6 +105,12 @@ class LibraryScreen extends ConsumerWidget {
                   isDownloaded: isLocal,
                   downloadProgress: progress[book.bookId],
                   onTap: () => _openOrDownload(context, ref, book, isLocal),
+                  onPauseDownload: progress[book.bookId] == null
+                      ? null
+                      : () => _pauseDownload(context, ref, book),
+                  onDiscardDownload: progress[book.bookId] == null
+                      ? null
+                      : () => _discardDownload(context, ref, book),
                 );
               },
             ),
@@ -111,6 +122,9 @@ class LibraryScreen extends ConsumerWidget {
 
   Future<void> _openOrDownload(BuildContext context, WidgetRef ref, BookSummary book, bool isLocal) async {
     if (isLocal) {
+      if (!context.mounted) return;
+      await FirestoreSyncService.instance.touchOpened(book.bookId);
+      await AnalyticsService.instance.logBookOpened(sectionCount: book.sectionCount);
       if (!context.mounted) return;
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReaderScreen(bookId: book.bookId)));
       return;
@@ -128,16 +142,70 @@ class LibraryScreen extends ConsumerWidget {
       return;
     }
     try {
-      await dm.downloadAndExtract(book.bookId,
-          onProgress: (p) => notifier.setProgress(book.bookId, p));
+      await dm.downloadAndExtract(
+        book.bookId,
+        onProgress: (p) => notifier.setProgress(book.bookId, p),
+        onZipReady: (id, zipPath) => _backupZipToDrive(ref, id, zipPath),
+      );
       notifier.clear(book.bookId);
       invalidateLibrary(ref);
+      await FirestoreSyncService.instance.upsertBook(
+        bookId: book.bookId,
+        title: book.title,
+        source: 'server',
+      );
+      await AnalyticsService.instance.logBookDownloaded();
     } catch (e) {
       notifier.clear(book.bookId);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Download failed: $e')));
+        // User-initiated pause surfaces as a Dio cancellation — the .part
+        // file stays, and tapping the card resumes. Not an error.
+        final paused = e is DioException && e.type == DioExceptionType.cancel;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(paused
+                ? 'Download paused — tap the book to resume.'
+                : 'Download failed: $e')));
       }
     }
+  }
+
+  void _pauseDownload(BuildContext context, WidgetRef ref, BookSummary book) {
+    DownloadManager.pauseDownload(book.bookId);
+    ref.read(downloadProgressProvider.notifier).clear(book.bookId);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Download paused — tap the book to resume.')),
+      );
+    }
+  }
+
+  Future<void> _discardDownload(BuildContext context, WidgetRef ref, BookSummary book) async {
+    final dm = ref.read(downloadManagerProvider);
+    await dm.discardPartial(book.bookId);
+    ref.read(downloadProgressProvider.notifier).clear(book.bookId);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Download cancelled and cleared.')),
+      );
+    }
+  }
+
+  /// Drive backup hook: after a verified zip lands (before extraction
+  /// deletes it), copy it to the user's Drive so other devices can pull
+  /// it. Only when storage is set to Drive and sync is enabled — and
+  /// failures never fail the download.
+  Future<void> _backupZipToDrive(WidgetRef ref, String bookId, String zipPath) async {
+    try {
+      final settings = ref.read(conversionModeProvider);
+      if (settings.storageBackend != 'drive') return;
+      if (!await DriveSyncService.instance.isEnabled()) return;
+      await DriveSyncService.instance.uploadBook(bookId: bookId, zipPath: zipPath);
+      await FirestoreSyncService.instance.upsertBook(
+        bookId: bookId,
+        title: bookId,
+        source: 'drive',
+      );
+    } catch (_) {}
   }
 
   Future<void> _importFile(BuildContext context, WidgetRef ref) async {
@@ -149,6 +217,11 @@ class LibraryScreen extends ConsumerWidget {
       inProgress.set(true);
       final bookId = await importMgr.importFromFile(file);
       invalidateLibrary(ref);
+      await FirestoreSyncService.instance.upsertBook(
+        bookId: bookId,
+        title: bookId,
+        source: 'import',
+      );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Imported "$bookId"')));
       }

@@ -13,6 +13,10 @@ enum ConversionModePref { cloud, onDevice }
 class ConversionModeSettings {
   final ConversionModePref mode;
   final String cloudServerUrl;
+  /// Where finished books live for this device: 'server' (the Firebrat
+  /// server above — downloads + shelf) or 'drive' (your own Google Drive;
+  /// books back up there after downloading and other devices pull them).
+  final String storageBackend;
   final String onDeviceLlmUrl;
   final String onDeviceLlmApiKey;
   final String onDeviceLlmModel;
@@ -31,6 +35,7 @@ class ConversionModeSettings {
   const ConversionModeSettings({
     this.mode = ConversionModePref.cloud,
     this.cloudServerUrl = '',
+    this.storageBackend = 'server',
     this.onDeviceLlmUrl = '',
     this.onDeviceLlmApiKey = '',
     this.onDeviceLlmModel = '',
@@ -43,6 +48,7 @@ class ConversionModeSettings {
   ConversionModeSettings copyWith({
     ConversionModePref? mode,
     String? cloudServerUrl,
+    String? storageBackend,
     String? onDeviceLlmUrl,
     String? onDeviceLlmApiKey,
     String? onDeviceLlmModel,
@@ -54,6 +60,7 @@ class ConversionModeSettings {
       ConversionModeSettings(
         mode: mode ?? this.mode,
         cloudServerUrl: cloudServerUrl ?? this.cloudServerUrl,
+        storageBackend: storageBackend ?? this.storageBackend,
         onDeviceLlmUrl: onDeviceLlmUrl ?? this.onDeviceLlmUrl,
         onDeviceLlmApiKey: onDeviceLlmApiKey ?? this.onDeviceLlmApiKey,
         onDeviceLlmModel: onDeviceLlmModel ?? this.onDeviceLlmModel,
@@ -72,6 +79,7 @@ class ConversionModeSettings {
 class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
   static const _kMode = 'conversion.mode';
   static const _kCloudUrl = 'conversion.cloudServerUrl';
+  static const _kStorage = 'conversion.storageBackend';
   static const _kLlmUrl = 'conversion.onDeviceLlmUrl';
   static const _kLlmKey = 'conversion.onDeviceLlmApiKey';
   static const _kLlmModel = 'conversion.onDeviceLlmModel';
@@ -91,6 +99,7 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
     state = ConversionModeSettings(
       mode: (prefs.getString(_kMode) == 'onDevice') ? ConversionModePref.onDevice : ConversionModePref.cloud,
       cloudServerUrl: prefs.getString(_kCloudUrl) ?? '',
+      storageBackend: prefs.getString(_kStorage) ?? 'server',
       onDeviceLlmUrl: prefs.getString(_kLlmUrl) ?? '',
       onDeviceLlmApiKey: prefs.getString(_kLlmKey) ?? '',
       onDeviceLlmModel: prefs.getString(_kLlmModel) ?? '',
@@ -110,6 +119,15 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
     final normalized = normalizeServerUrl(url);
     state = state.copyWith(cloudServerUrl: normalized);
     (await SharedPreferences.getInstance()).setString(_kCloudUrl, normalized);
+  }
+
+  /// 'server' (shelf + downloads from the Firebrat server URL above) or
+  /// 'drive' (your Google Drive — books back up there, other devices pull
+  /// them; needs Drive sign-in below, uses your own Drive quota).
+  Future<void> setStorageBackend(String backend) async {
+    assert(backend == 'server' || backend == 'drive');
+    state = state.copyWith(storageBackend: backend);
+    (await SharedPreferences.getInstance()).setString(_kStorage, backend);
   }
 
   Future<void> setOnDeviceLlm({required String url, required String apiKey, required String model}) async {

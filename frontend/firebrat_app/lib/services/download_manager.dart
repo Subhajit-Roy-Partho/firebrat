@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'api_client.dart';
 import 'download_task_handler.dart';
@@ -66,6 +67,10 @@ class DownloadManager {
   /// bookIds with a live download future. Cleared in `finally`.
   static final Map<String, Future<Directory>> _inFlight = {};
 
+  /// One cancel token per live download. cancelDownload() cancels the
+  /// in-flight HTTP stream; the `.part` file stays for resume.
+  static final Map<String, CancelToken> _tokens = {};
+
   Future<Directory> booksDir() async {
     final docs = await getApplicationDocumentsDirectory();
     final dir = Directory('${docs.path}/books');
@@ -97,6 +102,23 @@ class DownloadManager {
     return ids;
   }
 
+  /// Streaming-extract [zipPath] into the book dir for [bookId]
+  /// (replacing anything there), verifying the manifest. Shared by server
+  /// downloads and Drive pulls — both produce identical layouts.
+  /// Throws StateError when the zip has no manifest.json.
+  Future<Directory> extractZipToBook(String zipPath, Directory target) async {
+    if (await target.exists()) await target.delete(recursive: true);
+    await target.create(recursive: true);
+    // Streaming extract — entries are written as they are read, so peak
+    // memory stays flat instead of spiking to ~2x the zip size.
+    extractFileToDisk(zipPath, target.path);
+    if (!await File('${target.path}/manifest.json').exists()) {
+      await target.delete(recursive: true);
+      throw StateError('Package at ${target.path} is missing manifest.json');
+    }
+    return target;
+  }
+
   /// Extracts an in-memory archive's contents flatly into [target]
   /// (replacing anything already there). Shared by the download and
   /// import paths — both produce identically-laid-out book directories.
@@ -121,21 +143,53 @@ class DownloadManager {
   Future<Directory> downloadAndExtract(
     String bookId, {
     void Function(DownloadProgress progress)? onProgress,
+    /// Called with the verified zip BEFORE it is extracted and deleted —
+    /// used for Drive backup (the only moment the full file exists).
+    /// Errors are swallowed: backup must never fail a download.
+    Future<void> Function(String bookId, String zipPath)? onZipReady,
   }) {
     // Single-flight: a second tap while downloading joins the same future
     // instead of starting a rival transfer into the same `.part` file.
-    return _inFlight.putIfAbsent(bookId, () => _run(bookId, onProgress).whenComplete(() {
-          _inFlight.remove(bookId);
-        }));
+    return _inFlight.putIfAbsent(
+        bookId,
+        () => _run(bookId, onProgress, onZipReady: onZipReady).whenComplete(() {
+              _inFlight.remove(bookId);
+              _tokens.remove(bookId);
+            }));
   }
 
   /// True while [bookId] has a live download (UI tap guard).
   static bool isDownloading(String bookId) => _inFlight.containsKey(bookId);
 
+  /// Pause a live download: aborts the HTTP stream but KEEPS the `.part`
+  /// file, so tapping the book again resumes where it stopped. No-op when
+  /// nothing is running. Never throws.
+  static void pauseDownload(String bookId) {
+    try {
+      _tokens[bookId]?.cancel('paused by user');
+    } catch (_) {}
+  }
+
+  /// Pause + delete the partial file (start fully over next time).
+  Future<void> discardPartial(String bookId) async {
+    pauseDownload(bookId);
+    final books = await booksDir();
+    await _deleteQuietly(File('${books.path}/$bookId.zip.part'));
+    await _deleteQuietly(File('${books.path}/$bookId.zip'));
+  }
+
+  /// True when a partial download exists that a tap would resume.
+  Future<bool> hasPartial(String bookId) async {
+    final books = await booksDir();
+    final part = File('${books.path}/$bookId.zip.part');
+    return await part.exists() && await part.length() > 0;
+  }
+
   Future<Directory> _run(
     String bookId,
-    void Function(DownloadProgress progress)? onProgress,
-  ) async {
+    void Function(DownloadProgress progress)? onProgress, {
+    Future<void> Function(String bookId, String zipPath)? onZipReady,
+  }) async {
     final books = await booksDir();
     final zipPath = '${books.path}/$bookId.zip';
     final target = await bookDir(bookId);
@@ -160,11 +214,14 @@ class DownloadManager {
       var attempt = 0;
       while (true) {
         attempt++;
+        final token = CancelToken();
+        _tokens[bookId] = token;
         try {
           await api.downloadBook(
             bookId,
             zipPath,
             expectedTotal: total,
+            cancelToken: token,
             onBytes: (received, _) {
               emit(received / total * 0.92, received, total, 'downloading');
               _updateNotification(bookId, received, total);
@@ -184,14 +241,12 @@ class DownloadManager {
       }
 
       emit(0.96, total, total, 'extracting');
-      if (await target.exists()) await target.delete(recursive: true);
-      await target.create(recursive: true);
-      // Streaming extract — entries are written as they are read, so peak
-      // memory stays flat instead of spiking to ~2x the zip size.
-      extractFileToDisk(zipPath, target.path);
-      if (!await File('${target.path}/manifest.json').exists()) {
-        throw StateError('Package at ${target.path} is missing manifest.json');
+      if (onZipReady != null) {
+        try {
+          await onZipReady(bookId, zipPath);
+        } catch (_) {}
       }
+      await extractZipToBook(zipPath, target);
       await _deleteQuietly(File(zipPath));
       emit(1.0, total, total, 'done');
       return target;

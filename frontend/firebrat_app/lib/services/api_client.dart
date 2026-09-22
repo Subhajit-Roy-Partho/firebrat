@@ -143,6 +143,7 @@ class ApiClient {
     String savePath, {
     required int expectedTotal,
     void Function(int receivedBytes, int totalBytes)? onBytes,
+    CancelToken? cancelToken,
   }) async {
     final partPath = '$savePath.part';
     final partFile = File(partPath);
@@ -158,6 +159,7 @@ class ApiClient {
     if (have > 0) headers['Range'] = 'bytes=$have-';
     final resp = await _dio.get<ResponseBody>(
       '/books/$bookId/download',
+      cancelToken: cancelToken,
       options: Options(
         headers: headers,
         responseType: ResponseType.stream,

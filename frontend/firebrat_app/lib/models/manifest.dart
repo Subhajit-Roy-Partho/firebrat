@@ -86,6 +86,9 @@ class ManifestSection {
   final List<String> tableRefs;
   final bool needsReview;
   final List<int> sourcePages; // 0-based PDF page indices; empty for old packages
+  /// Chapter-PDF books only: package-relative path of this section's PDF
+  /// (e.g. "chapters/01-intro.pdf"). Empty for narrated audiobooks.
+  final String chapterPdf;
 
   const ManifestSection({
     required this.sectionId,
@@ -100,6 +103,7 @@ class ManifestSection {
     required this.tableRefs,
     required this.needsReview,
     this.sourcePages = const [],
+    this.chapterPdf = '',
   });
 
   factory ManifestSection.fromJson(Map<String, dynamic> json) => ManifestSection(
@@ -115,6 +119,7 @@ class ManifestSection {
         tableRefs: (json['table_refs'] as List? ?? []).cast<String>(),
         needsReview: json['needs_review'] as bool? ?? false,
         sourcePages: (json['source_pages'] as List? ?? []).map((e) => (e as num).toInt()).toList(),
+        chapterPdf: json['chapter_pdf'] as String? ?? '',
       );
 }
 
@@ -130,6 +135,10 @@ class Manifest {
   final List<ManifestFormula> formulas;
   final List<ManifestTable> tables;
   final String? sourcePdfPath; // relative path of the shipped source PDF (e.g. "source.pdf"); null for old packages
+  /// 'audiobook' (narrated, default) or 'chapters' (chapter-PDF book with
+  /// no audio — see ImportManager's chapter-zip path). Old packages and
+  /// server books parse as 'audiobook'.
+  final String kind;
 
   const Manifest({
     required this.bookId,
@@ -143,7 +152,10 @@ class Manifest {
     required this.formulas,
     required this.tables,
     this.sourcePdfPath,
+    this.kind = 'audiobook',
   });
+
+  bool get isChapters => kind == 'chapters';
 
   factory Manifest.fromJson(Map<String, dynamic> json) => Manifest(
         bookId: json['book_id'] as String,
@@ -153,6 +165,7 @@ class Manifest {
         generatedAt: json['generated_at'] as String? ?? '',
         totalDurationMs: json['total_duration_ms'] as int? ?? 0,
         sourcePdfPath: json['source_pdf_path'] as String?,
+        kind: json['kind'] as String? ?? 'audiobook',
         sections: (json['sections'] as List? ?? [])
             .map((e) => ManifestSection.fromJson(e as Map<String, dynamic>))
             .toList(),

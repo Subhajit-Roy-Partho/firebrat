@@ -8,6 +8,8 @@ class BookCard extends StatelessWidget {
   final bool isDownloaded;
   final DownloadProgress? downloadProgress; // null = not downloading
   final VoidCallback onTap;
+  final VoidCallback? onPauseDownload;
+  final VoidCallback? onDiscardDownload;
 
   const BookCard({
     super.key,
@@ -15,6 +17,8 @@ class BookCard extends StatelessWidget {
     required this.isDownloaded,
     required this.downloadProgress,
     required this.onTap,
+    this.onPauseDownload,
+    this.onDiscardDownload,
   });
 
   String _duration() {
@@ -61,9 +65,25 @@ class BookCard extends StatelessWidget {
                 Text(book.author, style: Theme.of(context).textTheme.bodySmall),
               ],
               const SizedBox(height: 10),
-              if (downloadProgress != null)
-                DownloadProgressIndicator(progress: downloadProgress!)
-              else
+              if (downloadProgress != null) ...[
+                DownloadProgressIndicator(progress: downloadProgress!),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      onPressed: onPauseDownload,
+                      icon: const Icon(Icons.pause_rounded, size: 18),
+                      label: const Text('Pause'),
+                    ),
+                    TextButton.icon(
+                      onPressed: onDiscardDownload,
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      label: const Text('Cancel'),
+                    ),
+                  ],
+                ),
+              ] else
                 Row(
                   children: [
                     Icon(Icons.headphones_rounded, size: 16, color: scheme.onSurfaceVariant),
