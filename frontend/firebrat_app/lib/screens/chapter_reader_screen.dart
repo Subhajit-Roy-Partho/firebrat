@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import '../models/manifest.dart';
-import '../services/download_manager.dart';
 import '../state/library_providers.dart';
 
 /// Reader for chapter-PDF books (`kind: chapters` manifests from a chapter

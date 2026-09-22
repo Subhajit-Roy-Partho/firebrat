@@ -96,7 +96,6 @@ class ImportManager {
         .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
         .replaceAll(RegExp(r'^-+|-+$'), '')
         .ifEmpty('chapter-book');
-    final books = await downloads.booksDir();
     final target = await downloads.bookDir(bookId);
     if (await target.exists()) await target.delete(recursive: true);
     await Directory('${target.path}/chapters').create(recursive: true);
