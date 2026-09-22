@@ -13,7 +13,11 @@
 #
 # Usage: tmux new-session -d -s fb_autopilot '/path/autopilot_ddca.sh 2>&1 | tee /scratch/sroy85/autopilot.log'
 set -u
-source ~/.zshrc 2>/dev/null || true
+# Telegram creds live in ~/.zshrc, but sourcing the whole file under bash
+# hangs (zsh-only syntax) — source just the two export lines instead.
+grep -E '^export TELEGRAM_(BOT_TOKEN|CHAT_ID)=' ~/.zshrc > /tmp/fb_tg_env 2>/dev/null || true
+# shellcheck disable=SC1091
+source /tmp/fb_tg_env 2>/dev/null || true
 
 PKG=/scratch/sroy85/ddca-full/digital-design-and-computer-architecture
 COMPILED=$PKG/compiled.json
