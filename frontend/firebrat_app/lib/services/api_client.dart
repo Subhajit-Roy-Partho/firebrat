@@ -63,15 +63,16 @@ class ApiClient {
     await _dio.delete('/books/$bookId');
   }
 
-  /// Uploads a PDF for conversion, reporting 0.0-1.0 upload progress.
+  /// Uploads a PDF — or a .zip of PDFs, which the server merges in
+  /// archive order — for conversion, reporting 0.0-1.0 upload progress.
   /// Returns the freshly-created job (state usually "queued").
   Future<ConversionJob> uploadBook(
-    String pdfPath, {
+    String filePath, {
     String? title,
     void Function(double progress)? onProgress,
   }) async {
     final form = FormData.fromMap({
-      'file': await MultipartFile.fromFile(pdfPath, filename: pdfPath.split('/').last),
+      'file': await MultipartFile.fromFile(filePath, filename: filePath.split('/').last),
       if (title != null && title.isNotEmpty) 'title': title,
     });
     final resp = await _dio.post(

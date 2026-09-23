@@ -8,7 +8,8 @@ import '../state/on_device_conversion_providers.dart';
 import '../state/on_device_pipeline_run_provider.dart';
 import 'conversion_settings_screen.dart';
 
-/// Upload a PDF for conversion, and watch every job — queued, converting,
+/// Upload a PDF (or a ZIP of PDFs, merged server-side) for conversion,
+/// and watch every job — queued, converting,
 /// done, or failed — with live stage/progress and a retry action for
 /// anything that needs another pass. This is the whole "manage the
 /// conversion pipeline from the app" surface; the library screen only ever
@@ -67,23 +68,31 @@ class ConversionsScreen extends ConsumerWidget {
           : FloatingActionButton.extended(
               onPressed: () => _pickAndConvert(context, ref, conversionMode.mode),
               icon: const Icon(Icons.upload_file_rounded),
-              label: Text(conversionMode.mode == ConversionModePref.onDevice ? 'Convert a PDF' : 'Upload a PDF'),
+              label: Text(conversionMode.mode == ConversionModePref.onDevice ? 'Convert a PDF' : 'Convert a PDF or ZIP'),
             ),
     );
   }
 
   Future<void> _pickAndConvert(BuildContext context, WidgetRef ref, ConversionModePref mode) async {
     // file_picker 12 returns the picked files directly (empty = cancelled).
-    final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
+    // Cloud uploads accept a .zip of PDFs too (the server merges them in
+    // archive order); on-device conversion is strictly one PDF.
+    final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'zip']);
     if (files.isEmpty) return; // user cancelled
     final path = files.single.path;
     if (path == null) return;
 
     if (!context.mounted) return;
     if (mode == ConversionModePref.onDevice) {
+      if (path.toLowerCase().endsWith('.zip')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('On-device conversion takes a single PDF — pick a .zip in cloud mode and the server will merge it.')),
+        );
+        return;
+      }
       await _convertOnDevice(context, ref, path);
     } else {
-      await _uploadPdf(context, ref, path);
+      await _uploadFile(context, ref, path);
     }
   }
 
@@ -100,7 +109,7 @@ class ConversionsScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _uploadPdf(BuildContext context, WidgetRef ref, String path) async {
+  Future<void> _uploadFile(BuildContext context, WidgetRef ref, String path) async {
     final progressNotifier = ref.read(uploadProgressProvider.notifier);
     progressNotifier.set(0.0);
     try {
@@ -136,7 +145,7 @@ class _OnDeviceJobsPlaceholder extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: 24),
             child: Text(
               'On-device mode: conversions run on this phone and finished '
-              'books appear in your library.\n\nTap "Convert a PDF" to start one.',
+              'books appear in your library.\n\nTap "Convert a PDF" to start one (PDF only — ZIP merging needs the server).',
               textAlign: TextAlign.center,
             ),
           ),
@@ -169,7 +178,7 @@ class _ServerJobsList extends ConsumerWidget {
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
-                        'No conversions yet. Tap "Upload a PDF" to convert a book.',
+                        'No conversions yet. Tap "Convert a PDF or ZIP" to convert a book.',
                         textAlign: TextAlign.center,
                       ),
                     ),

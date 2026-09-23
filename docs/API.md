@@ -60,7 +60,7 @@ Permanently deletes a converted book's package (audio, assets, manifest — ever
 
 ## `POST /books/upload`
 
-Upload a PDF for conversion. `multipart/form-data`: `file` (required, `.pdf` only, capped at `FIREBRAT_MAX_UPLOAD_MB` — default 500), `title` (optional, defaults to a title-cased version of the filename), `provider` (`nanogpt`|`local`, empty = server default from `/settings`), `chunk_pages` (0 = server default; smaller fits endpoints that kill long generations). Requires sign-in. Returns the newly-created job immediately (state `queued`); conversion runs in the background — several jobs may convert at once, up to `FIREBRAT_MAX_CONCURRENT_JOBS` workers.
+Upload a PDF — or a `.zip` containing one or more PDFs (e.g. per-chapter files), which the server merges in sorted archive order into a single source PDF before converting. `multipart/form-data`: `file` (required, `.pdf`/`.zip` only, capped at `FIREBRAT_MAX_UPLOAD_MB` — default 500), `title` (optional, defaults to a title-cased version of the filename), `provider` (`nanogpt`|`local`, empty = server default from `/settings`), `chunk_pages` (0 = server default; smaller fits endpoints that kill long generations). Requires sign-in. Returns the newly-created job immediately (state `queued`); conversion runs in the background — several jobs may convert at once, up to `FIREBRAT_MAX_CONCURRENT_JOBS` workers. A zip with no PDFs inside is rejected with 400; retry/resume work identically for zip-sourced jobs since the merge happens once at upload time.
 
 ```json
 {

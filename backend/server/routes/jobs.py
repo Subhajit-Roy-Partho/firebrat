@@ -1,12 +1,15 @@
-"""Upload a PDF, watch it convert, retry the parts that didn't come out
-clean. See docs/API.md for the full contract.
+"""Upload a PDF (or a .zip of PDFs, merged in archive order), watch it
+convert, retry the parts that didn't come out clean. See docs/API.md
+for the full contract.
 """
 import os
+import tempfile
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from server import auth, config, job_runner, jobs
+from server.pdf_merge import merge_zip_pdfs_to_pdf
 from firebrat.pipeline.status import read_status
 from firebrat.utils.ids import sanitize_book_id
 
@@ -46,8 +49,11 @@ async def upload_book(
     chunk_pages: int = Form(0),
     _user: dict = Depends(auth.require_user),
 ):
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="only .pdf uploads are accepted")
+    lname = (file.filename or "").lower()
+    is_pdf = lname.endswith(".pdf")
+    is_zip = lname.endswith(".zip")
+    if not file.filename or (not is_pdf and not is_zip):
+        raise HTTPException(status_code=400, detail="only .pdf or .zip (of PDFs) uploads are accepted")
 
     os.makedirs(config.UPLOAD_DIR, exist_ok=True)
     book_id = sanitize_book_id(file.filename)
@@ -63,14 +69,47 @@ async def upload_book(
     dest_path = os.path.join(config.UPLOAD_DIR, f"{book_id}.pdf")
     size = 0
     max_bytes = config.MAX_UPLOAD_MB * 1024 * 1024
-    with open(dest_path, "wb") as out:
-        while chunk := await file.read(1024 * 1024):
-            size += len(chunk)
-            if size > max_bytes:
-                out.close()
-                os.remove(dest_path)
-                raise HTTPException(status_code=413, detail=f"file exceeds {config.MAX_UPLOAD_MB} MB limit")
-            out.write(chunk)
+    if is_zip:
+        # Stream the zip to a temp file first (size-capped like a plain PDF
+        # upload), then normalize it to a single source PDF so the rest of
+        # the pipeline — convert.py, retry, resume — stays single-PDF.
+        fd, tmp_zip = tempfile.mkstemp(prefix=f"{book_id}_", suffix=".zip",
+                                       dir=config.UPLOAD_DIR)
+        try:
+            with os.fdopen(fd, "wb") as out:
+                while chunk := await file.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > max_bytes:
+                        raise HTTPException(status_code=413, detail=f"file exceeds {config.MAX_UPLOAD_MB} MB limit")
+                    out.write(chunk)
+            try:
+                merge_zip_pdfs_to_pdf(tmp_zip, dest_path)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            except RuntimeError as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        finally:
+            try:
+                os.remove(tmp_zip)
+            except OSError:
+                pass
+            # A 413 raised mid-stream leaves the fd-managed file behind only
+            # if mkstemp's file was never renamed — it wasn't, so remove any
+            # partial dest too when the zip path failed before merging.
+            if size > max_bytes and os.path.isfile(dest_path):
+                try:
+                    os.remove(dest_path)
+                except OSError:
+                    pass
+    else:
+        with open(dest_path, "wb") as out:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > max_bytes:
+                    out.close()
+                    os.remove(dest_path)
+                    raise HTTPException(status_code=413, detail=f"file exceeds {config.MAX_UPLOAD_MB} MB limit")
+                out.write(chunk)
 
     book_title = title or book_id.replace("-", " ").title()
     # Empty provider/chunk (the mobile app sends neither) inherits the

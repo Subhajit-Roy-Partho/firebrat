@@ -11,5 +11,6 @@ dependencies:
       - pydantic
       - requests
       - pydub
+      - pypdf
       - pytest
       - httpx
