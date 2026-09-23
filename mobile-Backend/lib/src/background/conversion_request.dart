@@ -10,6 +10,10 @@ import 'dart:io';
 /// `conversion_task_handler.dart` for where it's read back.
 class ConversionRequest {
   final String pdfPath;
+
+  /// All source PDFs in chapter order. Null in requests written before
+  /// multi-PDF support — readers fall back to the single [pdfPath].
+  final List<String>? pdfPaths;
   final String booksRootDir;
   final String modelsDir;
   final String? titleOverride;
@@ -23,6 +27,7 @@ class ConversionRequest {
 
   const ConversionRequest({
     required this.pdfPath,
+    this.pdfPaths,
     required this.booksRootDir,
     required this.modelsDir,
     this.titleOverride,
@@ -35,8 +40,14 @@ class ConversionRequest {
     this.kokoroVoice = 'Bella',
   });
 
+  /// Every source PDF in chapter order — [pdfPaths] when set, else the
+  /// legacy single [pdfPath]. The pipeline merges them at the text layer.
+  List<String> get sourcePdfPaths =>
+      (pdfPaths != null && pdfPaths!.isNotEmpty) ? pdfPaths! : [pdfPath];
+
   Map<String, dynamic> toJson() => {
         'pdfPath': pdfPath,
+        'pdfPaths': pdfPaths,
         'booksRootDir': booksRootDir,
         'modelsDir': modelsDir,
         'titleOverride': titleOverride,
@@ -51,6 +62,7 @@ class ConversionRequest {
 
   factory ConversionRequest.fromJson(Map<String, dynamic> json) => ConversionRequest(
         pdfPath: json['pdfPath'] as String,
+        pdfPaths: (json['pdfPaths'] as List?)?.cast<String>(),
         booksRootDir: json['booksRootDir'] as String,
         modelsDir: json['modelsDir'] as String,
         titleOverride: json['titleOverride'] as String?,

@@ -53,3 +53,24 @@ class ExtractionResult {
   final List<int> ocrCandidatePageIndices;
   const ExtractionResult({required this.pages, required this.ocrCandidatePageIndices});
 }
+
+/// Concatenates per-PDF extractions into one continuous page stream, as if
+/// the chapters had been one PDF all along: page indices (and OCR-candidate
+/// indices) are offset by each preceding file's page count. Pure function
+/// so it stays unit-testable without real PDF fixtures — see
+/// `test/extraction_merge_test.dart`.
+ExtractionResult mergeExtractions(List<ExtractionResult> parts) {
+  final pages = <RawPage>[];
+  final ocrCandidates = <int>[];
+  var offset = 0;
+  for (final part in parts) {
+    for (final page in part.pages) {
+      pages.add(RawPage(pageIdx: page.pageIdx + offset, text: page.text));
+    }
+    for (final idx in part.ocrCandidatePageIndices) {
+      ocrCandidates.add(idx + offset);
+    }
+    offset += part.pages.length;
+  }
+  return ExtractionResult(pages: pages, ocrCandidatePageIndices: ocrCandidates);
+}

@@ -68,15 +68,15 @@ class ConversionsScreen extends ConsumerWidget {
           : FloatingActionButton.extended(
               onPressed: () => _pickAndConvert(context, ref, conversionMode.mode),
               icon: const Icon(Icons.upload_file_rounded),
-              label: Text(conversionMode.mode == ConversionModePref.onDevice ? 'Convert a PDF' : 'Convert a PDF or ZIP'),
+              label: const Text('Convert a PDF or ZIP'),
             ),
     );
   }
 
   Future<void> _pickAndConvert(BuildContext context, WidgetRef ref, ConversionModePref mode) async {
     // file_picker 12 returns the picked files directly (empty = cancelled).
-    // Cloud uploads accept a .zip of PDFs too (the server merges them in
-    // archive order); on-device conversion is strictly one PDF.
+    // Both modes accept a .zip of chapter PDFs: cloud uploads merge
+    // server-side, on-device unzips locally and merges at the text layer.
     final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'zip']);
     if (files.isEmpty) return; // user cancelled
     final path = files.single.path;
@@ -84,12 +84,6 @@ class ConversionsScreen extends ConsumerWidget {
 
     if (!context.mounted) return;
     if (mode == ConversionModePref.onDevice) {
-      if (path.toLowerCase().endsWith('.zip')) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('On-device conversion takes a single PDF — pick a .zip in cloud mode and the server will merge it.')),
-        );
-        return;
-      }
       await _convertOnDevice(context, ref, path);
     } else {
       await _uploadFile(context, ref, path);
@@ -98,7 +92,13 @@ class ConversionsScreen extends ConsumerWidget {
 
   Future<void> _convertOnDevice(BuildContext context, WidgetRef ref, String path) async {
     try {
-      await runOnDeviceConversion(ref, path);
+      if (path.toLowerCase().endsWith('.zip')) {
+        final chapters = await unpackZipChapters(path);
+        final zipStem = path.split('/').last.replaceAll(RegExp(r'\.zip$', caseSensitive: false), '');
+        await runOnDeviceConversion(ref, chapters, titleOverride: zipStem);
+      } else {
+        await runOnDeviceConversion(ref, [path]);
+      }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Converted — check your library.')));
       }
@@ -145,7 +145,7 @@ class _OnDeviceJobsPlaceholder extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: 24),
             child: Text(
               'On-device mode: conversions run on this phone and finished '
-              'books appear in your library.\n\nTap "Convert a PDF" to start one (PDF only — ZIP merging needs the server).',
+              'books appear in your library.\n\nTap "Convert a PDF or ZIP" to start one — a ZIP of chapter PDFs is merged automatically.',
               textAlign: TextAlign.center,
             ),
           ),

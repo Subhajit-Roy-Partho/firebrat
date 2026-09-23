@@ -56,7 +56,7 @@ class MobileConversionTaskHandler extends TaskHandler {
           'fraction': p.fraction,
         });
         FlutterForegroundTask.updateService(
-          notificationTitle: 'Converting "${request.titleOverride ?? request.pdfPath.split('/').last}"',
+          notificationTitle: 'Converting "${request.titleOverride ?? request.sourcePdfPaths.first.split('/').last}"',
           notificationText: p.detail.isEmpty ? p.stage : '${p.stage} — ${p.detail}',
         );
       },
@@ -64,7 +64,7 @@ class MobileConversionTaskHandler extends TaskHandler {
 
     try {
       final bookId = await pipeline.convert(
-        pdfPath: request.pdfPath,
+        pdfPaths: request.sourcePdfPaths,
         booksRootDir: request.booksRootDir,
         modelsDir: request.modelsDir,
         titleOverride: request.titleOverride,

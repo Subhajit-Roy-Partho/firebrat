@@ -49,7 +49,13 @@ class MobileConversionPipeline {
     onProgress?.call(MobileConversionProgress(stage: stage, detail: detail, fraction: fraction));
   }
 
-  /// [pdfPath] is the source PDF; [booksRootDir] is the app's local
+  /// [pdfPaths] is one source PDF, or several (a zipped book's chapters
+  /// in reading order — the host app unzips first and passes the sorted
+  /// PDF list). Multiple PDFs are merged at the text layer (page indices
+  /// offset per file, see `mergeExtractions`): this is exactly equivalent
+  /// to converting one pre-merged PDF, because extraction only reads each
+  /// file's text layer — no binary PDF merge library exists for pure-Dart
+  /// on-device use, and none is needed. [booksRootDir] is the app's local
   /// library root (each book lives at `$booksRootDir/$bookId/`) — pass the
   /// same directory `DownloadManager.booksDir()` uses in the host app so
   /// the result shows up in the existing library listing with zero glue
@@ -59,13 +65,18 @@ class MobileConversionPipeline {
   /// app-storage directory (e.g. application-support, not a temp dir) so
   /// a multi-GB model isn't re-downloaded on every book.
   Future<String> convert({
-    required String pdfPath,
+    required List<String> pdfPaths,
     required String booksRootDir,
     required String modelsDir,
     String? titleOverride,
   }) async {
-    final fileName = pdfPath.split(Platform.pathSeparator).last;
-    final bookId = sanitizeBookId(fileName);
+    if (pdfPaths.isEmpty) {
+      throw ArgumentError('convert needs at least one source PDF');
+    }
+    final displayName = titleOverride ??
+        pdfPaths.first.split(Platform.pathSeparator).last;
+    final bookId = sanitizeBookId(
+        titleOverride != null ? '$titleOverride.pdf' : pdfPaths.first.split(Platform.pathSeparator).last);
     final title = titleOverride ?? bookId.replaceAll('-', ' ');
     final bookDir = '$booksRootDir/$bookId';
     await Directory(bookDir).create(recursive: true);
@@ -73,19 +84,30 @@ class MobileConversionPipeline {
     // Ship the source PDF inside the package so the reader can offer a
     // "view source page" feature (mirrors the server pipeline's
     // source.pdf handling — same relative path, same manifest fields).
+    // Only possible for a single PDF: a chapter list has no one file to
+    // ship, so multi-PDF books simply hide the "Source page" button
+    // (same old-package path as a book converted before this existed).
     const sourcePdfPath = 'source.pdf';
     String? shippedSourcePdf;
-    try {
-      await File(pdfPath).copy('$bookDir/$sourcePdfPath');
-      shippedSourcePdf = sourcePdfPath;
-    } catch (_) {
-      // A book without its source PDF is still fully readable — the
-      // reader simply hides the "Source page" button (old-package path).
-      shippedSourcePdf = null;
+    if (pdfPaths.length == 1) {
+      try {
+        await File(pdfPaths.first).copy('$bookDir/$sourcePdfPath');
+        shippedSourcePdf = sourcePdfPath;
+      } catch (_) {
+        // A book without its source PDF is still fully readable — the
+        // reader simply hides the "Source page" button (old-package path).
+        shippedSourcePdf = null;
+      }
     }
 
-    _report('extracting', 'reading PDF text layer', 0.0);
-    final extraction = await MobilePdfTextExtractor.extractPages(pdfPath);
+    _report('extracting', 'reading PDF text layer (1/${pdfPaths.length} files)', 0.0);
+    final parts = <ExtractionResult>[];
+    for (var i = 0; i < pdfPaths.length; i++) {
+      parts.add(await MobilePdfTextExtractor.extractPages(pdfPaths[i]));
+      _report('extracting',
+          'reading PDF text layer (${i + 1}/${pdfPaths.length} files)', (i + 1) / pdfPaths.length * 0.5);
+    }
+    final extraction = mergeExtractions(parts);
     if (extraction.ocrCandidatePageIndices.isNotEmpty) {
       // See ocr_fallback.dart — OCR is wired up but page rasterization
       // (image-of-a-page -> bitmap) isn't implemented in this v1, so
@@ -196,7 +218,7 @@ class MobileConversionPipeline {
     final manifest = Manifest(
       bookId: bookId,
       title: title,
-      sourcePdf: fileName,
+      sourcePdf: displayName,
       generatedAt: DateTime.now().toUtc().toIso8601String(),
       totalDurationMs: totalDurationMs,
       sections: manifestSections,
