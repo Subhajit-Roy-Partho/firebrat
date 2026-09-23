@@ -21,7 +21,7 @@ jobs:
         # below), and setup-python errors when its cache globs match no file.
       - name: Install serve deps
         run: |
-          pip install -r backend/requirements-serve.txt 2>/dev/null || pip install fastapi uvicorn pydantic pytest anyio httpx pydub soundfile requests python-multipart
+          pip install -r backend/requirements-serve.txt 2>/dev/null || pip install fastapi uvicorn pydantic pytest anyio httpx pydub soundfile requests python-multipart pypdf
           pip install -e backend 2>/dev/null || true
       - name: Run backend tests
         run: PYTHONPATH=backend pytest backend/tests -v
