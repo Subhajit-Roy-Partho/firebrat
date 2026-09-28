@@ -204,6 +204,11 @@ class DownloadManager {
     }
 
     final keepAlive = await DownloadKeepAlive.acquire('book $bookId');
+    // A failed/cancelled extraction can leave a manifest with missing
+    // audio behind — listLocalBooks would then offer an unopenable book
+    // (reader wedged on its loader). Only clean up a directory this run
+    // created; never touch a previously-good book on re-download failure.
+    final targetExisted = await target.exists();
     try {
       final checksum = await api.getPackageChecksum(bookId);
       final total = checksum.sizeBytes;
@@ -250,6 +255,13 @@ class DownloadManager {
       await _deleteQuietly(File(zipPath));
       emit(1.0, total, total, 'done');
       return target;
+    } catch (_) {
+      if (!targetExisted) {
+        try {
+          if (await target.exists()) await target.delete(recursive: true);
+        } catch (_) {}
+      }
+      rethrow;
     } finally {
       await keepAlive.release();
     }

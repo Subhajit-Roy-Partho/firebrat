@@ -4,6 +4,16 @@ import '../screens/conversion_settings_screen.dart';
 import '../screens/conversions_screen.dart';
 import '../services/auth_service.dart';
 
+/// Bumped with `version:` in frontend/firebrat_app/pubspec.yaml on every
+/// release (and passed as --dart-define=FIREBRAT_APP_VERSION=... by the
+/// release workflow, which wins when present). package_info_plus was
+/// tried for this and reverted: every 8.x needs win32 ^5 while this app
+/// pins win32 ^6 for device_info_plus — unresolvable without forking one.
+const _appVersion = String.fromEnvironment(
+  'FIREBRAT_APP_VERSION',
+  defaultValue: '1.5.9+20',
+);
+
 /// Left drawer: who is signed in, where to go, and the way out.
 /// Previously the app had no visible account surface at all — no way to
 /// see the signed-in email or sign out without clearing app data.
@@ -101,6 +111,20 @@ class AppDrawer extends ConsumerWidget {
               title: const Text('Sign in'),
               onTap: () => Navigator.of(context).pop(),
             ),
+          const Divider(),
+          AboutListTile(
+            icon: const Icon(Icons.info_outline_rounded),
+            applicationName: 'Firebrat',
+            applicationVersion: _appVersion,
+            aboutBoxChildren: const [
+              Text('PDF → narrated, figure-synced audiobooks for technical books.'),
+            ],
+            child: Text(
+              'About · v$_appVersion',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );

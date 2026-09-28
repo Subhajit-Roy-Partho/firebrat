@@ -85,40 +85,74 @@ class LibraryScreen extends ConsumerWidget {
             );
           }
 
-          return RefreshIndicator(
-            onRefresh: () async {
-              invalidateLibrary(ref);
-              await ref.read(localBooksProvider.future);
-            },
-            child: GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 320,
-                mainAxisExtent: 190,
-                crossAxisSpacing: 14,
-                mainAxisSpacing: 14,
+          return Column(
+            children: [
+              // The catalog fetch failing used to be silent whenever local
+              // books existed (remote titles just never appeared, with no
+              // way to retry) — surface it with a one-tap retry instead.
+              if (catalogAsync.hasError)
+                Material(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Could not reach the server — showing on-device books only.',
+                            style: TextStyle(
+                                color: Theme.of(context).colorScheme.onErrorContainer),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => ref.invalidate(catalogProvider),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () async {
+                    invalidateLibrary(ref);
+                    await ref.read(localBooksProvider.future);
+                  },
+                  child: GridView.builder(
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 320,
+                      mainAxisExtent: 208,
+                      crossAxisSpacing: 14,
+                      mainAxisSpacing: 14,
+                    ),
+                    itemCount: allEntries.length,
+                    itemBuilder: (context, i) {
+                      final book = allEntries[i];
+                      final isLocal = local.containsKey(book.bookId);
+                      return BookCard(
+                        book: book,
+                        isDownloaded: isLocal,
+                        downloadProgress: progress[book.bookId],
+                        coverPath: isLocal
+                            ? ref.watch(bookCoverProvider(book.bookId)).value
+                            : null,
+                        onTap: () => _openOrDownload(context, ref, book, isLocal),
+                        onLongPress: () => _showBookActions(context, ref, book, isLocal),
+                        onPauseDownload: progress[book.bookId] == null
+                            ? null
+                            : () => _pauseDownload(context, ref, book),
+                        onDiscardDownload: progress[book.bookId] == null
+                            ? null
+                            : () => _discardDownload(context, ref, book),
+                      );
+                    },
+                  ),
+                ),
               ),
-              itemCount: allEntries.length,
-              itemBuilder: (context, i) {
-                final book = allEntries[i];
-                final isLocal = local.containsKey(book.bookId);
-                return BookCard(
-                  book: book,
-                  isDownloaded: isLocal,
-                  downloadProgress: progress[book.bookId],
-                  coverPath: isLocal
-                      ? ref.watch(bookCoverProvider(book.bookId)).value
-                      : null,
-                  onTap: () => _openOrDownload(context, ref, book, isLocal),
-                  onPauseDownload: progress[book.bookId] == null
-                      ? null
-                      : () => _pauseDownload(context, ref, book),
-                  onDiscardDownload: progress[book.bookId] == null
-                      ? null
-                      : () => _discardDownload(context, ref, book),
-                );
-              },
-            ),
+            ],
           );
         },
       ),
@@ -126,6 +160,18 @@ class LibraryScreen extends ConsumerWidget {
   }
 
   Future<void> _openOrDownload(BuildContext context, WidgetRef ref, BookSummary book, bool isLocal) async {
+    // Tapping a card mid-download used to fall through into a second
+    // download attempt (or a half-opened reader on some timings) — say
+    // plainly that it's still coming instead.
+    final inFlight = ref.read(downloadProgressProvider)[book.bookId];
+    if (inFlight != null && !isLocal) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Still downloading… ${(inFlight.fraction * 100).round()}% (${inFlight.phase}).')),
+        );
+      }
+      return;
+    }
     if (isLocal) {
       if (!context.mounted) return;
       // Chapter-PDF books have no audio — open the chapter list instead
@@ -184,8 +230,115 @@ class LibraryScreen extends ConsumerWidget {
     }
   }
 
-  void _pauseDownload(BuildContext context, WidgetRef ref, BookSummary book) {
-    DownloadManager.pauseDownload(book.bookId);
+  /// Long-press action sheet for a book card: open/download plus delete
+  /// from device and/or server (each behind a confirm dialog — server
+  /// deletion is irreversible).
+  Future<void> _showBookActions(
+      BuildContext context, WidgetRef ref, BookSummary book, bool isLocal) async {
+    final catalogBooks = ref.read(catalogProvider).value ?? const <BookSummary>[];
+    final isOnServer = catalogBooks.any((b) => b.bookId == book.bookId);
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.menu_book_rounded),
+              title: Text(book.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+              subtitle: Text(book.bookId, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: Icon(isLocal ? Icons.play_arrow_rounded : Icons.download_rounded),
+              title: Text(isLocal ? 'Open' : 'Download'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _openOrDownload(context, ref, book, isLocal);
+              },
+            ),
+            if (isLocal)
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded),
+                title: const Text('Delete from this device'),
+                subtitle: const Text('Frees space; the server copy (if any) is untouched.'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _deleteLocalBook(context, ref, book);
+                },
+              ),
+            if (isOnServer)
+              ListTile(
+                leading: const Icon(Icons.cloud_off_rounded),
+                title: const Text('Delete from server'),
+                subtitle: const Text('Irreversible — frees server space.'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _deleteServerBook(context, ref, book);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteLocalBook(BuildContext context, WidgetRef ref, BookSummary book) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete from this device?'),
+        content: Text('"${book.title}" will be removed from this device.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      await ref.read(downloadManagerProvider).deleteBook(book.bookId);
+      invalidateLibrary(ref);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Deleted "${book.title}" from this device.')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+      }
+    }
+  }
+
+  Future<void> _deleteServerBook(BuildContext context, WidgetRef ref, BookSummary book) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete from server?'),
+        content: Text('"${book.title}" will be permanently removed from the server. This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      await ref.read(apiClientProvider).deleteBook(book.bookId);
+      ref.invalidate(catalogProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Deleted "${book.title}" from the server.')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Server delete failed: $e')));
+      }
+    }
+  }
+
+  void _pauseDownload(BuildContext context, WidgetRef ref, BookSummary book) {    DownloadManager.pauseDownload(book.bookId);
     ref.read(downloadProgressProvider.notifier).clear(book.bookId);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

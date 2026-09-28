@@ -267,6 +267,10 @@ class _ConversionSettingsScreenState
       final normalized = normalizeServerUrl(_cloudUrlController.text);
       _cloudUrlController.text = normalized;
       await notifier.setCloudServerUrl(normalized);
+      // The home screen's catalog only refetches when invalidated — without
+      // this, saving a new URL left stale titles (or the retry state) in
+      // place until something else happened to refresh it.
+      ref.invalidate(catalogProvider);
       await ref.read(serverBooksProvider.notifier).check();
     } else {
       final normalizedUrl = normalizeLlmUrl(_llmUrlController.text);

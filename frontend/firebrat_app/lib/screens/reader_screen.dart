@@ -26,6 +26,30 @@ class ReaderScreen extends ConsumerWidget {
     final settings = ref.watch(readerSettingsProvider);
 
     if (state == null) {
+      final error = ref.watch(readerErrorProvider(bookId));
+      if (error != null) {
+        return Scaffold(
+          appBar: AppBar(),
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline_rounded, size: 48),
+                  const SizedBox(height: 12),
+                  Text(error, textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Back to library'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
@@ -72,6 +96,20 @@ class ReaderScreen extends ConsumerWidget {
             ),
           ),
           _SourcePageButton(bookId: bookId),
+          if (state.error != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: Card(
+                color: Theme.of(context).colorScheme.errorContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    state.error!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+                  ),
+                ),
+              ),
+            ),
           FigureGallery(items: galleryItems, activeId: state.activeSegment?.ref),
           Expanded(
             child: state.loadingSection

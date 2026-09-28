@@ -87,12 +87,14 @@ jobs:
       - name: Build APK
         if: inputs.flavor == 'apk' || inputs.flavor == 'both' || github.event_name == 'push'
         working-directory: frontend/firebrat_app
-        run: flutter build apk --release
+        # Stamps the drawer About entry (widgets/app_drawer.dart reads
+        # FIREBRAT_APP_VERSION, defaulting to pubspec's version).
+        run: flutter build apk --release --dart-define=FIREBRAT_APP_VERSION=${GITHUB_REF_NAME#v}
 
       - name: Build App Bundle
         if: inputs.flavor == 'appbundle' || inputs.flavor == 'both'
         working-directory: frontend/firebrat_app
-        run: flutter build appbundle --release
+        run: flutter build appbundle --release --dart-define=FIREBRAT_APP_VERSION=${GITHUB_REF_NAME#v}
 
       - name: Upload APK
         if: always()
