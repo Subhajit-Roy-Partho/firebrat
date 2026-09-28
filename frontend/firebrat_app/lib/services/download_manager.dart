@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
@@ -83,9 +84,30 @@ class DownloadManager {
     return Directory('${books.path}/$bookId');
   }
 
+  /// True when the book is fully usable on-device: manifest present AND
+  /// every section audio file it points at exists. A directory left behind
+  /// by a failed extraction (manifest without audio) counts as NOT
+  /// downloaded, so the UI offers a fresh download instead of a broken
+  /// open — and, crucially, a complete book is never re-downloaded (and
+  /// thus never wiped) just because the user tapped it again.
   Future<bool> isDownloaded(String bookId) async {
     final dir = await bookDir(bookId);
-    return File('${dir.path}/manifest.json').exists();
+    final manifestFile = File('${dir.path}/manifest.json');
+    if (!await manifestFile.exists()) return false;
+    try {
+      final json =
+          jsonDecode(await manifestFile.readAsString()) as Map<String, dynamic>;
+      if ((json['kind'] as String? ?? 'audiobook') == 'chapters') return true;
+      final sections = json['sections'] as List? ?? const [];
+      for (final s in sections) {
+        final audio = (s as Map)['audio_path'] as String? ?? '';
+        if (audio.isEmpty) continue;
+        if (!await File('${dir.path}/$audio').exists()) return false;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// book_ids of every book already present on-device — downloaded or
@@ -102,19 +124,30 @@ class DownloadManager {
     return ids;
   }
 
-  /// Streaming-extract [zipPath] into the book dir for [bookId]
-  /// (replacing anything there), verifying the manifest. Shared by server
-  /// downloads and Drive pulls — both produce identical layouts.
+  /// Streaming-extract [zipPath] into the book dir for [bookId],
+  /// verifying the manifest. Extracts into a staging sibling first and
+  /// swaps it over the live dir only when complete — a failed or
+  /// interrupted extraction must never delete a previously-good book
+  /// (these packages are gigabytes; re-downloading is not acceptable
+  /// recovery). Shared by server downloads and Drive pulls — both produce
+  /// identical layouts.
   /// Throws StateError when the zip has no manifest.json.
   Future<Directory> extractZipToBook(String zipPath, Directory target) async {
-    if (await target.exists()) await target.delete(recursive: true);
-    await target.create(recursive: true);
-    // Streaming extract — entries are written as they are read, so peak
-    // memory stays flat instead of spiking to ~2x the zip size.
-    extractFileToDisk(zipPath, target.path);
-    if (!await File('${target.path}/manifest.json').exists()) {
-      await target.delete(recursive: true);
-      throw StateError('Package at ${target.path} is missing manifest.json');
+    final staging = Directory('${target.path}.new');
+    if (await staging.exists()) await staging.delete(recursive: true);
+    await staging.create(recursive: true);
+    try {
+      // Streaming extract — entries are written as they are read, so peak
+      // memory stays flat instead of spiking to ~2x the zip size.
+      extractFileToDisk(zipPath, staging.path);
+      if (!await File('${staging.path}/manifest.json').exists()) {
+        throw StateError('Package at ${staging.path} is missing manifest.json');
+      }
+      if (await target.exists()) await target.delete(recursive: true);
+      await staging.rename(target.path);
+    } catch (_) {
+      if (await staging.exists()) await staging.delete(recursive: true);
+      rethrow;
     }
     return target;
   }
@@ -173,9 +206,25 @@ class DownloadManager {
   /// Pause + delete the partial file (start fully over next time).
   Future<void> discardPartial(String bookId) async {
     pauseDownload(bookId);
-    final books = await booksDir();
-    await _deleteQuietly(File('${books.path}/$bookId.zip.part'));
-    await _deleteQuietly(File('${books.path}/$bookId.zip'));
+    await discardPartialStatic(bookId);
+  }
+
+  /// Static variant for notification-action callbacks (no ApiClient needed —
+  /// it's pure file deletion). Never throws.
+  static Future<void> discardPartialStatic(String bookId) async {
+    pauseDownload(bookId);
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      final books = Directory('${docs.path}/books');
+      await _deleteQuietlyStatic(File('${books.path}/$bookId.zip.part'));
+      await _deleteQuietlyStatic(File('${books.path}/$bookId.zip'));
+    } catch (_) {}
+  }
+
+  static Future<void> _deleteQuietlyStatic(File f) async {
+    try {
+      if (await f.exists()) await f.delete();
+    } catch (_) {}
   }
 
   /// True when a partial download exists that a tap would resume.

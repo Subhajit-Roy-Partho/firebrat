@@ -11,7 +11,7 @@ import '../services/auth_service.dart';
 /// pins win32 ^6 for device_info_plus — unresolvable without forking one.
 const _appVersion = String.fromEnvironment(
   'FIREBRAT_APP_VERSION',
-  defaultValue: '1.5.9+20',
+  defaultValue: '1.5.10+21',
 );
 
 /// Left drawer: who is signed in, where to go, and the way out.

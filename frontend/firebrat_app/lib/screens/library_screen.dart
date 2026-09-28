@@ -1,12 +1,14 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:async';
 import '../models/book.dart';
 import '../models/manifest.dart';
 import '../services/analytics_service.dart';
 import '../services/download_manager.dart';
 import '../services/drive_sync_service.dart';
 import '../services/firestore_sync_service.dart';
+import '../services/notification_service.dart';
 import '../state/library_providers.dart';
 import '../state/on_device_conversion_providers.dart';
 import '../state/theme_providers.dart';
@@ -202,13 +204,42 @@ class LibraryScreen extends ConsumerWidget {
       }
       return;
     }
+    // A complete book on disk (e.g. the listing just hasn't refreshed,
+    // or a previous run finished while the UI lagged) must never be
+    // re-downloaded — re-downloading wipes it first. Open it instead.
+    if (await dm.isDownloaded(book.bookId)) {
+      invalidateLibrary(ref);
+      if (context.mounted) {
+        await _openOrDownload(context, ref, book, true);
+      }
+      return;
+    }
     try {
       await dm.downloadAndExtract(
         book.bookId,
-        onProgress: (p) => notifier.setProgress(book.bookId, p),
+        onProgress: (p) {
+          notifier.setProgress(book.bookId, p);
+          unawaited(NotificationService.showDownloadProgress(
+            bookId: book.bookId,
+            title: book.title,
+            fraction: p.fraction,
+            receivedBytes: p.receivedBytes,
+            totalBytes: p.totalBytes,
+            phase: p.phase,
+          ));
+        },
         onZipReady: (id, zipPath) => _backupZipToDrive(ref, id, zipPath),
       );
       notifier.clear(book.bookId);
+      unawaited(NotificationService.showDownloadProgress(
+        bookId: book.bookId,
+        title: book.title,
+        fraction: 1.0,
+        receivedBytes: 0,
+        totalBytes: 0,
+        phase: 'done',
+        force: true,
+      ));
       invalidateLibrary(ref);
       await FirestoreSyncService.instance.upsertBook(
         bookId: book.bookId,
@@ -218,6 +249,7 @@ class LibraryScreen extends ConsumerWidget {
       await AnalyticsService.instance.logBookDownloaded();
     } catch (e) {
       notifier.clear(book.bookId);
+      unawaited(NotificationService.cancelDownloadNotification(book.bookId));
       if (context.mounted) {
         // User-initiated pause surfaces as a Dio cancellation — the .part
         // file stays, and tapping the card resumes. Not an error.
@@ -338,8 +370,10 @@ class LibraryScreen extends ConsumerWidget {
     }
   }
 
-  void _pauseDownload(BuildContext context, WidgetRef ref, BookSummary book) {    DownloadManager.pauseDownload(book.bookId);
+  void _pauseDownload(BuildContext context, WidgetRef ref, BookSummary book) {
+    DownloadManager.pauseDownload(book.bookId);
     ref.read(downloadProgressProvider.notifier).clear(book.bookId);
+    unawaited(NotificationService.cancelDownloadNotification(book.bookId));
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Download paused — tap the book to resume.')),
@@ -351,6 +385,7 @@ class LibraryScreen extends ConsumerWidget {
     final dm = ref.read(downloadManagerProvider);
     await dm.discardPartial(book.bookId);
     ref.read(downloadProgressProvider.notifier).clear(book.bookId);
+    unawaited(NotificationService.cancelDownloadNotification(book.bookId));
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Download cancelled and cleared.')),
