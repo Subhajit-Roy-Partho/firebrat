@@ -11,6 +11,13 @@ import tarfile
 
 log = logging.getLogger(__name__)
 
+#: Top-level build intermediates that readers never need. Skipped by both
+#: this .tar.gz and the server's /download zip (server/storage.py mirrors
+#: this set — keep them in sync): per-segment wavs (already concatenated),
+#: raw extraction output, and the full compile dump. source.pdf is KEPT —
+#: the reader's Source PDF screen shows the page a section was narrated from.
+EXCLUDE_TOP_LEVEL = {"_segment_wavs", "raw", "compiled.json"}
+
 
 def package_book(pkg_dir: str, out_path: str | None = None) -> str:
     """Tar+gzip pkg_dir's contents (not the directory itself) into out_path.
@@ -35,6 +42,9 @@ def package_book(pkg_dir: str, out_path: str | None = None) -> str:
 
     with tarfile.open(tmp_path, "w:gz") as tar:
         for entry in sorted(os.listdir(pkg_dir)):
+            if entry in EXCLUDE_TOP_LEVEL:
+                log.info("Packaging: skipping build intermediate %s", entry)
+                continue
             full = os.path.join(pkg_dir, entry)
             tar.add(full, arcname=entry)
 

@@ -266,10 +266,14 @@ def main():
             with open(compiled_path, "r", encoding="utf-8") as f:
                 compiled = json.load(f)
 
-            # Ensure section/segment ids present before TTS
-            from firebrat.utils.ids import make_section_id as _ms
-            for oi, sec in enumerate(compiled.get("sections", [])):
-                sec.setdefault("section_id", _ms(oi + 1))
+            # Ensure unique section/segment ids before TTS — the SAME scheme
+            # manifest.py uses (first occurrence keeps id, duplicates minted
+            # as sec_9001+), so TTS output dirs always match the manifest.
+            # setdefault alone is not enough: duplicate ids would overwrite
+            # the same sections/<sid>/ dir and leave dangling manifest refs.
+            from firebrat.utils.ids import normalize_section_ids, make_segment_id
+            normalize_section_ids(compiled.get("sections", []))
+            for sec in compiled.get("sections", []):
                 for si, seg in enumerate(sec.get("segments", [])):
                     seg.setdefault("segment_id", make_segment_id(sec["section_id"], si))
 

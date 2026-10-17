@@ -26,7 +26,7 @@ class LibraryScreen extends ConsumerWidget {
     final localAsync = ref.watch(localBooksProvider);
     final catalogAsync = ref.watch(catalogProvider);
     final progress = ref.watch(downloadProgressProvider);
-    final importing = ref.watch(importInProgressProvider);
+    final importing = ref.watch(importProgressProvider);
     final themeMode = ref.watch(themeModeProvider);
 
     return Scaffold(
@@ -57,11 +57,17 @@ class LibraryScreen extends ConsumerWidget {
             ),
           ),
           IconButton(
-            icon: importing
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.file_open_rounded),
+            icon: importing == null
+                ? const Icon(Icons.file_open_rounded)
+                : SizedBox(
+                    width: 20,
+                    height: 20,
+                    // Zip imports never report a fraction (stays 0.0):
+                    // indeterminate spinner. Tar.gz streams 0→1.
+                    child: CircularProgressIndicator(
+                        value: importing > 0 ? importing : null, strokeWidth: 2)),
             tooltip: 'Import a book file (.tar.gz / .zip)',
-            onPressed: importing ? null : () => _importFile(context, ref),
+            onPressed: importing != null ? null : () => _importFile(context, ref),
           ),
         ],
       ),
@@ -81,7 +87,7 @@ class LibraryScreen extends ConsumerWidget {
           if (allEntries.isEmpty) {
             return _EmptyLibrary(
               serverReachable: catalogAsync.hasValue,
-              importing: importing,
+              importing: importing != null,
               onImport: () => _importFile(context, ref),
               onRetryServer: () => ref.invalidate(catalogProvider),
             );
@@ -413,12 +419,12 @@ class LibraryScreen extends ConsumerWidget {
 
   Future<void> _importFile(BuildContext context, WidgetRef ref) async {
     final importMgr = ref.read(importManagerProvider);
-    final inProgress = ref.read(importInProgressProvider.notifier);
+    final progress = ref.read(importProgressProvider.notifier);
     try {
       final file = await importMgr.pickArchiveFile();
       if (file == null) return; // user cancelled
-      inProgress.set(true);
-      final bookId = await importMgr.importFromFile(file);
+      progress.set(0.0);
+      final bookId = await importMgr.importFromFile(file, onProgress: progress.set);
       invalidateLibrary(ref);
       await FirestoreSyncService.instance.upsertBook(
         bookId: bookId,
@@ -433,7 +439,7 @@ class LibraryScreen extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $e')));
       }
     } finally {
-      inProgress.set(false);
+      progress.set(null);
     }
   }
 }

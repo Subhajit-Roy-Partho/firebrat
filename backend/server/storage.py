@@ -124,6 +124,9 @@ def delete_book(book_id: str) -> bool:
 # seconds) so the checksum endpoint and clients never pay for it twice.
 _zip_cache: dict[str, tuple[float, str, int, str]] = {}
 
+#: Already-compressed suffixes stored without re-deflating (see get_or_build_zip).
+_STORED_SUFFIXES = {".m4a", ".mp3", ".wav", ".ogg", ".png", ".jpg", ".jpeg", ".webp", ".pdf", ".gz"}
+
 def get_or_build_zip(book_id: str) -> str | None:
     """Return path to zip for book_id, building/caching as needed. Caller should not delete."""
     manifest = manifest_path(book_id)
@@ -138,12 +141,26 @@ def get_or_build_zip(book_id: str) -> str | None:
     tmpdir = tempfile.gettempdir()
     zpath = os.path.join(tmpdir, f"firebrat_{book_id}.zip")
     # build
+    from firebrat.pipeline.package import EXCLUDE_TOP_LEVEL
     with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
         for dirpath, _, filenames in os.walk(pkg):
+            # Skip build intermediates readers never need (mirrors the
+            # sideload .tar.gz excludes in firebrat/pipeline/package.py).
+            # source.pdf is KEPT — the reader's Source PDF screen needs it.
+            if os.path.relpath(dirpath, pkg).split(os.sep)[0] in EXCLUDE_TOP_LEVEL:
+                continue
             for fn in filenames:
                 full = os.path.join(dirpath, fn)
                 arc = os.path.relpath(full, pkg)
-                z.write(full, arc)
+                if arc.split(os.sep)[0] in EXCLUDE_TOP_LEVEL:
+                    continue
+                # Narration audio, rendered figures/formulas and the source
+                # PDF are already compressed — storing them avoids burning
+                # minutes of CPU re-deflating ~1GB on first download.
+                if os.path.splitext(fn)[1].lower() in _STORED_SUFFIXES:
+                    z.write(full, arc, compress_type=zipfile.ZIP_STORED)
+                else:
+                    z.write(full, arc)
     size_bytes = os.path.getsize(zpath)
     sha256 = _sha256_file(zpath)
     _zip_cache[book_id] = (mtime, zpath, size_bytes, sha256)

@@ -102,12 +102,15 @@ final bookCoverProvider =
   return dm.coverPath(bookId);
 });
 
-/// True while a local-file import is being extracted.
-class ImportInProgressNotifier extends Notifier<bool> {
+/// Import progress for a local-file import: null = idle, 0.0–1.0 while a
+/// .tar.gz streams to disk. (Zip imports don't report progress and stay at
+/// 0.0 indeterminate until done.) Non-null also means "import running",
+/// which disables the import button — replacing the old bool flag.
+class ImportProgressNotifier extends Notifier<double?> {
   @override
-  bool build() => false;
-  void set(bool v) => state = v;
+  double? build() => null;
+  void set(double? v) => state = v;
 }
 
-final importInProgressProvider =
-    NotifierProvider<ImportInProgressNotifier, bool>(ImportInProgressNotifier.new);
+final importProgressProvider =
+    NotifierProvider<ImportProgressNotifier, double?>(ImportProgressNotifier.new);

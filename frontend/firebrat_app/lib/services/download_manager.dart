@@ -152,27 +152,6 @@ class DownloadManager {
     return target;
   }
 
-  /// Extracts an in-memory archive's contents flatly into [target]
-  /// (replacing anything already there). Shared by the download and
-  /// import paths — both produce identically-laid-out book directories.
-  static Future<void> extractArchiveTo(Archive archive, Directory target) async {
-    if (await target.exists()) await target.delete(recursive: true);
-    await target.create(recursive: true);
-    for (final file in archive) {
-      final outPath = '${target.path}/${file.name}';
-      if (file.isFile) {
-        final outFile = File(outPath);
-        await outFile.create(recursive: true);
-        await outFile.writeAsBytes(file.content as List<int>);
-      } else {
-        await Directory(outPath).create(recursive: true);
-      }
-    }
-    if (!await File('${target.path}/manifest.json').exists()) {
-      throw StateError('Package at ${target.path} is missing manifest.json');
-    }
-  }
-
   Future<Directory> downloadAndExtract(
     String bookId, {
     void Function(DownloadProgress progress)? onProgress,

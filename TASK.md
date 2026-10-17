@@ -35,3 +35,21 @@ Living checklist. Update the checkbox and add a one-line note when a phase compl
 - **Env/Firebase:** `backend/.env.example` + `docs/ENV.md` (all `MODEL_API_KEY`/`TELEGRAM_*`/`HF_HOME`/`FIREBRAT_*`/`FIREBASE_*`); remote push is optional Telegram + local notifications vs FCM (`docs/FIREBASE.md` step-by-step for `google-services.json`).
 - **Pipeline fixes:** `_sanitize_latex` `compile_llm.py:162` + manifest dedup `manifest.py:78` guard future runs; `aeda268` extraction fix requires re-extraction for full table/figure fidelity — current packages are repaired (dedup/LaTeX) but not fully re-extracted.
 - **Resume:** `raw/compiled.json` 659/659 pages. `PYTHONPATH=backend pytest backend/tests -v` 15/15, `flutter analyze` / `flutter test` clean. Next: `dart run flutter_launcher_icons` already re-exported PNGs, then `flutter build apk --release` / `flutter build appbundle` for Play Console.
+
+- [x] **Phase 10 — 1.2GB book download/import failure (2026-10-16)**: the repaired DDCA
+  package (1929 sections) downloaded but never appeared in the library. Two defects combined:
+  (a) the book itself referenced 22 section audios (`sec_9001–9022`, duplicate ids minted by
+  manifest dedup) that Stage 3 never wrote — the app's completeness gate correctly hid the
+  book; (b) the app's sideload import did whole-file `readAsBytes` + in-memory decode (~3.5GB
+  transient for a 1.2GB package → OS kill). Fixed: shared `normalize_section_ids()`
+  (`firebrat/utils/ids.py`) now used by Stage-3 prologue + `tts_shard.py` + manifest builder;
+  `backend/scripts/repair_missing_section_audio.py` materialized the 22 as silence placeholders
+  with real text/timing (`needs_review:true`, refillable later via Stage-3 rerun — no GPU here
+  for real TTS); server `/download` zip + sideload `.tar.gz` both exclude build intermediates
+  (`_segment_wavs`, `raw`, `compiled.json`) and the zip stores already-compressed media
+  uncompressed (fast first-download packaging). App: streaming tar.gz extractor
+  (`lib/utils/tar_stream.dart`, flat memory, traversal/link-safe) + streaming zip import +
+  book-id sanitizing + backup-swap commit + determinate import progress. Verified: 35/35 backend
+  tests (new `test_package_consistency.py`), `flutter analyze` clean, 16/16 unit tests, and
+  `integration_test/import_book_test.dart` importing the real 1.2GB package on a 3GB-RAM
+  emulator (all 1929 audios present, library lists it). Released app `1.5.11+22`.
