@@ -8,7 +8,7 @@ import '../utils/server_url.dart';
 /// `mobile-Backend/PROPOSAL.md` for why the on-device pipeline still needs
 /// a user-configured cloud LLM for the chunks its own on-device model
 /// isn't trusted with.
-enum ConversionModePref { cloud, onDevice }
+enum ConversionModePref { offline, cloud, onDevice }
 
 class ConversionModeSettings {
   final ConversionModePref mode;
@@ -33,7 +33,7 @@ class ConversionModeSettings {
   final String kokoroVoice;
 
   const ConversionModeSettings({
-    this.mode = ConversionModePref.cloud,
+    this.mode = ConversionModePref.offline,
     this.cloudServerUrl = '',
     this.storageBackend = 'server',
     this.onDeviceLlmUrl = '',
@@ -97,7 +97,11 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     state = ConversionModeSettings(
-      mode: (prefs.getString(_kMode) == 'onDevice') ? ConversionModePref.onDevice : ConversionModePref.cloud,
+      mode: switch (prefs.getString(_kMode)) {
+        'cloud' => ConversionModePref.cloud,
+        'onDevice' => ConversionModePref.onDevice,
+        _ => ConversionModePref.offline,
+      },
       cloudServerUrl: prefs.getString(_kCloudUrl) ?? '',
       storageBackend: prefs.getString(_kStorage) ?? 'server',
       onDeviceLlmUrl: prefs.getString(_kLlmUrl) ?? '',
@@ -112,7 +116,7 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
 
   Future<void> setMode(ConversionModePref mode) async {
     state = state.copyWith(mode: mode);
-    (await SharedPreferences.getInstance()).setString(_kMode, mode == ConversionModePref.onDevice ? 'onDevice' : 'cloud');
+    await (await SharedPreferences.getInstance()).setString(_kMode, mode.name);
   }
 
   Future<void> setCloudServerUrl(String url) async {

@@ -28,6 +28,7 @@ class LibraryScreen extends ConsumerWidget {
     final progress = ref.watch(downloadProgressProvider);
     final importing = ref.watch(importProgressProvider);
     final themeMode = ref.watch(themeModeProvider);
+    final isCloud = ref.watch(conversionModeProvider).mode == ConversionModePref.cloud;
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -51,7 +52,7 @@ class LibraryScreen extends ConsumerWidget {
           ),
           IconButton(
             icon: const Icon(Icons.cloud_upload_rounded),
-            tooltip: 'Convert a new book (upload to server)',
+            tooltip: 'Conversions and settings',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const ConversionsScreen()),
             ),
@@ -86,6 +87,7 @@ class LibraryScreen extends ConsumerWidget {
 
           if (allEntries.isEmpty) {
             return _EmptyLibrary(
+              isCloud: isCloud,
               serverReachable: catalogAsync.hasValue,
               importing: importing != null,
               onImport: () => _importFile(context, ref),
@@ -98,7 +100,7 @@ class LibraryScreen extends ConsumerWidget {
               // The catalog fetch failing used to be silent whenever local
               // books existed (remote titles just never appeared, with no
               // way to retry) — surface it with a one-tap retry instead.
-              if (catalogAsync.hasError)
+              if (isCloud && catalogAsync.hasError)
                 Material(
                   color: Theme.of(context).colorScheme.errorContainer,
                   child: Padding(
@@ -189,8 +191,12 @@ class LibraryScreen extends ConsumerWidget {
       try {
         manifest = await repo.loadLocalManifest(book.bookId);
       } catch (_) {}
-      await FirestoreSyncService.instance.touchOpened(book.bookId);
-      await AnalyticsService.instance.logBookOpened(sectionCount: book.sectionCount);
+      // Cloud writes may stay pending indefinitely offline or when Firestore
+      // is disabled. Local reading must never wait for metadata or analytics.
+      if (ref.read(conversionModeProvider).mode != ConversionModePref.offline) {
+        unawaited(ref.read(firestoreSyncServiceProvider).touchOpened(book.bookId));
+        unawaited(AnalyticsService.instance.logBookOpened(sectionCount: book.sectionCount));
+      }
       if (!context.mounted) return;
       Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => (manifest != null && manifest.isChapters)
@@ -406,7 +412,7 @@ class LibraryScreen extends ConsumerWidget {
   Future<void> _backupZipToDrive(WidgetRef ref, String bookId, String zipPath) async {
     try {
       final settings = ref.read(conversionModeProvider);
-      if (settings.storageBackend != 'drive') return;
+      if (settings.mode == ConversionModePref.offline || settings.storageBackend != 'drive') return;
       if (!await DriveSyncService.instance.isEnabled()) return;
       await DriveSyncService.instance.uploadBook(bookId: bookId, zipPath: zipPath);
       await FirestoreSyncService.instance.upsertBook(
@@ -426,11 +432,13 @@ class LibraryScreen extends ConsumerWidget {
       progress.set(0.0);
       final bookId = await importMgr.importFromFile(file, onProgress: progress.set);
       invalidateLibrary(ref);
-      await FirestoreSyncService.instance.upsertBook(
-        bookId: bookId,
-        title: bookId,
-        source: 'import',
-      );
+      if (ref.read(conversionModeProvider).mode != ConversionModePref.offline) {
+        unawaited(FirestoreSyncService.instance.upsertBook(
+          bookId: bookId,
+          title: bookId,
+          source: 'import',
+        ));
+      }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Imported "$bookId"')));
       }
@@ -445,12 +453,14 @@ class LibraryScreen extends ConsumerWidget {
 }
 
 class _EmptyLibrary extends StatelessWidget {
+  final bool isCloud;
   final bool serverReachable;
   final bool importing;
   final VoidCallback onImport;
   final VoidCallback onRetryServer;
 
   const _EmptyLibrary({
+    required this.isCloud,
     required this.serverReachable,
     required this.importing,
     required this.onImport,
@@ -468,7 +478,9 @@ class _EmptyLibrary extends StatelessWidget {
             const Icon(Icons.menu_book_outlined, size: 56),
             const SizedBox(height: 16),
             Text(
-              serverReachable
+              !isCloud
+                  ? 'Your offline library is ready. Import a book file to start reading and listening.'
+                  : serverReachable
                   ? 'No books yet — the server has none, and you haven\'t imported one.'
                   : 'No books yet, and the Firebrat server isn\'t reachable.\nYou can still import a book file directly.',
               textAlign: TextAlign.center,
@@ -480,7 +492,7 @@ class _EmptyLibrary extends StatelessWidget {
               icon: const Icon(Icons.file_open_rounded),
               label: const Text('Import a book file'),
             ),
-            if (!serverReachable) ...[
+            if (isCloud && !serverReachable) ...[
               const SizedBox(height: 8),
               TextButton(onPressed: onRetryServer, child: const Text('Retry server connection')),
             ],

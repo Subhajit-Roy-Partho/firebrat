@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import 'screens/library_screen.dart';
 import 'screens/sign_in_screen.dart';
 import 'state/theme_providers.dart';
+import 'state/on_device_conversion_providers.dart';
 import 'theme/app_theme.dart';
 
 class FirebratApp extends ConsumerWidget {
@@ -21,7 +22,8 @@ class FirebratApp extends ConsumerWidget {
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,
       // Automatic screen-view tracking (screen names only, no content).
-      navigatorObservers: AnalyticsService.observerOrNull(),
+      navigatorObservers: ref.watch(conversionModeProvider).mode == ConversionModePref.offline
+          ? const [] : AnalyticsService.observerOrNull(),
       home: const AuthGate(),
     );
   }
@@ -29,11 +31,14 @@ class FirebratApp extends ConsumerWidget {
 
 /// Signed-out users land on SignInScreen; the stream flips to the library
 /// the moment Firebase reports a user. No route pushing — the gate rebuilds.
-class AuthGate extends StatelessWidget {
+class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(conversionModeProvider).mode == ConversionModePref.offline) {
+      return const LibraryScreen();
+    }
     return StreamBuilder<User?>(
       stream: AuthService.instance.authStateChanges(),
       builder: (context, snapshot) {

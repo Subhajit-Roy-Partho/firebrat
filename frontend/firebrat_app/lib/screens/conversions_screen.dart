@@ -24,6 +24,7 @@ class ConversionsScreen extends ConsumerWidget {
     final onDeviceRun = ref.watch(onDeviceRunProvider);
     final busy = uploadProgress != null || (onDeviceRun != null && !onDeviceRun.done);
     final isOnDevice = conversionMode.mode == ConversionModePref.onDevice;
+    final isOffline = conversionMode.mode == ConversionModePref.offline;
 
     return Scaffold(
       appBar: AppBar(
@@ -31,7 +32,7 @@ class ConversionsScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Conversion settings (cloud vs on-device)',
+            tooltip: 'Conversion settings',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const ConversionSettingsScreen()),
             ),
@@ -46,13 +47,20 @@ class ConversionsScreen extends ConsumerWidget {
           // uploaded anywhere) — polling it here is what made the screen
           // "still look for the server". On-device runs surface above.
           Expanded(
-            child: isOnDevice
+            child: isOffline
+                ? const Center(child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('Offline mode: import finished book files from your library. '
+                        'Choose Server or On-device in settings to convert new books.',
+                        textAlign: TextAlign.center),
+                  ))
+                : isOnDevice
                 ? const _OnDeviceJobsPlaceholder()
                 : const _ServerJobsList(),
           ),
         ],
       ),
-      floatingActionButton: busy
+      floatingActionButton: isOffline ? null : busy
           ? FloatingActionButton.extended(
               onPressed: null,
               icon: SizedBox(
@@ -74,6 +82,7 @@ class ConversionsScreen extends ConsumerWidget {
   }
 
   Future<void> _pickAndConvert(BuildContext context, WidgetRef ref, ConversionModePref mode) async {
+    if (mode == ConversionModePref.offline) return;
     // file_picker 12 returns the picked files directly (empty = cancelled).
     // Both modes accept a .zip of chapter PDFs: cloud uploads merge
     // server-side, on-device unzips locally and merges at the text layer.

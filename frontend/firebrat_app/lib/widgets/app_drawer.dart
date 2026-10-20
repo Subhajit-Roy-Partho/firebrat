@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/conversion_settings_screen.dart';
 import '../screens/conversions_screen.dart';
 import '../services/auth_service.dart';
+import '../state/on_device_conversion_providers.dart';
 
 /// Bumped with `version:` in frontend/firebrat_app/pubspec.yaml on every
 /// release (and passed as --dart-define=FIREBRAT_APP_VERSION=... by the
@@ -109,7 +110,10 @@ class AppDrawer extends ConsumerWidget {
             ListTile(
               leading: const Icon(Icons.login_rounded),
               title: const Text('Sign in'),
-              onTap: () => Navigator.of(context).pop(),
+              onTap: () {
+                Navigator.of(context).pop();
+                ref.read(conversionModeProvider.notifier).setMode(ConversionModePref.cloud);
+              },
             ),
           const Divider(),
           AboutListTile(

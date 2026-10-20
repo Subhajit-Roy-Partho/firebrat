@@ -121,20 +121,25 @@ class _ConversionSettingsScreenState
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _SectionTitle('1 · Convert new books where?'),
+          _SectionTitle('1 · How do you want to use Firebrat?'),
           const _HelpText(
+              'Offline reads and plays imported books with no server or account. '
               'Cloud server converts with datacenter GPUs (fast, needs the server online). '
               'On this device converts with your phone (private, slower, needs the models below).'),
           const SizedBox(height: 8),
           SegmentedButton<ConversionModePref>(
             segments: const [
               ButtonSegment(
+                  value: ConversionModePref.offline,
+                  label: Text('Offline'),
+                  icon: Icon(Icons.offline_pin_outlined)),
+              ButtonSegment(
                   value: ConversionModePref.cloud,
-                  label: Text('Cloud server'),
+                  label: Text('Server'),
                   icon: Icon(Icons.cloud_outlined)),
               ButtonSegment(
                   value: ConversionModePref.onDevice,
-                  label: Text('On this device'),
+                  label: Text('On-device'),
                   icon: Icon(Icons.phone_android_outlined)),
             ],
             selected: {settings.mode},
@@ -190,7 +195,7 @@ class _ConversionSettingsScreenState
               ),
               keyboardType: TextInputType.url,
             ),
-          ] else ...[
+          ] else if (settings.mode == ConversionModePref.onDevice) ...[
             _SectionTitle('2 · Cloud helper for hard chunks'),
             const _HelpText(
                 'Easy chunks run on the local model below. Chunks with equations, figures, or tables '
@@ -234,6 +239,10 @@ class _ConversionSettingsScreenState
             const SizedBox(height: 8),
             _LocalModelPicker(notifier: notifier, settings: settings),
           ],
+          if (settings.mode == ConversionModePref.offline)
+            const _HelpText('Import a .tar.gz or .zip book from your library. '
+                'Reading and playback use files on this phone. Switch modes when you want to convert new books or use a server.'),
+          if (settings.mode != ConversionModePref.offline) ...[
           const SizedBox(height: 24),
           _SectionTitle(isCloud ? '3 · Narrator voice' : '4 · Narrator voice'),
           const _HelpText(
@@ -241,6 +250,7 @@ class _ConversionSettingsScreenState
               '(voice data downloads on first use, ~300 MB). Server books keep the voice they were converted with.'),
           const SizedBox(height: 8),
           _VoicePicker(notifier: notifier, settings: settings),
+          ],
           const SizedBox(height: 24),
           FilledButton(
             onPressed: () => _save(context),
@@ -272,7 +282,7 @@ class _ConversionSettingsScreenState
       // place until something else happened to refresh it.
       ref.invalidate(catalogProvider);
       await ref.read(serverBooksProvider.notifier).check();
-    } else {
+    } else if (settings.mode == ConversionModePref.onDevice) {
       final normalizedUrl = normalizeLlmUrl(_llmUrlController.text);
       _llmUrlController.text = normalizedUrl;
       await notifier.setOnDeviceLlm(

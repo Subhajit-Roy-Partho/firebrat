@@ -4,6 +4,7 @@ import '../services/api_client.dart';
 import '../services/download_manager.dart';
 import '../services/import_manager.dart';
 import '../services/library_repository.dart';
+import '../services/firestore_sync_service.dart';
 import '../utils/server_url.dart';
 import 'on_device_conversion_providers.dart';
 
@@ -39,11 +40,18 @@ final libraryRepositoryProvider = Provider<LibraryRepository>(
   (ref) => LibraryRepository(ref.watch(apiClientProvider), ref.watch(downloadManagerProvider)),
 );
 
+final firestoreSyncServiceProvider = Provider<FirestoreSyncService>(
+  (ref) => FirestoreSyncService.instance,
+);
+
 /// The remote catalog. Errors (server unreachable, no server at all) are
 /// expected and normal here — the library screen treats a failed catalog
 /// fetch as "no books available to download," not a hard error, since
 /// locally-imported books are a fully independent path.
 final catalogProvider = FutureProvider<List<BookSummary>>((ref) async {
+  if (ref.watch(conversionModeProvider).mode != ConversionModePref.cloud) {
+    return const [];
+  }
   final repo = ref.watch(libraryRepositoryProvider);
   return repo.fetchCatalog();
 });

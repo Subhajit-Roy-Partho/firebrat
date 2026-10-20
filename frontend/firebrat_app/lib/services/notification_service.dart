@@ -30,9 +30,11 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _local = FlutterLocalNotificationsPlugin();
   bool _ready = false;
 
-  Future<void> initialize() async {
+  Future<void> initialize({bool enablePush = true}) async {
     final messaging = FirebaseMessaging.instance;
-    await messaging.requestPermission(alert: true, badge: true, sound: true);
+    if (enablePush) {
+      await messaging.requestPermission(alert: true, badge: true, sound: true);
+    }
     const channel = AndroidNotificationChannel(
       _channelId,
       _channelName,
@@ -49,11 +51,13 @@ class NotificationService {
       settings: settings,
       onDidReceiveNotificationResponse: _onNotificationAction,
     );
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    FirebaseMessaging.onMessage.listen(showFromMessage);
+    if (enablePush) {
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      FirebaseMessaging.onMessage.listen(showFromMessage);
+    }
     // Server broadcasts ("a new book is on the shelf") go to this topic.
     try {
-      await messaging.subscribeToTopic('new-books');
+      if (enablePush) await messaging.subscribeToTopic('new-books');
     } catch (_) {}
     _ready = true;
   }

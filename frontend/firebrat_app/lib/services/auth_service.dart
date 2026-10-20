@@ -34,7 +34,13 @@ class AuthService {
       return Stream.value(null);
     }
   }
-  User? get currentUser => _auth.currentUser;
+  User? get currentUser {
+    try {
+      return _auth.currentUser;
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Fresh ID token for `Authorization: Bearer` on API calls, or null
   /// when signed out (ApiClient then sends no header — server treats the
