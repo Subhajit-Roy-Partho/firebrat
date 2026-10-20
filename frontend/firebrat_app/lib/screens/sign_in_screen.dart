@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/analytics_service.dart';
 import '../services/auth_service.dart';
 
-/// First screen for signed-out users. Google sign-in only for now —
-/// anonymous browsing stays available via "Continue without signing in",
-/// which simply skips the account (server treats those calls as
-/// anonymous; book downloads from the shelf keep working).
+/// Sign in or create an account with Google or email. Google authentication
+/// creates a Firebase account on the first successful sign-in.
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
 
@@ -76,7 +74,12 @@ class _SignInScreenState extends State<SignInScreen> {
                 'Technical books as narrated audiobooks — figures and formulas kept in view.',
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
+              Text(
+                _registerMode ? 'Create your account' : 'Welcome back',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: _busy ? null : _signIn,
                 icon: _busy
@@ -85,7 +88,7 @@ class _SignInScreenState extends State<SignInScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.login_rounded),
-                label: const Text('Sign in with Google'),
+                label: Text(_registerMode ? 'Sign up with Google' : 'Sign in with Google'),
               ),
               const SizedBox(height: 16),
               const Divider(),
@@ -116,7 +119,10 @@ class _SignInScreenState extends State<SignInScreen> {
               TextButton(
                 onPressed: _busy
                     ? null
-                    : () => setState(() => _registerMode = !_registerMode),
+                    : () => setState(() {
+                        _registerMode = !_registerMode;
+                        _error = null;
+                      }),
                 child: Text(_registerMode
                     ? 'Have an account? Sign in'
                     : 'New here? Create an account'),
