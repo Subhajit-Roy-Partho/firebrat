@@ -6,7 +6,7 @@ USER root
 RUN apt-get update && apt-get install -y --no-install-recommends libvulkan1 libopenblas0 ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=ollama /usr/bin/ollama /usr/bin/ollama
 COPY --from=ollama /usr/lib/ollama /usr/lib/ollama
-COPY installer/server/launcher.py /app/desktop/launcher.py
+COPY installer/server/launcher.py installer/server/docker-smoke.py /app/desktop/
 COPY installer/server/ui /app/desktop/ui
 COPY installer/server/THIRD_PARTY_NOTICES.md /app/desktop/THIRD_PARTY_NOTICES.md
 ENV FIREBRAT_DESKTOP_PREINSTALLED=1 FIREBRAT_DESKTOP_DATA=/data HOME=/data XDG_CACHE_HOME=/data/cache OLLAMA_NO_CLOUD=1

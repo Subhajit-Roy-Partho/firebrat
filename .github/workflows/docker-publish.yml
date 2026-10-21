@@ -39,6 +39,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Free runner space for separate extraction and speech CUDA runtimes
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
@@ -74,6 +77,9 @@ jobs:
         variant: [cpu, gpu]
     steps:
       - uses: actions/checkout@v4
+      - name: Free runner space for separate extraction and speech CUDA runtimes
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -103,7 +109,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=desktop-${{ matrix.variant }}
       - name: Smoke-test manager and backend imports without GPU
         run: |
-          docker run --rm --entrypoint /opt/venvs/serve/bin/python firebrat-desktop-test -c 'import sys; sys.path.insert(0,"/app/desktop"); from launcher import Controller; import tempfile; c=Controller(tempfile.mkdtemp()); assert c.runtime_ready(); from server.main import app; print("Desktop manager and API imports passed")'
+          docker run --rm --entrypoint /opt/venvs/serve/bin/python firebrat-desktop-test /app/desktop/docker-smoke.py
           docker run --rm --entrypoint /usr/bin/ollama firebrat-desktop-test --version
       - name: Publish tested image
         uses: docker/build-push-action@v6

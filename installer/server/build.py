@@ -78,7 +78,7 @@ def main():
     command=[sys.executable,'-m','PyInstaller','--noconfirm','--clean','--onedir','--name','FirebratServer',
              '--distpath',out/'dist','--workpath',out/'work','--specpath',out,
              '--add-data',f'{stage}/build-info.json:.','--add-data',f'{stage}/backend:backend','--add-data',f'{stage}/ui:ui','--add-data',f'{notices}:licenses',
-             '--add-binary',f'{binaries}/uv:bin','--add-binary',f'{binaries}/tectonic:bin','--collect-all','python_multipart']
+             '--add-binary',f'{binaries}/uv:bin','--add-binary',f'{binaries}/tectonic:bin','--collect-all','python_multipart','--exclude-module','pkg_resources','--exclude-module','setuptools']
     for req in stage.glob('requirements-*.txt'): command += ['--add-data',f'{req}:.']
     if sys.platform=='darwin': command += ['--windowed','--osx-bundle-identifier','com.firebrat.serverlauncher']
     command.append(HERE/'launcher.py');run(command)

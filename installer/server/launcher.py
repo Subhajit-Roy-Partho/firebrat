@@ -189,7 +189,7 @@ class Controller:
         env.pop("HF_HUB_CACHE", None)
         original_library_path = env.pop("LD_LIBRARY_PATH_ORIG", None)
         if original_library_path: env["LD_LIBRARY_PATH"] = original_library_path
-        else: env.pop("LD_LIBRARY_PATH", None)
+        elif getattr(sys, "frozen", False): env.pop("LD_LIBRARY_PATH", None)
         env.update(UV_CACHE_DIR=str(self.root / "cache/uv"), UV_PYTHON_INSTALL_DIR=str(self.root / "python"),
                    PYTHONPATH=str(self.source), HF_HOME=str(self.root / "models"),
                    FIREBRAT_EXTRACT_PY=self.python("extract"), FIREBRAT_CONVERT_PY=self.python("extract"),
@@ -199,7 +199,7 @@ class Controller:
                    FIREBRAT_EXTRACT_BATCH_PAGES="2", FIREBRAT_MAX_CONCURRENT_JOBS="1",
                    FIREBRAT_TTS_DEVICE="auto" if self.config.get("accelerator") == "auto" else "cpu",
                    FIREBRAT_HOST="127.0.0.1", FIREBRAT_PORT="8000", PYTHONUNBUFFERED="1",
-                   GOOGLE_CLOUD_PROJECT="firebrat-8c597", OLLAMA_MODELS=str(self.root / "ollama-models"), OLLAMA_HOST="127.0.0.1:11434", OLLAMA_NO_CLOUD="1",
+                   GOOGLE_CLOUD_PROJECT="firebrat-8c597", OLLAMA_MODELS=str(self.root / "ollama-models"), OLLAMA_HOST="127.0.0.1:11434", OLLAMA_NO_CLOUD="1", OLLAMA_KEEP_ALIVE="0",
                    NANO_API_URL=self.config.get("endpoint", ""), MODEL_API_KEY=self.config.get("api_key", ""),
                    FIREBRAT_SPARK_MODEL=self.runtime_model(), FIREBRAT_DEEPSEEK_MODEL=self.runtime_model())
         env["PATH"] = str(self.root / "bin") + os.pathsep + str(self.bin) + os.pathsep + env.get("PATH", "")
