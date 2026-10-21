@@ -177,3 +177,17 @@ These images contain the Python runtimes, extraction, formula tools, Ollama, and
 Images are built and smoke-tested by GitHub Actions before publication. Import/startup checks do not constitute an actual NVIDIA hardware benchmark. Source builds are also possible with `backend/docker/Dockerfile.desktop`, using the matching backend image as `BASE_IMAGE`.
 
 Native Intel Mac builds are not offered: the extraction and Chatterbox PyTorch versions have no current Intel macOS wheels. Use a Linux x86-64 PC/VM running the Docker image and connect the Mac or phone as a reader. Apple silicon has native supported wheels.
+
+## Measured desktop validation (2026-10-21)
+
+On an Apple M4 with 24 GB RAM, a clean installer setup created all three environments, rendered an actual TeX formula, and started the real backend. Chatterbox 0.1.7 generated the sentence “Welcome to Firebrat. This narration is generated entirely on your computer.” with no voice API. A second run used `HF_HUB_OFFLINE=1` and cached weights:
+
+| Check | Measured result |
+|---|---|
+| First speech run, including model downloads and loading | 767.48 s; network-dependent, not synthesis speed |
+| Cached model load, CPU | 13.19 s |
+| Cached CPU generation | 15.74 s for 4.64 s of audio, about 3.39× audio duration |
+| Output | 24 kHz WAV, non-silent |
+| Cached offline operation | Passed with Hugging Face offline mode enabled |
+
+[Machine-readable measurements](validation/macos-m4-2026-10-21.json). This is one short speech/startup check, not a complete book-conversion benchmark or listening-quality certification. No NVIDIA execution or PC GPU performance is inferred from it. Automated backend/launcher checks: 58 passed. Packaged launcher checks passed on Apple silicon macOS and Ubuntu 22.04, including the bundled tool versions. Published installer checksums are provided alongside downloads.

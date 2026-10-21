@@ -1,0 +1,13 @@
+{
+  "hardware": "Apple M4",
+  "ram_gib": 24,
+  "engine": "Chatterbox 0.1.7",
+  "device": "CPU",
+  "hf_hub_offline": true,
+  "cached_load_seconds": 13.19,
+  "generation_seconds": 15.74,
+  "audio_seconds": 4.64,
+  "cold_run_including_first_model_download_seconds": 767.48,
+  "sample_rate": 24000,
+  "sample_peak": 1.0
+}
