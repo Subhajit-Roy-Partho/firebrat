@@ -13,3 +13,5 @@ installed separately from https://ollama.com/download. Model downloads are not
 bundled in the installer. Review model licenses before redistributing weights.
 The installer never bundles developer credentials, voice reference clips or books
 from the developer's library.
+
+The Linux desktop Docker images additionally bundle Ollama 0.40.8 under its MIT license; its license is included at `/usr/share/doc/ollama/LICENSE` inside the image. Native installers require a separate Ollama installation.

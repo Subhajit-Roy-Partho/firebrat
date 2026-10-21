@@ -9,6 +9,7 @@ COPY --from=ollama /usr/lib/ollama /usr/lib/ollama
 COPY installer/server/launcher.py installer/server/docker-smoke.py /app/desktop/
 COPY installer/server/ui /app/desktop/ui
 COPY installer/server/THIRD_PARTY_NOTICES.md /app/desktop/THIRD_PARTY_NOTICES.md
+COPY installer/server/licenses/Ollama-LICENSE.txt /usr/share/doc/ollama/LICENSE
 ENV FIREBRAT_DESKTOP_PREINSTALLED=1 FIREBRAT_DESKTOP_DATA=/data HOME=/data XDG_CACHE_HOME=/data/cache OLLAMA_NO_CLOUD=1
 WORKDIR /app/desktop
 # Manager and backend bind loopback; use Linux host networking.
