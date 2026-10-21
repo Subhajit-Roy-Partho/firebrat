@@ -88,13 +88,14 @@ public struct ManifestSection: Codable, Equatable, Sendable {
     public var formulaRefs: [String]
     public var tableRefs: [String]
     public var needsReview: Bool
+    public var sourcePages: [Int]
 
     enum CodingKeys: String, CodingKey {
         case sectionId = "section_id", chapter, order, title
         case audioPath = "audio_path", segmentsPath = "segments_path"
         case durationMs = "duration_ms"
         case figureRefs = "figure_refs", formulaRefs = "formula_refs", tableRefs = "table_refs"
-        case needsReview = "needs_review"
+        case needsReview = "needs_review", sourcePages = "source_pages"
     }
 
     public init(from decoder: Decoder) throws {
@@ -110,6 +111,7 @@ public struct ManifestSection: Codable, Equatable, Sendable {
         formulaRefs = try c.decodeIfPresent([String].self, forKey: .formulaRefs) ?? []
         tableRefs = try c.decodeIfPresent([String].self, forKey: .tableRefs) ?? []
         needsReview = try c.decodeIfPresent(Bool.self, forKey: .needsReview) ?? false
+        sourcePages = try c.decodeIfPresent([Int].self, forKey: .sourcePages) ?? []
     }
 }
 
@@ -120,6 +122,7 @@ public struct Manifest: Codable, Equatable, Sendable {
     public var title: String
     public var author: String
     public var sourcePdf: String
+    public var sourcePdfPath: String?
     public var generatedAt: String
     public var totalDurationMs: Int
     public var sections: [ManifestSection]
@@ -128,7 +131,7 @@ public struct Manifest: Codable, Equatable, Sendable {
     public var tables: [ManifestTable]
 
     enum CodingKeys: String, CodingKey {
-        case bookId = "book_id", title, author, sourcePdf = "source_pdf"
+        case bookId = "book_id", title, author, sourcePdf = "source_pdf", sourcePdfPath = "source_pdf_path"
         case generatedAt = "generated_at", totalDurationMs = "total_duration_ms"
         case sections, figures, formulas, tables
     }
@@ -139,6 +142,7 @@ public struct Manifest: Codable, Equatable, Sendable {
         title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
         author = try c.decodeIfPresent(String.self, forKey: .author) ?? ""
         sourcePdf = try c.decodeIfPresent(String.self, forKey: .sourcePdf) ?? ""
+        sourcePdfPath = try c.decodeIfPresent(String.self, forKey: .sourcePdfPath)
         generatedAt = try c.decodeIfPresent(String.self, forKey: .generatedAt) ?? ""
         totalDurationMs = try c.decodeIfPresent(Int.self, forKey: .totalDurationMs) ?? 0
         sections = try c.decodeIfPresent([ManifestSection].self, forKey: .sections) ?? []

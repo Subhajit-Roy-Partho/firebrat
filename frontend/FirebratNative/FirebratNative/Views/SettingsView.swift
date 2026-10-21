@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 
 /// Server URL (+ health check), playback speed, autoplay + delay, and text
 /// size. All persisted under the same UserDefaults keys as the Flutter app.
@@ -12,7 +13,19 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Server") {
+            Section("Conversion") {
+                Picker("Mode", selection: $settings.mode) {
+                    Text("Offline reading").tag("offline")
+                    Text("Server").tag("server")
+                    Text("On this device").tag("local")
+                }
+                Picker("Book type", selection: $settings.contentMode) {
+                    Text("Illustrated / technical").tag("illustrated")
+                    Text("Novel / characters").tag("novel")
+                }
+                NavigationLink("Convert a book") { ConversionsView() }
+            }
+            if settings.mode == "server" { Section("Server") {
                 TextField("http://localhost:8000", text: $draftURL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -30,6 +43,51 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            }
+            if settings.mode == "local" {
+                Section("Narration preparation") {
+                    Picker("Narration preparation", selection: $settings.compiler) {
+                        Text("Preserve source text").tag("verbatim")
+                        Text("Local language model").tag("llm")
+                    }
+                    if settings.compiler == "llm" {
+                        Picker("Language model", selection: $settings.languageModel) {
+                            ForEach(NativeModel.catalog) { model in Text("\(model.name) · \(model.bytes / 1_000_000) MB").tag(model.id) }
+                        }
+#if targetEnvironment(simulator)
+                        Toggle("Use Metal GPU when available", isOn: $settings.useMetal).disabled(true)
+                        Text("Simulator conversions use CPU. Metal requires testing on a physical Apple device.").font(.footnote)
+#else
+                        Toggle("Use Metal GPU when available", isOn: $settings.useMetal)
+#endif
+                        Text("Models download once and then run offline. CPU is the default; Metal is optional on physical Apple devices. Narration retains the source if a rewrite fails coverage checks. Review model-generated narration before relying on it.").font(.footnote)
+                    }
+                }
+                Section("Voice engine") {
+                    Picker("Voice engine", selection: $settings.voiceEngine) {
+                        Text("Apple installed voices").tag("apple")
+                        Text("Kokoro neural voices").tag("kokoro")
+                    }
+                }
+                if settings.voiceEngine == "kokoro" {
+                    Section("Kokoro offline voices") {
+                        Picker("Narrator", selection: $settings.kokoroNarrator) {
+                            ForEach(KokoroRuntime.female + KokoroRuntime.male, id: \.self) { Text($0 + (KokoroRuntime.male.contains($0) ? " · Male" : " · Female")).tag($0) }
+                        }
+                        Picker("Male characters", selection: $settings.kokoroMale) { ForEach(KokoroRuntime.male, id: \.self) { Text($0).tag($0) } }
+                        Picker("Female characters", selection: $settings.kokoroFemale) { ForEach(KokoroRuntime.female, id: \.self) { Text($0).tag($0) } }
+                        TextField("Alice=Sarah, one override per line", text: $settings.characterOverrides, axis: .vertical).lineLimit(3...6)
+                        Text("One verified download (about 103 MB) on first use, then neural narration works offline. Ambiguous characters keep the narrator. No voice cloning.").font(.footnote)
+                    }
+                } else { Section("Apple offline voices") {
+                    voicePicker("Narrator", selection: $settings.narratorVoice, gender: nil)
+                    voicePicker("Male characters", selection: $settings.maleVoice, gender: .male)
+                    voicePicker("Female characters", selection: $settings.femaleVoice, gender: .female)
+                    TextField("Name=Apple voice name, one per line", text: $settings.characterOverrides, axis: .vertical).lineLimit(3...6)
+                    Text("Only installed English Apple voices are listed. For novels, explicit roles or clear he/she narration select a voice; unknown characters keep the narrator. Named overrides take priority. Download more voices in Apple Spoken Content settings.").font(.footnote)
+                }
+            }
+            }
             Section("Playback") {
                 HStack {
                     Text("Speed")
@@ -70,6 +128,15 @@ struct SettingsView: View {
         }
         .onAppear {
             draftURL = settings.serverURL.isEmpty ? AppSettings.defaultServerURL : settings.serverURL
+        }
+    }
+
+    private func voicePicker(_ title: String, selection: Binding<String>, gender: AVSpeechSynthesisVoiceGender?) -> some View {
+        Picker(title, selection: selection) {
+            Text("Automatic / narrator fallback").tag("")
+            ForEach(LocalConversion.voices.filter { gender == nil || $0.gender == gender }, id: \.identifier) { voice in
+                Text("\(voice.name) · \(voice.language)").tag(voice.identifier)
+            }
         }
     }
 

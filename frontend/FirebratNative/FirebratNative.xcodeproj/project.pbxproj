@@ -5,6 +5,28 @@
 	};
 	objectVersion = 54;
 	objects = {
+        C200000000000001 = {isa = XCLocalSwiftPackageReference; relativePath = Packages/LlamaIOS; };
+        C200000000000002 = {isa = XCSwiftPackageProductDependency; package = C200000000000001; productName = llama; };
+        C200000000000003 = {isa = PBXBuildFile; productRef = C200000000000002; };
+        C100000000000001 = {isa = XCLocalSwiftPackageReference; relativePath = Packages/SherpaOnnxIOS; };
+        C100000000000002 = {isa = XCSwiftPackageProductDependency; package = C100000000000001; productName = "sherpa-onnx"; };
+        C100000000000003 = {isa = PBXBuildFile; productRef = C100000000000002; };
+
+        B100000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebratNativeUITests/FirebratNativeUITests.swift; sourceTree = "<group>"; };
+        B100000000000002 = {isa = PBXBuildFile; fileRef = B100000000000001; };
+        B100000000000003 = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = FirebratNativeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+        B100000000000004 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (B100000000000002,); runOnlyForDeploymentPostprocessing = 0; };
+        B100000000000005 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+        B100000000000006 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+        B100000000000007 = {isa = PBXNativeTarget; buildConfigurationList = B100000000000008; buildPhases = (B100000000000004,B100000000000005,B100000000000006,); buildRules = (); dependencies = (B10000000000000C,); name = FirebratNativeUITests; productName = FirebratNativeUITests; productReference = B100000000000003; productType = "com.apple.product-type.bundle.ui-testing"; };
+        B100000000000008 = {isa = XCConfigurationList; buildConfigurations = (B100000000000009,B10000000000000A,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+        B100000000000009 = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.firebrat.native.uitests; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SWIFT_VERSION = 5.0;
+ TARGETED_DEVICE_FAMILY = "1,2"; TEST_TARGET_NAME = FirebratNative; }; name = Debug; };
+        B10000000000000A = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.firebrat.native.uitests; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SWIFT_VERSION = 5.0;
+ TARGETED_DEVICE_FAMILY = "1,2"; TEST_TARGET_NAME = FirebratNative; }; name = Release; };
+        B10000000000000B = {isa = PBXContainerItemProxy; containerPortal = A100000000000001; proxyType = 1; remoteGlobalIDString = A100000000000002; remoteInfo = FirebratNative; };
+        B10000000000000C = {isa = PBXTargetDependency; target = A100000000000002; targetProxy = B10000000000000B; };
+
 
 /* Begin PBXBuildFile section */
 		A300000000000001 /* FirebratNativeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000000000001 /* FirebratNativeApp.swift */; };
@@ -23,6 +45,13 @@
 		A30000000000000D /* ReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000D /* ReaderView.swift */; };
 		A30000000000000E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000E /* SettingsView.swift */; };
 		A30000000000000F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000F /* Assets.xcassets */; };
+		A300000000000017 /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000000000017; };
+		A300000000000018 /* LocalConversion.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000000000018; };
+		A300000000000019 /* ConversionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000000000019; };
+        A30000000000001A = {isa = PBXBuildFile; fileRef = A20000000000001A; };
+A30000000000001B = {isa = PBXBuildFile; fileRef = A20000000000001B; };
+A30000000000001C = {isa = PBXBuildFile; fileRef = A20000000000001C; };
+A30000000000001D = {isa = PBXBuildFile; fileRef = A20000000000001D; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -43,6 +72,13 @@
 		A20000000000000E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A20000000000000F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A200000000000010 /* FirebratNative.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FirebratNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A200000000000017 /* AuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStore.swift; sourceTree = "<group>"; };
+		A200000000000018 /* LocalConversion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalConversion.swift; sourceTree = "<group>"; };
+		A200000000000019 /* ConversionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversionsView.swift; sourceTree = "<group>"; };
+        A20000000000001A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KokoroRuntime.swift; sourceTree = "<group>"; };
+A20000000000001B = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+A20000000000001C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeLLM.swift; sourceTree = "<group>"; };
+A20000000000001D = {isa = PBXFileReference; lastKnownFileType = text; path = ThirdPartyNotices.txt; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -50,6 +86,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+                C100000000000003, C200000000000003,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -59,6 +96,7 @@
 		A10000000000000C /* FirebratNative-project */ = {
 			isa = PBXGroup;
 			children = (
+                B100000000000001,
 				A10000000000000D /* FirebratNative */,
 				A100000000000013 /* Products */,
 			);
@@ -74,6 +112,7 @@
 				A100000000000011 /* Playback */,
 				A100000000000012 /* Views */,
 				A20000000000000F /* Assets.xcassets */,
+ A20000000000001B, A20000000000001D,
 			);
 			path = FirebratNative;
 			sourceTree = "<group>";
@@ -100,6 +139,9 @@
 		A100000000000010 /* Stores */ = {
 			isa = PBXGroup;
 			children = (
+                A20000000000001A,
+				A200000000000018, A20000000000001C,
+				A200000000000017,
 				A200000000000007 /* AppSettings.swift */,
 				A200000000000008 /* BookStore.swift */,
 				A200000000000009 /* ArchiveReader.swift */,
@@ -120,6 +162,7 @@
 		A100000000000012 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				A200000000000019,
 				A20000000000000C /* LibraryView.swift */,
 				A20000000000000D /* ReaderView.swift */,
 				A20000000000000E /* SettingsView.swift */,
@@ -130,6 +173,7 @@
 		A100000000000013 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+                B100000000000003,
 				A200000000000010 /* FirebratNative.app */,
 			);
 			name = Products;
@@ -150,7 +194,8 @@
 			);
 			dependencies = (
 			);
-			name = FirebratNative;
+			packageProductDependencies = (C100000000000002,C200000000000002);
+ name = FirebratNative;
 			productName = "$(TARGET_NAME)";
 			productReference = A200000000000010 /* FirebratNative.app */;
 			productType = "com.apple.product-type.application";
@@ -179,9 +224,11 @@
 			);
 			mainGroup = A10000000000000C /* FirebratNative-project */;
 			productRefGroup = A100000000000013 /* Products */;
-			projectDirPath = "";
+			packageReferences = (C100000000000001,C200000000000001,);
+            projectDirPath = "";
 			projectRoot = "";
 			targets = (
+                B100000000000007,
 				A100000000000002 /* FirebratNative */,
 			);
 		};
@@ -193,6 +240,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A30000000000000F /* Assets.xcassets in Resources */,
+ A30000000000001B, A30000000000001D,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -203,6 +251,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+                A30000000000001A,
+				A300000000000019,
+				A300000000000018, A30000000000001C,
+				A300000000000017,
 				A300000000000001 /* FirebratNativeApp.swift in Sources */,
 				A300000000000002 /* Manifest.swift in Sources */,
 				A300000000000003 /* Segment.swift in Sources */,
@@ -279,25 +331,31 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+ ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 23;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBUNDLEDisplayName = Firebrat;
+				INFOPLIST_KEY_CFBundleDisplayName = Firebrat;
+ INFOPLIST_FILE = FirebratNative/Info.plist;
 				INFOPLIST_KEY_LSRequiresIPhoneOS = YES;
+                INFOPLIST_KEY_UIBackgroundModes = audio;
+                INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Connect to your Firebrat server on your local network.";
+                INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UIRequiredDeviceCapabilities = "armv7";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.firebrat.native;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
+                SWIFT_OBJC_BRIDGING_HEADER = "FirebratNative/Native-Bridging.h";
+                OTHER_LDFLAGS = ("$(inherited)", "-lbz2",);
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -306,25 +364,31 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+ ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 23;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBUNDLEDisplayName = Firebrat;
+				INFOPLIST_KEY_CFBundleDisplayName = Firebrat;
+ INFOPLIST_FILE = FirebratNative/Info.plist;
 				INFOPLIST_KEY_LSRequiresIPhoneOS = YES;
+                INFOPLIST_KEY_UIBackgroundModes = audio;
+                INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Connect to your Firebrat server on your local network.";
+                INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UIRequiredDeviceCapabilities = "armv7";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.firebrat.native;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
+                SWIFT_OBJC_BRIDGING_HEADER = "FirebratNative/Native-Bridging.h";
+                OTHER_LDFLAGS = ("$(inherited)", "-lbz2",);
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;

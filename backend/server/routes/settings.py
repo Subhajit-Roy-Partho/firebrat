@@ -81,7 +81,7 @@ def firebase_config():
     key in console (Project settings → General → Web API Key is fine to
     reuse too) and set FIREBASE_WEB_API_KEY to it.
     """
-    api_key = os.environ.get("FIREBASE_WEB_API_KEY", "")
+    api_key = os.environ.get("FIREBASE_WEB_API_KEY", "AIzaSyDnvh3rtp4f2GtU9vOAIoDIcWLnXpTp38E")
     if not api_key:
         try:
             gs = os.path.join(os.path.dirname(os.path.dirname(
@@ -102,6 +102,7 @@ def firebase_config():
         "apiKey": api_key,
         "authDomain": "firebrat-8c597.firebaseapp.com",
         "projectId": "firebrat-8c597",
+        "appId": "1:657440934081:web:c94b0a6fd08fdb7f1bac40",
     }
 
 

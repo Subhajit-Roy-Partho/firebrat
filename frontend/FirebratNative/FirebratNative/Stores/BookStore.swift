@@ -38,11 +38,17 @@ public final class BookStore: ObservableObject {
     }
 
     public func bookDirectory(bookId: String) throws -> URL {
-        try booksDirectory().appendingPathComponent(bookId, isDirectory: true)
+        guard !bookId.isEmpty, bookId.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil else { throw ArchiveError.traversalBlocked(bookId) }
+        return try booksDirectory().appendingPathComponent(bookId, isDirectory: true)
     }
 
     public func assetURL(bookId: String, relativePath: String) throws -> URL {
-        try bookDirectory(bookId: bookId).appendingPathComponent(relativePath)
+        let root = try bookDirectory(bookId: bookId).standardizedFileURL
+        let asset = root.appendingPathComponent(relativePath).standardizedFileURL
+        guard !relativePath.hasPrefix("/"), asset.path.hasPrefix(root.path + "/") else {
+            throw ArchiveError.traversalBlocked(relativePath)
+        }
+        return asset
     }
 
     // MARK: - Local library (primary source, works offline)
@@ -92,6 +98,7 @@ public final class BookStore: ObservableObject {
     // MARK: - Remote catalog (best-effort)
 
     public func refreshCatalog() async {
+        guard settings.mode == "server" else { catalog = []; catalogUnreachable = false; return }
         do {
             let books = try await settings.apiClient().listBooks()
             catalog = books
@@ -113,7 +120,7 @@ public final class BookStore: ObservableObject {
             Task { @MainActor in self?.downloadProgress[bookId] = p }
         }
         defer { try? FileManager.default.removeItem(at: tmp) }
-        try ArchiveReader.extract(file: tmp, to: bookDirectory(bookId: bookId))
+        try await importPackage(at: tmp)
         await refreshLocalBooks()
     }
 
@@ -130,9 +137,16 @@ public final class BookStore: ObservableObject {
         let staging = FileManager.default.temporaryDirectory
             .appendingPathComponent("import-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: staging) }
-        try ArchiveReader.extract(file: fileURL, to: staging)
+        try await Task.detached { try ArchiveReader.extract(file: fileURL, to: staging) }.value
         let manifest = try Manifest.load(from: staging.appendingPathComponent("manifest.json"))
         let dest = try bookDirectory(bookId: manifest.bookId)
+        guard !manifest.sections.isEmpty else { throw ArchiveError.corrupt("book has no sections") }
+        for section in manifest.sections {
+            for path in [section.audioPath, section.segmentsPath] {
+                let asset = try ArchiveReader.safeDestination(name: path, in: staging)
+                guard !path.isEmpty, fmExists(asset) else { throw ArchiveError.corrupt("missing section asset") }
+            }
+        }
         if FileManager.default.fileExists(atPath: dest.path) {
             try FileManager.default.removeItem(at: dest)
         }
@@ -150,6 +164,8 @@ public final class BookStore: ObservableObject {
     }
 
     // MARK: - Helpers
+
+    private func fmExists(_ url: URL) -> Bool { FileManager.default.fileExists(atPath: url.path) }
 
     private func directorySize(_ url: URL) -> Int {
         var total = 0

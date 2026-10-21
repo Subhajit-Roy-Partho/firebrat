@@ -1,0 +1,45 @@
+name: Apple unsigned release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for the pinned simulator-capable model runtime
+        run: |
+          runtime_url=https://github.com/Subhajit-Roy-Partho/firebrat/releases/download/v1.6.0/firebrat-llama-b11797-ios.xcframework.zip
+          for attempt in {1..30}; do
+            if curl --fail --silent --location --head "$runtime_url" > /dev/null; then exit 0; fi
+            sleep 10
+          done
+          echo "Publish the pinned runtime asset before building the Apple client."
+          exit 1
+      - name: Archive for physical iOS devices without signing
+        run: |
+          xcodebuild -project frontend/FirebratNative/FirebratNative.xcodeproj \
+            -scheme FirebratNative -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Firebrat.xcarchive" CODE_SIGNING_ALLOWED=NO archive
+      - name: Package unsigned IPA
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then version="preview-${GITHUB_SHA:0:8}"; fi
+          bash frontend/FirebratNative/scripts/package_unsigned_ipa.sh \
+            "$RUNNER_TEMP/Firebrat.xcarchive" "$RUNNER_TEMP/Firebrat-iOS-unsigned-$version.ipa"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firebrat-ios-unsigned
+          path: |
+            ${{ runner.temp }}/Firebrat-iOS-unsigned-*.ipa
+            ${{ runner.temp }}/Firebrat-iOS-unsigned-*.ipa.sha256
+      - name: Publish beside the APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ runner.temp }}/Firebrat-iOS-unsigned-*.ipa
+            ${{ runner.temp }}/Firebrat-iOS-unsigned-*.ipa.sha256

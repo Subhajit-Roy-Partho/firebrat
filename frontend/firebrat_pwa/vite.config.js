@@ -1,0 +1,2 @@
+import {defineConfig} from 'vite';
+export default defineConfig({base:process.env.VITE_APP_BASE||'/pwa/', build:{outDir:process.env.FIREBRAT_PWA_OUT||'../../backend/server/static/pwa', emptyOutDir:true}, server:{proxy:{'/books':'http://127.0.0.1:8000','/jobs':'http://127.0.0.1:8000','/health':'http://127.0.0.1:8000','/firebase-config':'http://127.0.0.1:8000'}}});

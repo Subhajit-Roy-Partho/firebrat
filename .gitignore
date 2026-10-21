@@ -59,3 +59,15 @@ frontend/firebrat_app/ios/Flutter/Generated.xcconfig
 frontend/firebrat_app/ios/Flutter/flutter_export_environment.sh
 frontend/firebrat_app/ios/Flutter/Flutter.podspec
 frontend/firebrat_app/ios/Flutter/ephemeral/
+
+# PWA package/build tooling
+frontend/firebrat_pwa/node_modules/
+frontend/firebrat_pwa/.vite/
+*.xcresult/
+
+# Locally rebuilt native model frameworks
+frontend/FirebratNative/Packages/LlamaIOS/Artifacts/
+
+# Original, short narrated sample published with the PWA
+!frontend/firebrat_pwa/public/demo/**/*.wav
+!backend/server/static/pwa/demo/**/*.wav

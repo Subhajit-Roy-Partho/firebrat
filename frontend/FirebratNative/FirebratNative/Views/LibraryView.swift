@@ -40,6 +40,7 @@ struct LibraryView: View {
                             BookRow(book: book,
                                     progress: store.downloadProgress[book.bookId])
                         }
+                        .accessibilityIdentifier("local-book-\(book.bookId)")
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 pendingDelete = book
@@ -50,7 +51,7 @@ struct LibraryView: View {
                     }
                 }
 
-                Section("Available to download") {
+                if settings.mode == "server" { Section("Available to download") {
                     if let catalog = store.catalog {
                         let remote = catalog.filter { !store.isDownloaded(bookId: $0.bookId) }
                         if remote.isEmpty {
@@ -73,12 +74,24 @@ struct LibraryView: View {
                             Text("Checking server…").foregroundStyle(.secondary)
                         }
                     }
-                }
+                } }
             }
             .navigationTitle("Library")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
+                        NavigationLink("Convert a book") { ConversionsView() }
+                        NavigationLink("Account") { AccountView() }
+#if DEBUG
+                        if let name = ProcessInfo.processInfo.environment["FIREBRAT_TEST_ARCHIVE_NAME"] {
+                            Button("Import test package") {
+                                Task {
+                                    do { try await store.importPackage(at: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(name)) }
+                                    catch { errorMessage = error.localizedDescription }
+                                }
+                            }
+                        }
+#endif
                         Button {
                             showingImporter = true
                         } label: {
@@ -136,7 +149,7 @@ struct LibraryView: View {
                 }
                 Button("Cancel", role: .cancel) { pendingDelete = nil }
             }
-            .task {
+            .task(id: settings.mode) {
                 await store.refreshLocalBooks()
                 await store.refreshCatalog()
             }
@@ -215,6 +228,7 @@ private struct RemoteBookRow: View {
                 Button(action: onDownload) {
                     Label("Get", systemImage: "arrow.down.circle")
                 }
+                .accessibilityIdentifier("download-\(book.bookId)")
                 .buttonStyle(.bordered)
             }
         }

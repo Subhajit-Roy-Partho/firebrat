@@ -47,6 +47,7 @@ public final class PlayerEngine: ObservableObject {
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
     private var lastActiveId: String?
+    private var lastProgressSave = Date.distantPast
 
     public var currentSection: ManifestSection? {
         guard let manifest, manifest.sections.indices.contains(sectionIndex) else { return nil }
@@ -191,6 +192,11 @@ public final class PlayerEngine: ObservableObject {
         guard time.isValid, !time.isIndefinite else { return }
         let ms = Int(CMTimeGetSeconds(time) * 1000)
         positionMs = ms
+        if let bookId, Date().timeIntervalSince(lastProgressSave) >= 2 {
+            UserDefaults.standard.set(sectionIndex, forKey: "progress.\(bookId).section")
+            UserDefaults.standard.set(ms, forKey: "progress.\(bookId).position")
+            lastProgressSave = Date()
+        }
         updateActiveSegment(ms: ms)
     }
 

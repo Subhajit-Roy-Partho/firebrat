@@ -45,3 +45,12 @@ if os.path.isdir(_STATIC_DIR):
     @app.get("/", include_in_schema=False)
     def web_ui():
         return FileResponse(os.path.join(_STATIC_DIR, "index.html"))
+
+# Installable reader and server-conversion client (no browser conversion engine).
+_PWA_DIR = os.path.join(_STATIC_DIR, "pwa")
+if os.path.isfile(os.path.join(_PWA_DIR, "index.html")):
+    @app.get("/pwa/sw.js", include_in_schema=False)
+    def pwa_service_worker():
+        return FileResponse(os.path.join(_PWA_DIR, "sw.js"), media_type="text/javascript",
+                            headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/pwa/"})
+    app.mount("/pwa", StaticFiles(directory=_PWA_DIR, html=True), name="pwa")

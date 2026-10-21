@@ -1,4 +1,5 @@
 import SwiftUI
+import PDFKit
 
 /// The reader: sticky visual header (formula PNG first, then figures/tables),
 /// section navigation, segment list with live highlight + tap-to-seek, and the
@@ -11,6 +12,9 @@ struct ReaderView: View {
     @EnvironmentObject var settings: AppSettings
     @StateObject private var session: ReaderSession
     @ObservedObject private var engine = PlayerEngine.shared
+    @State private var focus = false
+    @State private var expandedVisual: VisualItem?
+    @State private var showingSource = false
 
     init(bookId: String) {
         self.bookId = bookId
@@ -24,8 +28,9 @@ struct ReaderView: View {
                 // Sticky visual header — always on screen, never scrolled away.
                 VisualHeader(visual: session.currentVisual,
                              sectionTitle: section.title,
-                             bookDir: session.bookDir)
+                             bookDir: session.bookDir, expanded: focus)
                 .background(Color(.secondarySystemBackground))
+                .onTapGesture { expandedVisual = session.currentVisual }
 
                 // Section navigator.
                 SectionNavBar(
@@ -44,7 +49,7 @@ struct ReaderView: View {
                     Spacer()
                     ProgressView("Loading section…")
                     Spacer()
-                } else if let segments = session.segments {
+                } else if let segments = session.segments, (!focus || session.currentVisual == nil) {
                     SegmentList(segments: segments,
                                 activeId: engine.activeSegment?.segmentId,
                                 fontScale: settings.fontScale,
@@ -67,6 +72,20 @@ struct ReaderView: View {
         }
         .navigationTitle(session.manifest?.title ?? "Reader")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button { focus.toggle() } label: { Label("Focus mode", systemImage: focus ? "text.alignleft" : "viewfinder") }
+                Button { showingSource = true } label: { Label("Source PDF", systemImage: "doc.richtext") }
+            }
+        }
+        .sheet(item: $expandedVisual) { visual in
+            NavigationStack { ZoomedVisual(url: visual.imageURL).navigationTitle(visual.caption).navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { expandedVisual = nil } } }
+        }
+        .sheet(isPresented: $showingSource) {
+            if let url = try? store.assetURL(bookId: bookId, relativePath: session.manifest?.sourcePdfPath ?? "source.pdf") {
+                NavigationStack { SourcePDFView(url: url, page: session.currentSection?.sourcePages.first ?? 0).navigationTitle("Source page").toolbar { Button("Done") { showingSource = false } } }
+            }
+        }
         .task {
             session.configure(store: store, settings: settings, engine: engine)
             await session.open()
@@ -133,7 +152,10 @@ final class ReaderSession: ObservableObject {
             bookDir = try store.bookDirectory(bookId: bookId)
             engine?.openBook(manifest!, bookId: bookId)
             wireCompletion()
-            await loadSection(0, autoplay: false)
+            let saved = UserDefaults.standard.integer(forKey: "progress.\(bookId).section")
+            let position = UserDefaults.standard.integer(forKey: "progress.\(bookId).position")
+            await loadSection(manifest!.sections.indices.contains(saved) ? saved : 0, autoplay: false)
+            engine?.seek(toMs: position)
         } catch {
             loadError = error.localizedDescription
         }
@@ -227,7 +249,7 @@ final class ReaderSession: ObservableObject {
 
 // MARK: - Visual model + sticky header (formula PNG primary)
 
-struct VisualItem: Equatable {
+struct VisualItem: Equatable, Identifiable {
     enum Kind { case figure, formula, table }
     var id: String
     var kind: Kind
@@ -240,13 +262,14 @@ private struct VisualHeader: View {
     var visual: VisualItem?
     var sectionTitle: String
     var bookDir: URL?
+    var expanded = false
 
     var body: some View {
         Group {
             if let visual {
                 HStack(alignment: .center, spacing: 12) {
                     VisualImage(visual: visual)
-                        .frame(maxWidth: 220, maxHeight: 150)
+                        .frame(maxWidth: expanded ? .infinity : 220, maxHeight: expanded ? 450 : 150)
                     VStack(alignment: .leading, spacing: 4) {
                         Label(visual.kindLabel, systemImage: visual.kindSymbol)
                             .font(.caption)
@@ -406,6 +429,8 @@ private struct SegmentList: View {
                 .listRowBackground(segment.segmentId == activeId
                     ? Color.accentColor.opacity(0.12) : Color.clear)
                 .onTapGesture { onTap(segment) }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint("Jump to this passage")
             }
             .listStyle(.plain)
             .onChange(of: activeId) { _, newId in
@@ -523,5 +548,26 @@ private struct PlaybackBar: View {
     private func msLabel(_ ms: Int) -> String {
         let s = ms / 1000
         return String(format: "%d:%02d", s / 60, s % 60)
+    }
+}
+
+private struct SourcePDFView: UIViewRepresentable {
+    let url: URL; let page: Int
+    func makeUIView(context: Context) -> PDFView {
+        let view = PDFView(); view.autoScales = true; view.document = PDFDocument(url: url)
+        if let target = view.document?.page(at: page) { view.go(to: target) }; return view
+    }
+    func updateUIView(_ uiView: PDFView, context: Context) {}
+}
+private struct ZoomedVisual: View {
+    let url: URL
+    @State private var scale = 1.0
+    var body: some View {
+        ScrollView([.horizontal, .vertical]) {
+            if let image = UIImage(contentsOfFile: url.path) {
+                Image(uiImage: image).resizable().scaledToFit().frame(width: max(320, UIScreen.main.bounds.width) * scale)
+                    .gesture(MagnifyGesture().onChanged { scale = min(5, max(1, $0.magnification)) })
+            } else { ContentUnavailableView("Image unavailable", systemImage: "photo") }
+        }
     }
 }

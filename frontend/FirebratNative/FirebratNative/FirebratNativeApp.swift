@@ -13,6 +13,8 @@ import SwiftUI
 struct FirebratNativeApp: App {
     @StateObject private var settings = AppSettings()
     @StateObject private var store: BookStore
+    @StateObject private var local = LocalConversion()
+    @StateObject private var auth = AuthStore()
     private var engine = PlayerEngine.shared
 
     init() {
@@ -27,6 +29,8 @@ struct FirebratNativeApp: App {
                 .tint(Color.firebratSeed)
                 .environmentObject(settings)
                 .environmentObject(store)
+                .environmentObject(local)
+                .environmentObject(auth)
         }
     }
 }

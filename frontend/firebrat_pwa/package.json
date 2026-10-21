@@ -1,0 +1,19 @@
+{
+  "name": "firebrat-apple-pwa",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build && node scripts/stamp-build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "build:pages": "VITE_APP_BASE=/firebrat/ VITE_STATIC_HOST=1 FIREBRAT_PWA_OUT=/tmp/firebrat-pages-build npm run build"
+  },
+  "dependencies": {
+    "firebase": "13.0.0",
+    "katex": "0.19.0"
+  },
+  "devDependencies": {
+    "vite": "8.3.4"
+  }
+}

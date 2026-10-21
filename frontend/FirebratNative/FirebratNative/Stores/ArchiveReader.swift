@@ -1,4 +1,5 @@
 import Foundation
+import zlib
 
 /// Archive extraction without third-party dependencies.
 ///
@@ -43,25 +44,28 @@ public enum ArchiveReader {
         try fm.createDirectory(at: target, withIntermediateDirectories: true)
 
         if name.hasSuffix(".zip") {
-            let data = try Data(contentsOf: file)
-            try ZipReader.extract(data: data, to: target)
+            try ZipReader.extract(file: file, to: target)
         } else if name.hasSuffix(".tar.gz") || name.hasSuffix(".tgz") {
-            let data = try Data(contentsOf: file)
-            try TarGzReader.extract(data: data, to: target)
+            try StreamingArchive.extractGzip(file, to: target)
         } else {
             // Sniff content when the extension lies (picked files often do).
-            let data = try Data(contentsOf: file)
+            let handle = try FileHandle(forReadingFrom: file); defer { try? handle.close() }
+            let data = try handle.read(upToCount: 4) ?? Data()
             if data.starts(with: [0x50, 0x4B]) {
-                try ZipReader.extract(data: data, to: target)
+                try ZipReader.extract(file: file, to: target)
             } else if data.starts(with: [0x1F, 0x8B]) {
-                try TarGzReader.extract(data: data, to: target)
+                try StreamingArchive.extractGzip(file, to: target)
             } else {
                 throw ArchiveError.unknownFormat(file.lastPathComponent)
             }
         }
 
-        guard fm.fileExists(atPath: target.appendingPathComponent("manifest.json").path) else {
-            throw ArchiveError.missingManifest
+        if !fm.fileExists(atPath: target.appendingPathComponent("manifest.json").path) {
+            let found = (fm.enumerator(at: target, includingPropertiesForKeys: nil)?.allObjects as? [URL] ?? []).filter { $0.lastPathComponent == "manifest.json" }
+            guard found.count == 1 else { throw ArchiveError.missingManifest }
+            let nested = found[0].deletingLastPathComponent()
+            let flat = target.deletingLastPathComponent().appendingPathComponent("flatten-" + UUID().uuidString)
+            try fm.moveItem(at: nested, to: flat); try fm.removeItem(at: target); try fm.moveItem(at: flat, to: target)
         }
     }
 
@@ -105,6 +109,36 @@ public enum ArchiveReader {
 // MARK: - ZIP
 
 enum ZipReader {
+    static func extract(file: URL, to target: URL) throws {
+        let data = try Data(contentsOf: file, options: .mappedIfSafe)
+        let entries = try centralDirectory(of: data)
+        guard !entries.isEmpty else { throw ArchiveError.corrupt("empty ZIP") }
+        for entry in entries {
+            let dest = try ArchiveReader.safeDestination(name: entry.name, in: target)
+            if entry.name.hasSuffix("/") { try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true); continue }
+            let lh = entry.localHeaderOffset
+            guard lh >= 0, lh + 30 <= data.count, data[lh] == 0x50, data[lh + 1] == 0x4b else { throw ArchiveError.corrupt("invalid ZIP entry") }
+            let start = lh + 30 + Int(data[lh + 26]) + (Int(data[lh + 27]) << 8) + Int(data[lh + 28]) + (Int(data[lh + 29]) << 8)
+            guard start + entry.compressedSize <= data.count else { throw ArchiveError.corrupt("truncated ZIP payload") }
+            try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+            if entry.method == 8 {
+                try StreamingArchive.inflate(file, to: dest, offset: UInt64(start), length: entry.compressedSize, windowBits: -15, expectedSize: entry.uncompressedSize, expectedCRC: entry.crc)
+            } else if entry.method == 0 {
+                let source = try FileHandle(forReadingFrom: file); defer { try? source.close() }
+                try source.seek(toOffset: UInt64(start))
+                FileManager.default.createFile(atPath: dest.path, contents: nil)
+                let output = try FileHandle(forWritingTo: dest); defer { try? output.close() }
+                var remaining = entry.compressedSize; var crc: uLong = 0
+                while remaining > 0 {
+                    guard let chunk = try source.read(upToCount: min(131072, remaining)), !chunk.isEmpty else { throw ArchiveError.corrupt("truncated stored ZIP") }
+                    try output.write(contentsOf: chunk); remaining -= chunk.count
+                    crc = chunk.withUnsafeBytes { zlib.crc32(crc, $0.bindMemory(to: Bytef.self).baseAddress, uInt(chunk.count)) }
+                }
+                guard entry.compressedSize == entry.uncompressedSize, UInt32(crc) == entry.crc else { throw ArchiveError.corrupt("ZIP checksum mismatch") }
+            } else { throw ArchiveError.corrupt("unsupported ZIP compression") }
+        }
+    }
+
     static func extract(data: Data, to target: URL) throws {
         let entries = try centralDirectory(of: data)
         guard !entries.isEmpty else { throw ArchiveError.corrupt("empty central directory") }
@@ -124,6 +158,7 @@ enum ZipReader {
     private struct Entry {
         var name: String
         var method: UInt16
+        var crc: UInt32
         var compressedSize: Int
         var uncompressedSize: Int
         var localHeaderOffset: Int
@@ -155,6 +190,7 @@ enum ZipReader {
             guard p + 46 <= data.count,
                   data[p] == 0x50, data[p + 1] == 0x4B, data[p + 2] == 0x01, data[p + 3] == 0x02
             else { throw ArchiveError.corrupt("bad central directory entry") }
+            guard u16(p + 8) & 1 == 0 else { throw ArchiveError.corrupt("encrypted ZIP is unsupported") }
             let method = UInt16(u16(p + 10))
             let compSize = u32(p + 20)
             let uncompSize = u32(p + 24)
@@ -167,7 +203,7 @@ enum ZipReader {
             let nameData = data[(p + 46)..<nameEnd]
             // ZIP names are UTF-8 for our packages (Python zipfile).
             let name = String(data: nameData, encoding: .utf8) ?? String(bytes: nameData, encoding: .isoLatin1) ?? ""
-            entries.append(Entry(name: name, method: method,
+            entries.append(Entry(name: name, method: method, crc: UInt32(u32(p + 16)),
                                  compressedSize: compSize, uncompressedSize: uncompSize,
                                  localHeaderOffset: headerOffset))
             p = nameEnd + extraLen + commentLen
@@ -287,5 +323,96 @@ enum TarGzReader {
         let slice = header[(header.startIndex + offset)..<(header.startIndex + offset + length)]
         let bytes = slice.prefix(while: { $0 != 0 })
         return String(data: Data(bytes), encoding: .utf8)
+    }
+}
+
+/// 128 KiB streaming buffers keep imported multi-gigabyte books off the heap.
+/// zlib validates gzip trailers; ZIP CRC and size are checked explicitly.
+enum StreamingArchive {
+    static func inflate(_ source: URL, to destination: URL, offset: UInt64 = 0, length: Int? = nil, windowBits: Int32 = 31, expectedSize: Int? = nil, expectedCRC: UInt32? = nil) throws {
+        let input = try FileHandle(forReadingFrom: source); defer { try? input.close() }
+        try input.seek(toOffset: offset)
+        FileManager.default.createFile(atPath: destination.path, contents: nil)
+        let output = try FileHandle(forWritingTo: destination); defer { try? output.close() }
+        var stream = z_stream()
+        guard inflateInit2_(&stream, windowBits, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size)) == Z_OK else { throw ArchiveError.corrupt("cannot initialize decompression") }
+        defer { inflateEnd(&stream) }
+        var remaining = length; var status: Int32 = Z_OK; var checksum: uLong = 0; var written = 0
+        var buffer = [UInt8](repeating: 0, count: 131072)
+        while status != Z_STREAM_END {
+            let count = min(131072, remaining ?? 131072)
+            guard count > 0, let chunk = try input.read(upToCount: count), !chunk.isEmpty else { throw ArchiveError.corrupt("truncated compressed stream") }
+            if remaining != nil { remaining! -= chunk.count }
+            try chunk.withUnsafeBytes { bytes in
+                stream.next_in = UnsafeMutablePointer(mutating: bytes.bindMemory(to: Bytef.self).baseAddress!); stream.avail_in = uInt(chunk.count)
+                repeat {
+                    try buffer.withUnsafeMutableBytes { out in
+                        stream.next_out = out.bindMemory(to: Bytef.self).baseAddress!; stream.avail_out = uInt(out.count)
+                        status = zlib.inflate(&stream, Z_NO_FLUSH)
+                        guard status == Z_OK || status == Z_STREAM_END else { throw ArchiveError.corrupt("compressed checksum or stream failure") }
+                        let produced = out.count - Int(stream.avail_out)
+                        written += produced
+                        guard written <= 16 * 1024 * 1024 * 1024 else { throw ArchiveError.corrupt("package exceeds import size limit") }
+                        checksum = zlib.crc32(checksum, out.bindMemory(to: Bytef.self).baseAddress, uInt(produced))
+                        if produced > 0 { try output.write(contentsOf: Data(bytes: out.baseAddress!, count: produced)) }
+                    }
+                } while status != Z_STREAM_END && (stream.avail_in > 0 || stream.avail_out == 0)
+            }
+        }
+        if let expectedSize, expectedSize != written { throw ArchiveError.corrupt("expanded ZIP size mismatch") }
+        if let expectedCRC, UInt32(checksum) != expectedCRC { throw ArchiveError.corrupt("ZIP checksum mismatch") }
+    }
+    static func extractGzip(_ file: URL, to target: URL) throws {
+        let tar = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".tar")
+        defer { try? FileManager.default.removeItem(at: tar) }
+        try inflate(file, to: tar)
+        try extractTarFile(tar, to: target)
+    }
+    static func extractTarFile(_ tar: URL, to target: URL) throws {
+        let input = try FileHandle(forReadingFrom: tar); defer { try? input.close() }
+        func read(_ count: Int) throws -> Data {
+            var data = Data()
+            while data.count < count {
+                guard let next = try input.read(upToCount: count - data.count), !next.isEmpty else { throw ArchiveError.corrupt("truncated TAR") }
+                data.append(next)
+            }; return data
+        }
+        func string(_ data: Data, _ offset: Int, _ count: Int) -> String { String(data: data.subdata(in: offset..<(offset + count)).prefix(while: { $0 != 0 }), encoding: .utf8) ?? "" }
+        var longName: String?; var paxPath: String?
+        while true {
+            let header = try read(512)
+            if header.allSatisfy({ $0 == 0 }) { break }
+            let checksum = header.enumerated().reduce(0) { $0 + ((148..<156).contains($1.offset) ? 32 : Int($1.element)) }
+            guard Int(string(header, 148, 8).trimmingCharacters(in: .whitespaces), radix: 8) == checksum,
+                  let size = Int(string(header, 124, 12).trimmingCharacters(in: .whitespaces), radix: 8), size >= 0 else { throw ArchiveError.corrupt("invalid TAR header") }
+            let prefix = string(header, 345, 155); let short = string(header, 0, 100)
+            let name = paxPath ?? longName ?? (prefix.isEmpty ? short : prefix + "/" + short)
+            let type = header[156]
+            if type == 76 || type == 120 || type == 103 {
+                guard size <= 1_048_576 else { throw ArchiveError.corrupt("TAR metadata too large") }
+                let data = try read(size)
+                if type == 76 { longName = String(data: data.prefix(while: { $0 != 0 }), encoding: .utf8) }
+                else if let metadata = String(data: data, encoding: .utf8) {
+                    for line in metadata.split(separator: "\n") {
+                        if let range = line.range(of: " path=") { paxPath = String(line[range.upperBound...]) }
+                    }
+                }
+            } else {
+                longName = nil; paxPath = nil
+                let dest = try ArchiveReader.safeDestination(name: name, in: target)
+                if type == 53 { try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true) }
+                var output: FileHandle?
+                if type == 0 || type == 48 {
+                    try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    FileManager.default.createFile(atPath: dest.path, contents: nil)
+                    output = try FileHandle(forWritingTo: dest)
+                }
+                defer { try? output?.close() }
+                var remaining = size
+                while remaining > 0 { let data = try read(min(131072, remaining)); try output?.write(contentsOf: data); remaining -= data.count }
+            }
+            let pad = (512 - size % 512) % 512
+            if pad > 0 { _ = try read(pad) }
+        }
     }
 }

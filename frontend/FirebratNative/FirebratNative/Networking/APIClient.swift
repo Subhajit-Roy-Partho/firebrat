@@ -27,18 +27,25 @@ public enum APIError: LocalizedError, Equatable {
 /// URLSessionDownloadDelegate that forwards byte progress and bridges
 /// completion back into async/await via a continuation.
 private final class DownloadDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
-    var onProgress: ((Double) -> Void)?
+    var onProgress: (@Sendable (Double) -> Void)?
+    private var lastProgress = -1.0
     var continuation: CheckedContinuation<URL, Error>?
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
                     didWriteData bytesWritten: Int64, totalBytesWritten: Int64,
                     totalBytesExpectedToWrite: Int64) {
         guard totalBytesExpectedToWrite > 0 else { return }
-        onProgress?(Double(totalBytesWritten) / Double(totalBytesExpectedToWrite))
+        let fraction = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+        if fraction - lastProgress >= 0.01 || fraction >= 1 { lastProgress = fraction; onProgress?(fraction) }
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
                     didFinishDownloadingTo location: URL) {
+        guard let response = downloadTask.response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
+            continuation?.resume(throwing: APIError.badStatus((downloadTask.response as? HTTPURLResponse)?.statusCode ?? -1))
+            continuation = nil
+            return
+        }
         // Move out of the transient location before the session invalidates it.
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".download")
@@ -70,6 +77,7 @@ public struct APIClient: Sendable {
         guard let url = URL(string: baseURLString) else {
             throw APIError.badURL(baseURLString)
         }
+        guard ["http", "https"].contains(url.scheme?.lowercased() ?? ""), url.host != nil else { throw APIError.badURL(baseURLString) }
         self.baseURL = url
     }
 
@@ -126,7 +134,7 @@ public struct APIClient: Sendable {
     /// `destination`, reporting 0.0–1.0 progress. This is the only large
     /// transfer the app ever makes per book.
     public func downloadBook(bookId: String, to destination: URL,
-                             onProgress: ((Double) -> Void)? = nil) async throws {
+                             onProgress: (@Sendable (Double) -> Void)? = nil) async throws {
         let url = baseURL.appendingPathComponent("books/\(bookId)/download")
         let delegate = DownloadDelegate()
         delegate.onProgress = onProgress
@@ -154,5 +162,67 @@ public struct APIClient: Sendable {
         case 404: throw APIError.notFound(what)
         default: throw APIError.badStatus(http.statusCode)
         }
+    }
+}
+
+extension APIClient {
+    public func listJobs() async throws -> [ConversionJob] {
+        try await requestJSON("jobs")
+    }
+    public func retryJob(_ id: String) async throws -> ConversionJob {
+        try await requestJSON("jobs/\(id)/retry", method: "POST")
+    }
+    private func requestJSON<T: Decodable>(_ path: String, method: String = "GET") async throws -> T {
+        var request = URLRequest(url: baseURL.appendingPathComponent(path))
+        request.httpMethod = method
+        if let token = try await SecureSession.freshAccessToken() { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try check(response: response, what: path)
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+    public func uploadBook(_ file: URL, title: String?, contentMode: String) async throws -> ConversionJob {
+        let boundary = "Firebrat-\(UUID().uuidString)"
+        let body = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".multipart")
+        FileManager.default.createFile(atPath: body.path, contents: nil)
+        defer { try? FileManager.default.removeItem(at: body) }
+        let output = try FileHandle(forWritingTo: body)
+        defer { try? output.close() }
+        func field(_ name: String, _ value: String) throws {
+            try output.write(contentsOf: Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"\(name)\"\r\n\r\n\(value)\r\n".utf8))
+        }
+        try field("content_mode", contentMode)
+        if let title { try field("title", title) }
+        let filename = file.lastPathComponent.replacingOccurrences(of: "\"", with: "_").replacingOccurrences(of: "\r", with: "_").replacingOccurrences(of: "\n", with: "_")
+        try output.write(contentsOf: Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\nContent-Type: application/octet-stream\r\n\r\n".utf8))
+        let input = try FileHandle(forReadingFrom: file); defer { try? input.close() }
+        while let chunk = try input.read(upToCount: 131072), !chunk.isEmpty {
+            try Task.checkCancellation(); try output.write(contentsOf: chunk)
+        }
+        try output.write(contentsOf: Data("\r\n--\(boundary)--\r\n".utf8)); try output.synchronize()
+        var request = URLRequest(url: baseURL.appendingPathComponent("books/upload"))
+        request.httpMethod = "POST"; request.timeoutInterval = 600
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        if let token = try await SecureSession.freshAccessToken() { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        let (data, response) = try await URLSession.shared.upload(for: request, fromFile: body)
+        try check(response: response, what: "upload")
+        return try JSONDecoder().decode(ConversionJob.self, from: data)
+    }
+}
+
+/// Shared bounded-memory model downloads, with cancellation and visible progress.
+enum AssetDownload {
+    static func fetch(_ url: URL, progress: (@Sendable (Double) -> Void)? = nil) async throws -> URL {
+        try Task.checkCancellation()
+        let delegate = DownloadDelegate(); delegate.onProgress = progress
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 45
+        configuration.timeoutIntervalForResource = 3600
+        let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+        return try await withTaskCancellationHandler(operation: {
+            try await withCheckedThrowingContinuation { continuation in
+                delegate.continuation = continuation; session.downloadTask(with: url).resume()
+            }
+        }, onCancel: { session.invalidateAndCancel() })
     }
 }
