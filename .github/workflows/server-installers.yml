@@ -1,0 +1,58 @@
+name: Desktop server installers
+on:
+  push:
+    tags: ['server-v*', 'v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install packaging tools
+        run: python -m pip install -r installer/server/requirements-launcher.txt pytest
+      - name: Validate launcher boundaries and local speech selection
+        run: python -m pytest installer/server/tests -q
+      - name: Build native installer
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#server-v}"
+          version="${version#v}"
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then version="preview-${GITHUB_SHA:0:8}"; fi
+          python installer/server/build.py --output "$RUNNER_TEMP/server-installer" --version "$version"
+      - name: Smoke-test the packaged launcher
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            "$RUNNER_TEMP/server-installer/dist/FirebratServer.app/Contents/MacOS/FirebratServer" --smoke-test
+          else
+            "$RUNNER_TEMP/server-installer/dist/FirebratServer/FirebratServer" --smoke-test
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firebrat-server-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/server-installer/Firebrat-Server-*.dmg
+            ${{ runner.temp }}/server-installer/Firebrat-Server-*.run
+            ${{ runner.temp }}/server-installer/Firebrat-Server-*.tar.gz
+            ${{ runner.temp }}/server-installer/Firebrat-Server-*.sha256
+      - name: Include Linux Docker launcher
+        if: runner.os == 'Linux'
+        run: cp installer/server/firebrat-docker.sh "$RUNNER_TEMP/server-installer/Firebrat-Server-Docker-Linux.sh"
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            ${{ runner.temp }}/server-installer/Firebrat-Server-Docker-Linux.sh
+            ${{ runner.temp }}/server-installer/Firebrat-Server-*.dmg
+            ${{ runner.temp }}/server-installer/Firebrat-Server-*.run
+            ${{ runner.temp }}/server-installer/Firebrat-Server-*.tar.gz
+            ${{ runner.temp }}/server-installer/Firebrat-Server-*.sha256

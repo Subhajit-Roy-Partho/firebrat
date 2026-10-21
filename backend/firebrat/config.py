@@ -69,7 +69,7 @@ MIG_UUID = "MIG-b36117af-4e57-514f-a05d-13fb7d1c4280"
 # marker-pdf batch-processes every page of whatever file it's given at once,
 # so Stage 1 runs it in small page-range batches, each as its own subprocess,
 # to keep peak memory bounded regardless of book length.
-EXTRACT_BATCH_PAGES = 15
+EXTRACT_BATCH_PAGES = max(1, min(15, int(os.environ.get("FIREBRAT_EXTRACT_BATCH_PAGES", "15"))))
 
 # ── Paths ────────────────────────────────────────────────────────
 # OUTPUT_DIR is resolved relative to the backend/ directory unless absolute

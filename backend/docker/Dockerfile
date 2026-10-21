@@ -11,7 +11,8 @@
 #
 # Build for GPU (needs nvidia-container-toolkit + `docker run --gpus all`):
 #   docker build -f backend/docker/Dockerfile \
-#     --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cu121 \
+#     --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cu128 \
+#     --build-arg TTS_TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 \
 #     -t firebrat:gpu .
 #
 # NOTE: this Dockerfile was authored and reviewed but could not be built or
@@ -35,6 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+ARG TTS_TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
 
 WORKDIR /app
 COPY backend/ /app/backend/
@@ -49,20 +51,22 @@ COPY backend/ /app/backend/
 # already carries torch, and the serve venv must stay torch-free.
 RUN python -m venv /opt/venvs/extract && \
     /opt/venvs/extract/bin/pip install --no-cache-dir --upgrade pip && \
-    /opt/venvs/extract/bin/pip install --no-cache-dir --extra-index-url "$TORCH_INDEX_URL" \
+    /opt/venvs/extract/bin/pip install --no-cache-dir --index-url "$TORCH_INDEX_URL" torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 && \
+    /opt/venvs/extract/bin/pip install --no-cache-dir \
         marker-pdf==1.9.3 pymupdf pydantic requests transformers accelerate huggingface_hub "fastapi" "uvicorn[standard]"
 
 # ── firebrat-tts venv (chatterbox-tts) ───────────────────────────────────
 RUN python -m venv /opt/venvs/tts && \
     /opt/venvs/tts/bin/pip install --no-cache-dir --upgrade pip && \
-    /opt/venvs/tts/bin/pip install --no-cache-dir --extra-index-url "$TORCH_INDEX_URL" \
+    /opt/venvs/tts/bin/pip install --no-cache-dir --index-url "$TTS_TORCH_INDEX_URL" torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 && \
+    /opt/venvs/tts/bin/pip install --no-cache-dir \
         chatterbox-tts==0.1.7 pydub soundfile pydantic requests "setuptools<81"
 
 # ── firebrat-serve venv (the API server itself, no torch at all) ────────
 RUN python -m venv /opt/venvs/serve && \
     /opt/venvs/serve/bin/pip install --no-cache-dir --upgrade pip && \
     /opt/venvs/serve/bin/pip install --no-cache-dir \
-        fastapi "uvicorn[standard]" python-multipart pydantic requests pydub pypdf pytest httpx
+        fastapi "uvicorn[standard]" python-multipart pydantic requests pydub pypdf pytest httpx firebase-admin
 
 ENV FIREBRAT_EXTRACT_PY=/opt/venvs/extract/bin/python \
     FIREBRAT_TTS_PY=/opt/venvs/tts/bin/python \

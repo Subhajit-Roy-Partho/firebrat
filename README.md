@@ -442,3 +442,57 @@ copy keeps the original import file and server copy. Physical iPad measurements
 Swift and Flutter store their preferences independently. The native source and
 remaining platform limits are documented explicitly; small simulator tests do not
 establish physical-iPhone performance or full-book semantic accuracy.
+
+## Desktop server installer (preview)
+
+[Guided macOS DMG and Linux installer](https://github.com/Subhajit-Roy-Partho/firebrat/releases/tag/server-v0.1.0)
+lets you choose a PDF on your computer, convert it there, and download the result
+in Firebrat on your phone. Setup manages isolated Python environments; Docker is
+not required. First setup/model downloads need internet and around 20–40 GB of
+free disk space. macOS builds are unsigned/not notarized; no paid Apple enrollment
+is performed. [Full installation, privacy and troubleshooting guide](installer/server/README.md).
+
+Choose **On this computer** with native Ollama, or enter your existing
+OpenAI-compatible LLM API and model ID. **Voice generation always runs locally**
+with Chatterbox. API mode sends extracted text to your chosen LLM provider and
+can incur that provider's LLM fees; it never uses a paid speech API. Cached local
+models allow offline conversion after initial downloads. Apple silicon can use
+Metal for native Ollama; Mac voice generation stays on CPU. Compatible NVIDIA
+GPUs can accelerate local LLMs and speech on Linux.
+
+These are conservative capacity estimates, not measured PC quality rankings:
+
+| Computer | Suggested starting model |
+|---|---|
+| 8 GB RAM / small CPU laptop | Existing LLM API + local CPU voice; optionally Qwen3 1.7B |
+| 16–24 GB Apple silicon | Qwen3 4B Instruct; 1.7B if memory is tight |
+| 32 GB Apple silicon | Qwen3 8B |
+| NVIDIA 6 GB VRAM | Qwen3 1.7B; use CPU voice if VRAM is tight |
+| NVIDIA 8–12 GB VRAM | Qwen3 4B Instruct |
+| NVIDIA 16 GB VRAM | Qwen3 8B |
+| NVIDIA 24+ GB / 64+ GB unified RAM | Qwen3 14B, or test Gemma 3 12B/27B |
+| CPU-only desktop with 32+ GB RAM | Qwen3 4B/8B if patient, or an LLM API |
+
+Leave memory for extraction, context and speech, and try a few representative
+pages first. Gemma is an alternative, not a benchmark-proven winner here. For an
+API, prefer a capable instruction model with chat/completions support and at
+least 16K context, using the exact ID in your provider's current model list.
+See [Ollama model sizes](https://ollama.com/library/qwen3/tags) and the detailed
+installer guide for tradeoffs. Review converted technical facts and formulas.
+
+For effective private web/phone access, install **Tailscale** on the PC and phone,
+join the same tailnet, and run this on the PC:
+
+```sh
+tailscale serve --bg http://127.0.0.1:8000
+```
+
+Use its printed HTTPS address as your app's server URL, or open that address
+with `/pwa/` appended in the phone browser. The PC must stay awake. Share the
+backend port, not the private setup screen. Tailscale Serve is private to your
+tailnet; router port forwarding and public Funnel are unnecessary. Allowed
+members of your tailnet can read this server's books. Headscale, NetBird or a
+similar mesh VPN can also work with private reachability and valid HTTPS.
+[Official Tailscale Serve instructions](https://tailscale.com/docs/reference/tailscale-cli/serve).
+
+Linux users can also use the [Docker launcher](installer/server/firebrat-docker.sh): run it with `cpu` or `gpu` to open the same desktop conversion screen. The images are `subhajitroy/firebrat:desktop-cpu` and `subhajitroy/firebrat:desktop-gpu`; the GPU option requires NVIDIA Container Toolkit. Books, models, and settings persist on the host. See the [Docker setup and update guide](installer/server/README.md#linux-docker-installer). Narration always runs locally, including when an LLM API is selected.

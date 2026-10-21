@@ -13,7 +13,7 @@ name: Publish Docker images
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+    tags: ["v*", "server-v*"]
   workflow_dispatch: {}
 
 jobs:
@@ -28,7 +28,9 @@ jobs:
             extra_tag: "" # cpu is not also `latest`
           - variant: gpu
             dockerfile: backend/docker/Dockerfile
-            build_args: TORCH_INDEX_URL=https://download.pytorch.org/whl/cu121
+            build_args: |
+              TORCH_INDEX_URL=https://download.pytorch.org/whl/cu128
+              TTS_TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124
             extra_tag: latest
           - variant: api
             dockerfile: backend/docker/Dockerfile.api
@@ -51,6 +53,7 @@ jobs:
           if [ -n "${{ matrix.extra_tag }}" ]; then
             tags="$tags,subhajitroy/firebrat:${{ matrix.extra_tag }}"
           fi
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then tags="$tags,subhajitroy/firebrat:${GITHUB_REF_NAME}-${{ matrix.variant }}"; fi
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
 
       - uses: docker/build-push-action@v6
@@ -62,3 +65,52 @@ jobs:
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha,scope=${{ matrix.variant }}
           cache-to: type=gha,mode=max,scope=${{ matrix.variant }}
+
+  desktop:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        variant: [cpu, gpu]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Choose matching backend and desktop tags
+        id: tags
+        shell: bash
+        run: |
+          base="subhajitroy/firebrat:${{ matrix.variant }}"
+          tags="subhajitroy/firebrat:desktop-${{ matrix.variant }}"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            base="subhajitroy/firebrat:${GITHUB_REF_NAME}-${{ matrix.variant }}"
+            tags="$tags,subhajitroy/firebrat:${GITHUB_REF_NAME}-desktop-${{ matrix.variant }}"
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+      - name: Build and load for smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/docker/Dockerfile.desktop
+          build-args: BASE_IMAGE=${{ steps.tags.outputs.base }}
+          load: true
+          tags: firebrat-desktop-test
+          cache-from: type=gha,scope=desktop-${{ matrix.variant }}
+          cache-to: type=gha,mode=max,scope=desktop-${{ matrix.variant }}
+      - name: Smoke-test manager and backend imports without GPU
+        run: |
+          docker run --rm --entrypoint /opt/venvs/serve/bin/python firebrat-desktop-test -c 'import sys; sys.path.insert(0,"/app/desktop"); from launcher import Controller; import tempfile; c=Controller(tempfile.mkdtemp()); assert c.runtime_ready(); from server.main import app; print("Desktop manager and API imports passed")'
+          docker run --rm --entrypoint /usr/bin/ollama firebrat-desktop-test --version
+      - name: Publish tested image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/docker/Dockerfile.desktop
+          build-args: BASE_IMAGE=${{ steps.tags.outputs.base }}
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha,scope=desktop-${{ matrix.variant }}

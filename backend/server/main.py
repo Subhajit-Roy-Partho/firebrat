@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from server import job_runner
+from server.routes.desktop import router as desktop_router
 from server.routes.health import router as health_router
 from server.routes.books import router as books_router
 from server.routes.jobs import router as jobs_router
@@ -31,6 +32,7 @@ app.add_middleware(
 )
 
 app.include_router(health_router, tags=["health"])
+app.include_router(desktop_router, tags=["desktop"])
 app.include_router(books_router, tags=["books"])
 app.include_router(jobs_router, tags=["jobs"])
 app.include_router(settings_router, tags=["settings"])

@@ -71,3 +71,8 @@ frontend/FirebratNative/Packages/LlamaIOS/Artifacts/
 # Original, short narrated sample published with the PWA
 !frontend/firebrat_pwa/public/demo/**/*.wav
 !backend/server/static/pwa/demo/**/*.wav
+
+# Desktop backend installer build products (never package user data)
+installer/server/dist/
+installer/server/build/
+installer/server/*.spec

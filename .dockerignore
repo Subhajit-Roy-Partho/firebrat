@@ -10,7 +10,16 @@ backend/.pytest_cache/
 *.wav
 *.m4a
 *.mp3
-!backend/voice/narrator_ref.wav
 frontend/
 docs/
 .github/
+
+**/.env
+**/.env.*
+**/*.sqlite3
+**/*.sqlite3-*
+**/launcher-settings.json
+**/service-account*.json
+**/*credentials*.json
+installer/server/dist/
+installer/server/build/

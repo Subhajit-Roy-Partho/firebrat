@@ -8,11 +8,11 @@ log = logging.getLogger(__name__)
 
 
 class FirebratTTS:
-    def __init__(self, device: str = "cuda", hf_home: str | None = None,
+    def __init__(self, device: str | None = None, hf_home: str | None = None,
                  exaggeration: float = 0.4, cfg_weight: float = 0.5,
                  voice_ref: str | None = None,
                  male_voice_ref: str | None = None, female_voice_ref: str | None = None):
-        self.device = device
+        self.device = device or os.environ.get("FIREBRAT_TTS_DEVICE", "auto")
         self.exaggeration = exaggeration
         self.cfg_weight = cfg_weight
         self.voice_ref = voice_ref
@@ -32,6 +32,13 @@ class FirebratTTS:
         if self._model is not None:
             return self._model
         # MIG targeting: caller should have set CUDA_VISIBLE_DEVICES; we just use "cuda"
+        import torch
+        if self.device == "auto":
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        if self.device not in {"cpu", "cuda"}:
+            raise ValueError("FIREBRAT_TTS_DEVICE must be auto, cpu or cuda; speech always runs locally.")
+        if self.device == "cuda" and not torch.cuda.is_available():
+            raise RuntimeError("CUDA is unavailable. Select CPU voice generation or install a compatible NVIDIA driver/PyTorch build.")
         from chatterbox.tts import ChatterboxTTS  # type: ignore
         log.info("Loading ChatterboxTTS on %s (HF_HOME=%s)", self.device, os.environ.get("HF_HOME"))
         self._model = ChatterboxTTS.from_pretrained(device=self.device)

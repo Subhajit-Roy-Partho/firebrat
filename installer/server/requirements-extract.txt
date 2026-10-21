@@ -1,0 +1,6 @@
+marker-pdf==1.9.3
+pymupdf
+pydantic
+requests
+# Stable baseline separate from Chatterbox's torch 2.6 pin.
+torch==2.8.0

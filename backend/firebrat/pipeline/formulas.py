@@ -48,16 +48,29 @@ def render_latex_to_png(latex_str: str, out_path: str, dpi: int = 400) -> bool:
         with open(tex_path, "w") as f:
             f.write(tex)
 
-        r = _run(["pdflatex", "-interaction=nonstopmode", "-halt-on-error", "formula.tex"],
-                 cwd=tmpdir, timeout=30)
+        if not shutil.which("pdflatex") and shutil.which("tectonic"):
+            r = _run(["tectonic", "--untrusted", "--keep-logs", "formula.tex"], cwd=tmpdir, timeout=120)
+        else:
+            r = _run(["pdflatex", "-interaction=nonstopmode", "-halt-on-error", "formula.tex"],
+                     cwd=tmpdir, timeout=30)
         pdf = os.path.join(tmpdir, "formula.pdf")
         if r.returncode != 0 or not os.path.exists(pdf):
             log.warning("pdflatex failed for %r: %s", latex_str[:120], r.stdout[-800:])
             return False
 
         if not shutil.which("gs"):
-            log.warning("Ghostscript (gs) not found, cannot rasterize %s", pdf)
-            return False
+            # Native desktop installs use PyMuPDF instead of requiring system
+            # Ghostscript/ImageMagick. TeX still handles full amsmath syntax.
+            import fitz
+            from PIL import Image, ImageChops, ImageOps
+            with fitz.open(pdf) as document:
+                pix = document[0].get_pixmap(dpi=dpi, alpha=False)
+                image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+                bounds = ImageChops.difference(image, Image.new("RGB", image.size, "white")).getbbox()
+                if bounds is None:
+                    return False
+                ImageOps.expand(image.crop(bounds), border=8, fill="white").save(out_path)
+            return True
 
         raw_png = os.path.join(tmpdir, "raw.png")
         r2 = _run(["gs", "-dBATCH", "-dNOPAUSE", "-dSAFER", "-sDEVICE=png16m",

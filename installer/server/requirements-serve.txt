@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+requests
+pydub
+pypdf
+firebase-admin
+imageio-ffmpeg
