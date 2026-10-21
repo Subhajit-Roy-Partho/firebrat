@@ -1,5 +1,12 @@
 # AGENTS.md — orientation for a coding agent picking this up cold
 
+> 2026-09-18 addendum: Stage-2 LLM provider is now switchable — see
+> `docs/LLM_PROVIDERS.md` (nano-gpt vs local Qwen3-4B via
+> `backend/scripts/llm_server.py`, the endpoint's ~340s generation wall,
+> `FIREBRAT_CHUNK_PAGES`, and the `LLM_PROVIDER=local` Docker mode).
+> `NANO_API_URL` env var is the entire switch. Backend key in
+> `backend/.env` (gitignored, 0600).
+
 Read this before touching anything. It exists so a fresh agent (or a future you) doesn't have to re-derive the environment quirks that already cost real time to figure out once.
 
 ## What this project is
@@ -24,7 +31,30 @@ PDF → narrated, figure/formula-synced audiobook, read by a Flutter Android app
 - **`marker-pdf` must be pinned to `1.9.3`, not `2.0.0`.** 2.0.0's layout backend (surya's vLLM path) hard-requires a `docker` binary, which isn't installed here — it fails immediately with `SpawnError: docker binary not found`. 1.9.3 uses the older local-torch Surya+Texify pipeline and works.
 - **Formulas in this book are LLM-authored, not Stage-1-extracted.** This particular PDF typesets math as plain inline text (e.g. `tCK = 1/f = 10 ns`), not as LaTeX-taggable blocks — marker's equation extraction and a naive `$...$`-regex both find effectively zero real formulas. The Stage 2 LLM prompt (`firebrat/pipeline/compile_llm.py`) instead asks the model to recognize mathematical relationships in the page text itself and author real LaTeX for `formula_callout` segments via a `latex` field; **our own code mints the `formula_NNNN` id from that LaTeX, the LLM never assigns one** (same invariant as figure/table ids, just sourced differently). If you ever process a different, LaTeX-native PDF, re-check whether Stage 1's formula detection actually finds anything before assuming this LLM-authoring path is still necessary.
 - A single malformed LLM ref (e.g. `"fig_1.15"` instead of `"fig_0001"`) will fail pydantic validation for the *whole chunk* unless pre-sanitized — `compile_llm.py`'s `_sanitize_refs()` nulls out any ref that doesn't match `^(fig|formula|tbl)_\d{4}$` before strict validation runs, so one bad ref doesn't discard an otherwise-good chunk's narration.
-- **`adb` cannot run in this sandbox** — starting the adb daemon crashes on a network-interface probe (`OSP_CHECK` failure in `network_interface_linux.cc`). This means Flutter verification here is limited to `flutter analyze` and `flutter build apk` (static build check). There is no live device/emulator smoke test possible in this environment — do not claim the app "works on device" from inside this sandbox; say explicitly that only a static build was verified.
+- **`adb` works after updating platform-tools (verified 2026-10-16).** The old
+  "adb crashes on OSP_CHECK" note below is stale for platform-tools 37.0.1:
+  `sdkmanager "platform-tools"` (was 36.0.2, now 37.0.1) fixed the
+  openscreen network-interface probe crash on the InfiniBand interface, and a
+  full x86_64 emulator (`system-images;android-34;google_apis;x86_64`, 3GB RAM,
+  `-gpu swiftshader_indirect -no-window`) boots and accepts installs/pushes
+  and runs `flutter test integration_test/`. Prerequisites that are present
+  here: `/dev/kvm` (world-writable), network to dl.google.com, plenty of
+  scratch space. AVDs land under `/scratch/sroy85/.android/avd` (not
+  `~/.android`) — export `ANDROID_AVD_HOME` accordingly. Older note kept for
+  reference: starting the adb daemon *used to* crash on a network-interface
+  probe (`OSP_CHECK` failure in `network_interface_linux.cc`) — if `adb
+  devices` ever shows "didn't ACK" again, update platform-tools first.
+  Flutter verification is therefore NOT limited to static builds anymore:
+  `frontend/firebrat_app/integration_test/import_book_test.dart` imports
+  the real repaired 1.2GB book on the emulator (3GB RAM) and asserts all
+  1929 sections land usable in the library — PASSED 2026-10-16
+  (`flutter test integration_test/import_book_test.dart`, ~17s import).
+  Note: the runner uninstalls the app afterwards, so a missing package
+  right after a green run is expected, not a failure.
+- **Memory allocation varies by job.** The 6GB cap above was one allocation;
+  the 2026-10-16 job has 20GB (`memory.limit_in_bytes` = 21474836480).
+  Always check the cgroup file + `free -h` for the current job instead of
+  assuming either number — but the batching/sequencing rules still apply.
 - **`ffmpeg` is not on `$PATH`** by default; it's available via the module system: `module load ffmpeg-6.0-2a`. `pydub` shells out to `ffmpeg` for AAC/MP3 export — load the module before running anything in `pipeline/audio_assemble.py` or `pipeline/tts.py`'s export step, or exports will fail silently/confusingly.
 - **Redirect `HF_HOME`** (e.g. `export HF_HOME=/scratch/sroy85/.cache/huggingface`) before the first Chatterbox run — its weights auto-download from HuggingFace and home directories on this cluster tend to be quota-limited.
 - System already has `pdflatex`, `dvipng`, `convert` (ImageMagick), `gs`, with `amsmath`/`amssymb` texlive packages — formula rendering shells out to these directly rather than using matplotlib mathtext (which can't render the amsmath macros marker-pdf's LaTeX extraction actually produces).

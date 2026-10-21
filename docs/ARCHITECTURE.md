@@ -27,7 +27,7 @@ Formula detection in this stage is a low-confidence supplementary signal only (a
 
 Input: `raw_pages.json`. Output: `compiled.json` (sections of ordered narration segments) plus a `formulas` list.
 
-Pages are grouped into `CHUNK_PAGES`-sized chunks. Each chunk is sent to an LLM (nano-gpt endpoint) with:
+Pages are grouped into `CHUNK_PAGES`-sized chunks. Each chunk is sent to an LLM (nano-gpt endpoint **or** a local GPU model — see `docs/LLM_PROVIDERS.md` for the provider switch, the endpoint's ~340s generation wall, and the completion-budget rationale) with:
 - The raw page text for that chunk.
 - A **catalog** of the figure/table ids and captions Stage 1 already found on those pages — the model may only reference ids from this catalog, never invent one, and refs are pattern-validated then cross-checked against the catalog after parsing.
 

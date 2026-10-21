@@ -74,6 +74,7 @@ def chat_json(
     max_tokens: int = 6000,
     retries_parse: int = 3,
     fallback_model: str | None = None,
+    timeout: int = 240,
 ) -> tuple[dict, str]:
     """Call chat_completion and parse JSON from the response content.
 
@@ -87,7 +88,7 @@ def chat_json(
 
     for attempt in range(retries_parse + 1):
         raw = chat_completion(cur_messages, cur_model, temperature, max_tokens,
-                              response_format_json=(attempt == 0))
+                              response_format_json=(attempt == 0), timeout=timeout)
         content = raw["choices"][0]["message"]["content"]
         # Strip ```json fences if present
         text = content.strip()
@@ -116,7 +117,7 @@ def chat_json(
                     # one more round with fallback model
                     for fb_attempt in range(retries_parse + 1):
                         raw2 = chat_completion(cur_messages, cur_model, temperature, max_tokens,
-                                               response_format_json=(fb_attempt == 0))
+                                               response_format_json=(fb_attempt == 0), timeout=timeout)
                         content2 = raw2["choices"][0]["message"]["content"].strip()
                         if content2.startswith("```"):
                             ls = content2.splitlines()[1:]

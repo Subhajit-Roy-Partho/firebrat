@@ -1,12 +1,15 @@
-"""Upload a PDF, watch it convert, retry the parts that didn't come out
-clean. See docs/API.md for the full contract.
+"""Upload a PDF (or a .zip of PDFs, merged in archive order), watch it
+convert, retry the parts that didn't come out clean. See docs/API.md
+for the full contract.
 """
 import os
+import tempfile
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-from server import config, job_runner, jobs
+from server import auth, config, job_runner, jobs
+from server.pdf_merge import merge_zip_pdfs_to_pdf
 from firebrat.pipeline.status import read_status
 from firebrat.utils.ids import sanitize_book_id
 
@@ -31,15 +34,30 @@ def _job_view(job: dict) -> dict:
         # the subprocess died before ever writing a status.json at all.
         "error": status.get("error") or job["error"],
         "retry_count": job["retry_count"],
+        "content_mode": job.get("content_mode") or "illustrated",
+        "provider": job.get("provider") or "nanogpt",
+        "chunk_pages": job.get("chunk_pages") or 0,
         "created_at": job["created_at"],
         "updated_at": job["updated_at"],
     }
 
 
 @router.post("/books/upload")
-async def upload_book(file: UploadFile = File(...), title: str | None = Form(None)):
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="only .pdf uploads are accepted")
+async def upload_book(
+    file: UploadFile = File(...),
+    title: str | None = Form(None),
+    provider: str = Form(""),
+    chunk_pages: int = Form(0),
+    content_mode: str = Form("illustrated"),
+    _user: dict = Depends(auth.require_user),
+):
+    if content_mode not in ("illustrated", "novel"):
+        raise HTTPException(status_code=422, detail="content_mode must be illustrated or novel")
+    lname = (file.filename or "").lower()
+    is_pdf = lname.endswith(".pdf")
+    is_zip = lname.endswith(".zip")
+    if not file.filename or (not is_pdf and not is_zip):
+        raise HTTPException(status_code=400, detail="only .pdf or .zip (of PDFs) uploads are accepted")
 
     os.makedirs(config.UPLOAD_DIR, exist_ok=True)
     book_id = sanitize_book_id(file.filename)
@@ -55,28 +73,76 @@ async def upload_book(file: UploadFile = File(...), title: str | None = Form(Non
     dest_path = os.path.join(config.UPLOAD_DIR, f"{book_id}.pdf")
     size = 0
     max_bytes = config.MAX_UPLOAD_MB * 1024 * 1024
-    with open(dest_path, "wb") as out:
-        while chunk := await file.read(1024 * 1024):
-            size += len(chunk)
-            if size > max_bytes:
-                out.close()
-                os.remove(dest_path)
-                raise HTTPException(status_code=413, detail=f"file exceeds {config.MAX_UPLOAD_MB} MB limit")
-            out.write(chunk)
+    if is_zip:
+        # Stream the zip to a temp file first (size-capped like a plain PDF
+        # upload), then normalize it to a single source PDF so the rest of
+        # the pipeline — convert.py, retry, resume — stays single-PDF.
+        fd, tmp_zip = tempfile.mkstemp(prefix=f"{book_id}_", suffix=".zip",
+                                       dir=config.UPLOAD_DIR)
+        try:
+            with os.fdopen(fd, "wb") as out:
+                while chunk := await file.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > max_bytes:
+                        raise HTTPException(status_code=413, detail=f"file exceeds {config.MAX_UPLOAD_MB} MB limit")
+                    out.write(chunk)
+            try:
+                merge_zip_pdfs_to_pdf(tmp_zip, dest_path)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            except RuntimeError as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        finally:
+            try:
+                os.remove(tmp_zip)
+            except OSError:
+                pass
+            # A 413 raised mid-stream leaves the fd-managed file behind only
+            # if mkstemp's file was never renamed — it wasn't, so remove any
+            # partial dest too when the zip path failed before merging.
+            if size > max_bytes and os.path.isfile(dest_path):
+                try:
+                    os.remove(dest_path)
+                except OSError:
+                    pass
+    else:
+        with open(dest_path, "wb") as out:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > max_bytes:
+                    out.close()
+                    os.remove(dest_path)
+                    raise HTTPException(status_code=413, detail=f"file exceeds {config.MAX_UPLOAD_MB} MB limit")
+                out.write(chunk)
 
     book_title = title or book_id.replace("-", " ").title()
-    job_id = jobs.create_job(book_id=book_id, filename=file.filename, title=book_title, pdf_path=dest_path)
+    # Empty provider/chunk (the mobile app sends neither) inherits the
+    # server defaults from /settings.
+    from server.routes.settings import read_settings as _read_settings
+    _defaults = _read_settings()
+    eff_provider = (provider or _defaults.get("default_provider") or "nanogpt")
+    try:
+        eff_chunk = int(chunk_pages or 0)
+    except (TypeError, ValueError):
+        eff_chunk = 0
+    if eff_chunk <= 0:
+        try:
+            eff_chunk = int(_defaults.get("default_chunk_pages") or 0)
+        except (TypeError, ValueError):
+            eff_chunk = 0
+    job_id = jobs.create_job(book_id=book_id, filename=file.filename, title=book_title, pdf_path=dest_path,
+                             provider=eff_provider, chunk_pages=eff_chunk, content_mode=content_mode)
     job_runner.enqueue(job_id)
     return _job_view(jobs.get_job(job_id))
 
 
 @router.get("/jobs")
-def list_jobs():
+def list_jobs(_user: dict = Depends(auth.require_user)):
     return [_job_view(j) for j in jobs.list_jobs()]
 
 
 @router.get("/jobs/{job_id}")
-def get_job(job_id: str):
+def get_job(job_id: str, _user: dict = Depends(auth.require_user)):
     job = jobs.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
@@ -84,7 +150,7 @@ def get_job(job_id: str):
 
 
 @router.post("/jobs/{job_id}/retry")
-def retry_job(job_id: str):
+def retry_job(job_id: str, _user: dict = Depends(auth.require_user)):
     """Re-run a failed (or needs_review) job, reusing whatever already
     succeeded on disk rather than starting over. Which stages get skipped
     depends on how far the previous attempt got — see docs/API.md.
@@ -112,7 +178,7 @@ def retry_job(job_id: str):
 
 
 @router.post("/jobs/{job_id}/resume")
-def resume_job(job_id: str):
+def resume_job(job_id: str, _user: dict = Depends(auth.require_user)):
     """Puts a stuck job back on the queue, unchanged — for a job left in
     `queued` or `running` state by something that isn't the pipeline's own
     logic (a server restart while it was mid-flight is the common case: the
@@ -142,7 +208,7 @@ def resume_job(job_id: str):
 
 
 @router.get("/jobs/{job_id}/log")
-def get_job_log(job_id: str, tail_lines: int = 200):
+def get_job_log(job_id: str, tail_lines: int = 200, _user: dict = Depends(auth.require_user)):
     job = jobs.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")

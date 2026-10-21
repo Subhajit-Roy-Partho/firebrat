@@ -15,6 +15,18 @@ import 'settings_providers.dart';
 bool _isVisualType(SegmentType type) =>
     type == SegmentType.figureCallout || type == SegmentType.formulaCallout || type == SegmentType.tableCallout;
 
+/// Load failure for one book's reader session (bad manifest — see
+/// ReaderController._init). Separate from ReaderState because the state
+/// itself is null while the manifest hasn't loaded.
+class _ReaderErrorNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+  void set(String? v) => state = v;
+}
+
+final readerErrorProvider =
+    NotifierProvider.family<_ReaderErrorNotifier, String?, String>((_) => _ReaderErrorNotifier());
+
 /// One reader session: a book_id's manifest, the current section index,
 /// the live PlaybackController, and the currently-active segment.
 /// Recreated per book (family keyed by bookId) so navigating between books
@@ -26,6 +38,9 @@ class ReaderState {
   final bool loadingSection;
   final Map<String, String> assetPaths; // ref id -> absolute local file path, current section only
   final String? currentVisualId; // last figure/table/formula ref spoken about — sticky across prose segments
+  /// Set when the book/section failed to load (missing files, corrupt
+  /// package) — the reader shows this instead of spinning forever.
+  final String? error;
 
   const ReaderState({
     required this.manifest,
@@ -34,6 +49,7 @@ class ReaderState {
     required this.loadingSection,
     this.assetPaths = const {},
     this.currentVisualId,
+    this.error,
   });
 
   ManifestSection get section => manifest.sections[sectionIndex];
@@ -64,6 +80,8 @@ class ReaderState {
     Map<String, String>? assetPaths,
     String? currentVisualId,
     bool clearCurrentVisual = false,
+    String? error,
+    bool clearError = false,
   }) =>
       ReaderState(
         manifest: manifest,
@@ -72,6 +90,7 @@ class ReaderState {
         loadingSection: loadingSection ?? this.loadingSection,
         assetPaths: assetPaths ?? this.assetPaths,
         currentVisualId: clearCurrentVisual ? null : (currentVisualId ?? this.currentVisualId),
+        error: clearError ? null : (error ?? this.error),
       );
 }
 
@@ -98,7 +117,19 @@ class ReaderController extends Notifier<ReaderState?> {
 
   Future<void> _init(String bookId) async {
     final repo = ref.read(libraryRepositoryProvider);
-    final manifest = await repo.loadLocalManifest(bookId);
+    late final Manifest manifest;
+    try {
+      manifest = await repo.loadLocalManifest(bookId);
+    } catch (e) {
+      // A corrupt/missing manifest used to leave state null forever — the
+      // reader spun on an infinite loader ("freezes on open"). Surface it
+      // through readerErrorProvider instead (see ReaderScreen).
+      ref.read(readerErrorProvider(bookId).notifier).set(
+          'Could not open this book — its files look incomplete or corrupt. '
+          'Try deleting it (long-press the card) and downloading again.\n$e');
+      return;
+    }
+    ref.read(readerErrorProvider(bookId).notifier).set(null);
     state = ReaderState(manifest: manifest, sectionIndex: 0, activeSegment: null, loadingSection: true);
     await _loadSection(0);
 
@@ -116,9 +147,10 @@ class ReaderController extends Notifier<ReaderState?> {
   Future<void> _loadSection(int index) async {
     final s = state;
     if (s == null) return;
-    state = s.copyWith(sectionIndex: index, loadingSection: true, clearActiveSegment: true, clearCurrentVisual: true);
+    state = s.copyWith(sectionIndex: index, loadingSection: true, clearActiveSegment: true, clearCurrentVisual: true, clearError: true);
     final repo = ref.read(libraryRepositoryProvider);
-    final section = s.manifest.sections[index];
+    try {
+      final section = s.manifest.sections[index];
     final segPath = await repo.bookAssetPath(_bookId, section.segmentsPath);
     final audioPath = await repo.bookAssetPath(_bookId, section.audioPath);
     final segJson = jsonDecode(await File(segPath).readAsString()) as Map<String, dynamic>;
@@ -142,6 +174,16 @@ class ReaderController extends Notifier<ReaderState?> {
     final settings = ref.read(readerSettingsProvider);
     await player.setSpeed(settings.playbackSpeed);
     state = state?.copyWith(loadingSection: false, assetPaths: assetPaths, currentVisualId: initialVisualId);
+    } catch (e) {
+      // Missing/corrupt section files (e.g. an interrupted download left a
+      // manifest but no audio) used to wedge loadingSection on forever.
+      // Surface it — ReaderScreen renders the error with a way back.
+      state = state?.copyWith(
+        loadingSection: false,
+        error: 'Could not load this section — files look incomplete. '
+            'Try deleting the book (long-press its card) and downloading again.\n$e',
+      );
+    }
   }
 
   Future<Map<String, String>> _resolveAssetPaths(

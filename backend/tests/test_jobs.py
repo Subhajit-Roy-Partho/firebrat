@@ -99,7 +99,7 @@ def test_upload_status_retry_flow(tmp_path):
         # not in /books yet — conversion never finished
         assert job["book_id"] not in [b["book_id"] for b in client.get("/books").json()]
 
-        # non-pdf upload is rejected
+        # non-pdf/non-zip upload is rejected
         bad = client.post("/books/upload", files={"file": ("notes.txt", b"hi", "text/plain")})
         assert bad.status_code == 400
 
@@ -132,6 +132,80 @@ def test_upload_status_retry_flow(tmp_path):
 
         listing = client.get("/jobs").json()
         assert any(j["job_id"] == job_id for j in listing)
+
+
+def _blank_pdf_bytes() -> bytes:
+    import io
+    from pypdf import PdfWriter
+    buf = io.BytesIO()
+    w = PdfWriter()
+    w.add_blank_page(width=72, height=72)
+    w.write(buf)
+    return buf.getvalue()
+
+
+def _zip_bytes(entries: dict) -> bytes:
+    import io
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, data in entries.items():
+            z.writestr(name, data)
+    return buf.getvalue()
+
+
+def test_zip_upload_merges_pdfs(tmp_path):
+    """A .zip of PDFs uploads (400 only when it has no PDFs) and converts
+    from a single merged source PDF, so retry/resume stay single-PDF."""
+    fake_convert = tmp_path / "fake_convert.py"
+    fake_convert.write_text(_FAKE_CONVERT_PY)
+
+    output_dir = tmp_path / "output"
+    upload_dir = tmp_path / "uploads"
+    jobs_db = tmp_path / "jobs.sqlite3"
+    output_dir.mkdir()
+
+    import server.config as cfg
+    cfg.OUTPUT_DIR = str(output_dir)
+    cfg.UPLOAD_DIR = str(upload_dir)
+    cfg.JOBS_DB_PATH = str(jobs_db)
+    cfg.CONVERT_PY = sys.executable
+    cfg.CONVERT_SCRIPT = str(fake_convert)
+    cfg.MAX_CONCURRENT_JOBS = 1
+
+    import server.job_runner as job_runner_module
+    job_runner_module._workers_started = False
+    job_runner_module._resumed_orphans = False
+
+    os.environ["FAKE_CONVERT_BEHAVIOR"] = "succeed"
+
+    from fastapi.testclient import TestClient
+    from server.main import app
+
+    with TestClient(app) as client:
+        # zip with no PDFs is rejected, original filename preserved in error path
+        empty = client.post(
+            "/books/upload",
+            files={"file": ("chapters.zip", _zip_bytes({"readme.txt": b"no pdfs"}), "application/zip")},
+        )
+        assert empty.status_code == 400
+
+        zipped = _zip_bytes({"b-chapter.pdf": _blank_pdf_bytes(), "a-chapter.pdf": _blank_pdf_bytes()})
+        resp = client.post(
+            "/books/upload",
+            files={"file": ("my-chapters.zip", zipped, "application/zip")},
+        )
+        assert resp.status_code == 200, resp.text
+        job = resp.json()
+        assert job["book_id"] == "my-chapters"
+        assert job["filename"] == "my-chapters.zip"
+        job_id = job["job_id"]
+
+        assert _wait_for(lambda: client.get(f"/jobs/{job_id}").json()["state"] == "done")
+        # merged source PDF on disk has both chapters' pages, in sorted order
+        from pypdf import PdfReader
+        merged = PdfReader(os.path.join(str(upload_dir), "my-chapters.pdf"))
+        assert len(merged.pages) == 2
 
 
 def test_orphaned_job_resumes_automatically_on_startup(tmp_path):

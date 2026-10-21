@@ -1,11 +1,13 @@
 import 'dart:io';
-import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter_tts/flutter_tts.dart';
 import '../models/segment_models.dart';
 import '../models/compiled_models.dart';
 import '../util/ids.dart';
+import '../novel/novel_analyzer.dart';
 import 'caf_utils.dart';
+import 'narration_engine.dart';
 import 'wav_utils.dart';
 
 /// Narrates one section's segments using the platform's built-in TTS
@@ -21,15 +23,48 @@ import 'wav_utils.dart';
 /// unverified — see `caf_utils.dart`'s doc comment. Both run through the
 /// same [WavAudio] assembly code once parsed, so a CAF-parsing bug would
 /// affect only iOS output, not Android's.
-class OnDeviceTts {
+class OnDeviceTts implements NarrationEngine {
   final FlutterTts _tts = FlutterTts();
   bool _configured = false;
+  final NovelBookPlan? novelPlan;
+  List<Map<Object?, Object?>> _offlineVoices = [];
+  Map<String, String>? _narratorVoice;
+
+  OnDeviceTts({this.novelPlan});
 
   Future<void> _ensureConfigured() async {
     if (_configured) return;
     await _tts.setLanguage('en-US');
-    await _tts.setSpeechRate(0.48); // flutter_tts rate is 0.0-1.0; ~0.48 reads as a natural, not-rushed pace
+    if (_isAndroid) {
+      final voices = (await _tts.getVoices as List)
+          .map((v) => Map<Object?, Object?>.from(v as Map))
+          .toList();
+      _offlineVoices = voices.where((v) {
+        final network = v['network_required'] ?? v['networkRequired'];
+        return v['locale'] == 'en-US' &&
+            (network == false ||
+                network == 'false' ||
+                network == 0 ||
+                network == '0') &&
+            !v['features'].toString().contains('notInstalled');
+      }).toList();
+      _narratorVoice = resolveOfflineCharacterVoice(
+        const NovelUtterance('', null),
+        _offlineVoices,
+        locale: 'en-US',
+      );
+      if (_narratorVoice == null) {
+        throw StateError(
+          'No offline English voice is installed. Download an English voice in Android text-to-speech settings before converting offline.',
+        );
+      }
+      await _tts.setVoice(_narratorVoice!);
+    }
+    await _tts.setSpeechRate(
+      0.48,
+    ); // flutter_tts rate is 0.0-1.0; ~0.48 reads as a natural, not-rushed pace
     await _tts.awaitSpeakCompletion(true);
+    await _tts.awaitSynthCompletion(true);
     _configured = true;
   }
 
@@ -37,9 +72,8 @@ class OnDeviceTts {
 
   /// Synthesizes [segments] to one combined audio file under [sectionDir],
   /// returning the [SegmentsFile] with real sample-accurate timing.
-  /// Segments whose synthesis fails are still included with an estimated
-  /// duration (silence) so one bad segment can't sink the whole section —
-  /// mirrors `audio_assemble.py`'s fallback-duration behavior server-side.
+  /// Synthesis failures abort conversion instead of producing silent narration.
+  @override
   Future<({String audioPath, SegmentsFile segmentsFile})> narrateSection({
     required String sectionId,
     required List<CompiledSegment> segments,
@@ -54,20 +88,56 @@ class OnDeviceTts {
     for (var i = 0; i < segments.length; i++) {
       final segmentId = makeSegmentId(sectionId, i);
       segmentIds.add(segmentId);
-      final ext = _isAndroid ? 'wav' : 'caf';
-      final path = '$sectionDir/_seg_$segmentId.$ext';
-      try {
-        await _tts.synthesizeToFile(segments[i].text, path, true);
-        final bytes = await File(path).readAsBytes();
-        clips.add(_isAndroid ? WavAudio.parse(bytes) : CafAudio.parse(bytes));
-      } catch (_) {
-        // Fallback: 600ms of silence at a nominal rate, so this segment
-        // still has a slot in the timeline instead of vanishing.
-        clips.add(WavAudio(sampleRate: 22050, channels: 1, bitsPerSample: 16, pcmData: _silencePcm(22050, 600)));
-      } finally {
-        final f = File(path);
-        if (await f.exists()) await f.delete();
+      final utterances =
+          novelPlan?.split(segments[i].text) ??
+          [NovelUtterance(segments[i].text, null)];
+      final utteranceClips = <WavAudio>[];
+      for (var u = 0; u < utterances.length; u++) {
+        final utterance = utterances[u];
+        if (utterance.text.trim().isEmpty) continue;
+        if (novelPlan != null) {
+          final selected =
+              resolveOfflineCharacterVoice(
+                utterance,
+                _offlineVoices,
+                locale: 'en-US',
+              ) ??
+              _narratorVoice;
+          if (selected != null) await _tts.setVoice(selected);
+          await _tts.setPitch(utterance.style.pitch);
+          await _tts.setSpeechRate(utterance.style.rate);
+        }
+        final ext = _isAndroid ? 'wav' : 'caf';
+        final path = '$sectionDir/_seg_${segmentId}_$u.$ext';
+        try {
+          await _tts.synthesizeToFile(utterance.text, path, true);
+          final bytes = await File(path).readAsBytes();
+          final clip = _isAndroid
+              ? WavAudio.parse(bytes)
+              : CafAudio.parse(bytes);
+          if (clip.frameCount == 0) throw StateError('empty narration audio');
+          if (utteranceClips.isNotEmpty &&
+              (clip.sampleRate != utteranceClips.first.sampleRate ||
+                  clip.channels != utteranceClips.first.channels ||
+                  clip.bitsPerSample != utteranceClips.first.bitsPerSample)) {
+            throw StateError(
+              'Installed voices returned incompatible audio formats',
+            );
+          }
+          utteranceClips.add(clip);
+        } catch (error) {
+          throw StateError(
+            'Could not synthesize narration for $segmentId: $error',
+          );
+        } finally {
+          final f = File(path);
+          if (await f.exists()) await f.delete();
+        }
       }
+      if (utteranceClips.isEmpty) {
+        throw StateError('No narration for $segmentId');
+      }
+      clips.add(WavAudio.concatenate(utteranceClips, pauseMs: 0).combined);
     }
 
     final (:combined, :timing) = WavAudio.concatenate(clips, pauseMs: pauseMs);
@@ -77,16 +147,18 @@ class OnDeviceTts {
     final timedSegments = <TimedSegment>[];
     for (var i = 0; i < segments.length; i++) {
       final seg = segments[i];
-      timedSegments.add(TimedSegment(
-        segmentId: segmentIds[i],
-        index: i,
-        type: seg.type,
-        text: seg.text,
-        ref: seg.ref,
-        startMs: timing[i].startMs,
-        endMs: timing[i].endMs,
-        visuallyEssential: seg.visuallyEssential,
-      ));
+      timedSegments.add(
+        TimedSegment(
+          segmentId: segmentIds[i],
+          index: i,
+          type: seg.type,
+          text: seg.text,
+          ref: seg.ref,
+          startMs: timing[i].startMs,
+          endMs: timing[i].endMs,
+          visuallyEssential: seg.visuallyEssential,
+        ),
+      );
     }
 
     return (
@@ -100,10 +172,7 @@ class OnDeviceTts {
     );
   }
 
-  /// 16-bit mono silence — a zero-filled Uint8List is already silence,
-  /// no need to write anything into it.
-  static Uint8List _silencePcm(int sampleRate, int ms) => Uint8List((sampleRate * ms ~/ 1000) * 2);
-
+  @override
   void dispose() {
     _tts.stop();
   }

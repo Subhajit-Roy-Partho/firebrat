@@ -21,6 +21,9 @@ plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "8.11.1" apply false
     id("org.jetbrains.kotlin.android") version "2.2.20" apply false
+    // Firebase (google-services.json is gitignored; CI injects it from the
+    // GOOGLE_SERVICES_JSON secret — same pattern as the release keystore).
+    id("com.google.gms.google-services") version "4.4.4" apply false
 }
 
 include(":app")

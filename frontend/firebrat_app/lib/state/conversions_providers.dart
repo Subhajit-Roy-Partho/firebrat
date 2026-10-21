@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/job.dart';
+import '../services/notification_service.dart';
 import 'library_providers.dart' show apiClientProvider, localBooksProvider, catalogProvider;
 
 /// Polls GET /jobs every couple of seconds while something is watching it
@@ -26,15 +28,49 @@ class JobsNotifier extends Notifier<AsyncValue<List<ConversionJob>>> {
       final api = ref.read(apiClientProvider);
       final jobs = await api.listJobs();
       final newlyDone = jobs.any((j) => j.state == JobState.done && _lastStates[j.jobId] != JobState.done);
+      final newlyFailed = jobs
+          .where((j) => j.state == JobState.failed && _lastStates[j.jobId] != JobState.failed)
+          .toList();
       _lastStates = {for (final j in jobs) j.jobId: j.state};
       if (newlyDone) {
         ref.invalidate(localBooksProvider);
         ref.invalidate(catalogProvider);
       }
+      // Finished jobs get a local notification (the server also pushes to
+      // topic job-<id> when it has FCM credentials — belt and suspenders:
+      // one of the two paths always fires). Best-effort: never fail a poll.
+      if (newlyDone) {
+        final done = jobs.firstWhere((j) => j.state == JobState.done);
+        await _announceJobEnd(done, ok: true);
+      }
+      for (final j in newlyFailed) {
+        await _announceJobEnd(j, ok: false);
+      }
       state = AsyncValue.data(jobs);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
+  }
+
+  Future<void> _announceJobEnd(ConversionJob j, {required bool ok}) async {
+    try {
+      await FirebaseMessaging.instance.unsubscribeFromTopic('job-${j.jobId}');
+    } catch (_) {}
+    try {
+      await NotificationService.showLocal(
+        ok ? 'Conversion finished' : 'Conversion failed',
+        ok ? '${j.title} is ready to download.' : '${j.title} failed — open Jobs to retry.',
+      );
+    } catch (_) {}
+  }
+
+  /// Call right after creating/uploading: subscribes this device to the
+  /// job's FCM topic so the server's done/failed push finds it even with
+  /// the Jobs screen closed. Safe to call repeatedly (idempotent).
+  static Future<void> trackJob(String jobId) async {
+    try {
+      await FirebaseMessaging.instance.subscribeToTopic('job-$jobId');
+    } catch (_) {}
   }
 
   Future<void> refresh() => _load();

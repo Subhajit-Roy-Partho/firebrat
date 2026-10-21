@@ -38,11 +38,23 @@ services:
       - "8000:8000"
     volumes:
       - firebrat-data:/data
+      # Local-LLM weights (host dir with the HF snapshot, or empty — the
+      # entrypoint auto-downloads LOCAL_MODEL_PRESET when empty).
+      - firebrat-models:/models
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
       - MODEL_API_KEY=${MODEL_API_KEY:-}
       - FIREBRAT_SPARK_MODEL=${FIREBRAT_SPARK_MODEL:-}
+      # Stage-2 provider: nanogpt (default, needs MODEL_API_KEY) or local
+      # (on-container GPU model; needs --gpus, picked automatically by run.sh).
+      - LLM_PROVIDER=${LLM_PROVIDER:-nanogpt}
+      - LOCAL_MODEL_PRESET=${LOCAL_MODEL_PRESET:-qwen3-4b}
+      - LOCAL_MODEL_DIR=${LOCAL_MODEL_DIR:-/models}
+      - LOCAL_MAX_SEQ_LEN=${LOCAL_MAX_SEQ_LEN:-16384}
+      - FIREBRAT_MAX_CONCURRENT_JOBS=${FIREBRAT_MAX_CONCURRENT_JOBS:-1}
+      - FIREBRAT_CHUNK_PAGES=${FIREBRAT_CHUNK_PAGES:-10}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
     deploy:
       resources:
         reservations:
@@ -74,3 +86,4 @@ services:
 
 volumes:
   firebrat-data:
+  firebrat-models:

@@ -25,6 +25,11 @@ class LibraryRepository {
       try {
         final m = await loadLocalManifest(id);
         final dir = await downloads.bookDir(id);
+        // A download cancelled mid-extraction can leave a manifest behind
+        // with missing section audio — opening it wedged the reader on an
+        // infinite loader. Treat it as not-downloaded (stays re-downloadable
+        // from the catalog) rather than openable.
+        if (!await _isComplete(dir, m)) continue;
         result.add(BookSummary(
           bookId: m.bookId,
           title: m.title,
@@ -43,8 +48,19 @@ class LibraryRepository {
     return result;
   }
 
-  Future<int> _dirSize(Directory dir) async {
-    int total = 0;
+  /// True when every section audio file the manifest points at is actually
+  /// on disk. Chapter-PDF books (and sections with no audio path) carry no
+  /// audio by design and always count as complete.
+  Future<bool> _isComplete(Directory dir, Manifest m) async {
+    if (m.isChapters) return true;
+    for (final s in m.sections) {
+      if (s.audioPath.isEmpty) continue;
+      if (!await File('${dir.path}/${s.audioPath}').exists()) return false;
+    }
+    return true;
+  }
+
+  Future<int> _dirSize(Directory dir) async {    int total = 0;
     if (!await dir.exists()) return 0;
     await for (final entity in dir.list(recursive: true, followLinks: false)) {
       if (entity is File) {

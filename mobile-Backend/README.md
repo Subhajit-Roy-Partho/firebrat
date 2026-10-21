@@ -53,8 +53,14 @@ tts/on_device_tts.dart               — flutter_tts per segment, assembled
  │                                      tts/caf_utils.dart (iOS, CAF)
  ▼
 pipeline/mobile_conversion_pipeline.dart  — orchestrates the above, writes
-                                             manifest.json + sections/*/
-                                             (docs/DATA_SCHEMA.md shape)
+                                              manifest.json + sections/*/
+                                              (docs/DATA_SCHEMA.md shape),
+                                              including `source.pdf` (a copy of
+                                              the input PDF) with manifest
+                                              `source_pdf_path` + per-section
+                                              `source_pages`, so the reader's
+                                              "View source page" works for
+                                              on-device conversions too
 ```
 
 ### Background execution + notifications
@@ -87,52 +93,36 @@ about it): background execution happens in short bursts (~30s roughly every
 app switcher. An iOS on-device conversion should be expected to need the
 app kept open (or at least not force-closed) to finish in reasonable time.
 
-## Known limitations (read before relying on this)
+## Offline conversion and current limits
 
-- **No figure/table extraction.** `figures`/`tables` in the produced
-  manifest are always empty. There's no mature, lightweight, Flutter-usable
-  layout-detection model today (see `PROPOSAL.md` §1a) — a future version
-  could add DocLayout-YOLO via ONNX Runtime, but that's real, separate
-  work, not wired up here. Math typeset as prose (this project's actual
-  common case) is unaffected — the compilation LLM still authors LaTeX
-  from text, same as the server pipeline.
-- **No OCR-rasterization wiring.** `extraction/ocr_fallback.dart`'s ML Kit
-  call is real and correct, but it needs a page-to-bitmap renderer (e.g.
-  `pdfx`, or platform PDF APIs) that isn't plugged in yet — scanned
-  (image-only) PDFs will produce near-empty pages rather than being OCR'd.
-  Born-digital PDFs with a real text layer (the common case) are unaffected.
-- **Fixed stock TTS voice, not a cloned narrator voice.** This uses the
-  platform's built-in TTS engine (`flutter_tts`), not chatterbox-tts's
-  voice-cloning-from-a-reference-clip. See `PROPOSAL.md` §1c for why:
-  on-device voice cloning isn't mature enough today to trust for this.
-- **iOS is unverified.** This whole package was written, and its Dart-only
-  logic tested (`flutter test` — 22/22 passing at the time of writing), in
-  a Linux sandbox with **no macOS/Xcode available at all** — not even a
-  static build could be attempted for the iOS side. The Android path
-  (`flutter analyze`, `flutter build apk` on the host app) is genuinely
-  verified to compile; the iOS-specific parts — CAF audio parsing
-  (`tts/caf_utils.dart`), and whatever CocoaPods/Xcode project changes the
-  `cactus`/`google_mlkit_text_recognition`/`syncfusion_flutter_pdf` native
-  iOS implementations need — have never been built. Treat iOS support as
-  "should work, same Dart code, not proven" until someone with a Mac
-  actually runs `pod install` + an Xcode build.
-- **On-device LLM inference itself is unverified at runtime**, on both
-  platforms — this sandbox has no `adb` (see `frontend/firebrat_app`'s
-  `AGENTS.md`) and no physical device, so `CactusLM`'s actual model
-  download/inference has never executed, only type-checked against the
-  real `cactus` package API.
-- **The background service is unverified at runtime, same reason.** The
-  isolate handoff (`conversion_request.dart`'s file-based approach),
-  whether the notification actually updates live, and whether the service
-  really survives backgrounding/task-removal on a real device — all
-  written directly against `flutter_foreground_task`'s documented API, none
-  of it executed. `flutter analyze`/`flutter build apk --debug` on the host
-  app confirm it compiles and links (including the native Android service
-  declared in `AndroidManifest.xml`); nothing more than that.
+Android conversion defaults to local processing. Cloud compilation is used only
+when the user explicitly enables the optional cloud helper. Download the selected
+model and an offline voice once before disconnecting. Novel mode preserves the
+text verbatim and does not need an LLM download.
 
-None of this is hidden inside the code — every one of these is called out
-at the specific file/class where it matters, so a reader hits the caveat
-right where the relevant decision was made, not just here.
+The Android plugin builds pinned llama.cpp libraries, including Vulkan when
+`glslc` is available on the build host. It supports 64-bit Android 9 or later.
+GPU availability does not guarantee that a model fits in memory: the Pixel 9a
+killed the initial 4B GPU run under memory pressure. CPU mode and smaller models
+remain useful alternatives. Device testing is in progress; build success alone
+is not evidence of a completed conversion.
+
+Original pages are rendered locally and synchronized by source page, preserving
+pictures and their layout. This is page-level visual support, not semantic figure
+cropping or the cloud pipeline's precise figure detection. Android ML Kit OCR
+is wired to the native page renderer for sparse text layers (Latin script).
+
+Novel mode scans the full extracted book for explicitly named dialogue tags,
+assigns a stable voice/style per detected character, and saves the roster.
+Ambiguous speech remains with the narrator; it does not infer every untagged
+speaker or promise literary character understanding. Only installed offline
+platform voices are selected; Kokoro can use separate bundled voice presets.
+Narration fails visibly if audio synthesis fails, rather than inserting silence.
+
+Completed compilation chunks are checkpointed. A retry with the same source,
+model, and settings reuses them. iOS native inference, page rendering, and
+background execution have not been verified. Local model quality and voice
+cloning do not yet match the server pipeline.
 
 ## Integrating into the Flutter app
 
@@ -166,3 +156,24 @@ flutter test        # pure-Dart logic: ids, routing heuristic, JSON
 flutter analyze      # type-checks the plugin-dependent code too (Cactus,
                       # ML Kit, Syncfusion, flutter_tts) without needing a device
 ```
+
+## Kokoro device result (Pixel 9a)
+
+Kokoro quantized ONNX CPU narration is now runtime-verified, including a cold
+restart with airplane mode enabled and Wi-Fi disabled. The two-page character
+fixture generated 28.716 s of non-silent 24 kHz audio in 29 s total pipeline time;
+the illustrated fixture generated 55.055 s in 75 s with three original page
+images and cached LLM compilation. First setup took 206 s including downloads.
+Six presets are exposed; Bella/Default/Nicole/Adam were exercised, not all six.
+See root README for conditions, footprint, waveform metrics and limits.
+
+## Novel voice casting
+
+Kokoro exposes four female and two male presets. Settings choose the narrator,
+preferred male/female character presets, and per-name voice overrides. The book
+is scanned before narration for explicit roles and narrow single-character
+he/she narration; conflicting or missing evidence uses the narrator. Names alone
+never cast a voice. Overrides win. Evidence is saved in character_roster.json.
+Automatic casting was device-verified offline with Sarah/Michael (32 s processing,
+32.491 s narration). All six presets have now been exercised across tests.
+This is an English heuristic; ambiguous/pronoun-only speakers are not resolved.

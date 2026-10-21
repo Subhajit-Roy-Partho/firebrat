@@ -46,6 +46,10 @@ Streams a zip of the entire package (manifest + all section audio + all assets).
 
 This is the only endpoint the Flutter app calls beyond `/books` and this download — once extracted locally, the reader never talks to the server again.
 
+## `GET /books/{book_id}/checksum`
+
+`{"book_id", "size_bytes", "sha256"}` for the exact bytes `/download` currently serves (same mtime-keyed cache, so both always agree). The app fetches this before downloading — a partial `.part` file resumes via `Range` against the right total — and verifies the completed file's sha256 before extracting, redownloading from scratch on mismatch. 404 if the book doesn't exist.
+
 ## `GET /books/{book_id}/assets/{path}`
 
 Serves one file from inside the package by its relative path (e.g. `assets/figures/fig_0001.png`, or `sections/sec_0001/audio.m4a`). Guards against path traversal — a `path` that resolves outside the book's directory 404s rather than serving anything. Exists for partial/lazy fetch of individual assets; the app's main flow uses the bulk `/download` zip instead.
@@ -56,7 +60,7 @@ Permanently deletes a converted book's package (audio, assets, manifest — ever
 
 ## `POST /books/upload`
 
-Upload a PDF for conversion. `multipart/form-data`: `file` (required, `.pdf` only, capped at `FIREBRAT_MAX_UPLOAD_MB` — default 500), `title` (optional, defaults to a title-cased version of the filename). Returns the newly-created job immediately (state `queued`); conversion runs in the background.
+Upload a PDF — or a `.zip` containing one or more PDFs (e.g. per-chapter files), which the server merges in sorted archive order into a single source PDF before converting. `multipart/form-data`: `file` (required, `.pdf`/`.zip` only, capped at `FIREBRAT_MAX_UPLOAD_MB` — default 500), `title` (optional, defaults to a title-cased version of the filename), `provider` (`nanogpt`|`local`, empty = server default from `/settings`), `chunk_pages` (0 = server default; smaller fits endpoints that kill long generations), `content_mode` (`illustrated` default or `novel`; invalid values return 422). Novel mode preserves extracted prose and uses book-wide explicit speaker tags with stable narrator styles; see [backend novel conversion](BACKEND_NOVELS.md). Job responses include `content_mode`, and retry/resume retain it. Requires sign-in. Returns the newly-created job immediately (state `queued`); conversion runs in the background — several jobs may convert at once, up to `FIREBRAT_MAX_CONCURRENT_JOBS` workers. A zip with no PDFs inside is rejected with 400; retry/resume work identically for zip-sourced jobs since the merge happens once at upload time.
 
 ```json
 {
@@ -96,6 +100,29 @@ Puts a stuck `queued`/`running` job back on the work queue, unchanged (no `--ret
 
 ## `GET /jobs/{job_id}/log?tail_lines=200`
 
+## `GET /settings` · `POST /settings`
+
+Server defaults + capabilities for external users. GET returns
+`default_provider`, `default_chunk_pages`, `local_model_preset` (+ its
+entry), the full `presets` table (repo + VRAM notes), `gpu` presence,
+`max_concurrent_jobs`, and the auth model. POST (sign-in required) saves
+`default_provider` / `default_chunk_pages` / `local_model_preset`
+(validated, unknown values fall back); the preset applies when the LLM
+shim (re)starts — restart the container or `llm_server.py` for new
+weights. Uploads that omit provider/chunk inherit these defaults.
+
+## `GET /firebase-config`
+
+Public Firebase web config (`apiKey`, `authDomain`, `projectId`) for the
+browser UI's Google sign-in. Public by design.
+
+## `GET /` (web control room)
+
+Dependency-free static UI (`backend/server/static/`): server health/GPU/
+workers, settings form, multi-PDF upload with per-book provider + chunk
+options, live job table with retry/resume, book shelf with download +
+delete. Same-origin fetch, Firebase compat SDK for sign-in; reads work
+anonymous, mutations send the ID token.
 The last N lines of that job's raw `convert.py` stdout/stderr, for debugging a failure beyond what `error` summarizes. `{"lines": ["...", "..."]}`.
 
 ## Error shape

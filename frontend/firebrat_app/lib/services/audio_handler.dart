@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
@@ -22,6 +23,17 @@ class FirebratAudioHandler extends BaseAudioHandler with SeekHandler {
 
   FirebratAudioHandler() {
     player.playbackEventStream.map(_transformEvent).pipe(playbackState);
+    _initAudioSession();
+  }
+
+  /// Requests speech-optimized audio focus so narration ducks/pauses
+  /// correctly against calls and other apps (just_audio best practice).
+  /// Fire-and-forget: playback must never fail if session setup does.
+  Future<void> _initAudioSession() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.speech());
+    } catch (_) {}
   }
 
   /// Replaces the media item shown in the notification / lock screen.

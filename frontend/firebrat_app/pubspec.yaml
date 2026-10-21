@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.1.0+2
+version: 1.5.11+22
 
 environment:
   sdk: ^3.11.1
@@ -40,17 +40,41 @@ dependencies:
   photo_view: ^0.15.0
   flutter_math_fork: ^0.7.4
   dio: ^5.11.0
-  path_provider: ^2.1.6
-  shared_preferences: ^2.5.3
-  file_picker: ^11.0.3
-  archive: ^4.0.7
-  audio_service: ^0.18.19
+  crypto: ^3.0.6
+  flutter_foreground_task: ^10.0.0
   mobile_backend_pipeline:
     path: ../../mobile-Backend
-  flutter_foreground_task: ^10.0.0
+  path_provider: ^2.1.6
+  shared_preferences: ^2.5.3
+  file_picker: ^12.0.0
+  archive: ^4.0.7
+  audio_service: ^0.18.19
+  syncfusion_flutter_pdfviewer: ^34.2.4
+  firebase_core: ^4.15.0
+  firebase_auth: ^6.7.0
+  google_sign_in: ^7.2.0
+  firebase_messaging: ^16.7.0
+  flutter_local_notifications: ^22.3.1
+  googleapis: ^17.0.0
+  cloud_firestore: ^6.10.0
+  firebase_analytics: ^12.6.0
+  http: ^1.6.0
+  audio_session: ^0.2.4
+
+# syncfusion_flutter_pdfviewer 34.x needs device_info_plus ^13 (which in
+# turn needs win32 ^6 on Windows). The win32 override below forces that;
+# re-check it if device_info_plus or the viewer is upgraded. (An older
+# package_info_plus 8.x / win32 ^5 chain, once pulled in by the long-removed
+# cactus dependency, broke compilation against win32 ^6 — cactus is gone,
+# so no conflict remains.)
+dependency_overrides:
+  device_info_plus: ^13.1.0
+  win32: ^6.0.1
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
@@ -105,3 +129,13 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# App icon generated from assets/icon/app_icon.png
+# (the firebrat-with-headphones art). Regenerate with:
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#1A0F0A"

@@ -83,6 +83,8 @@ class LLMOutput(BaseModel):
 
 # ── Stage 3 timed segments ────────────────────────────────────────
 class TimedSegment(BaseModel):
+    speaker_id: str = "narrator"
+    voice_style: dict = Field(default_factory=dict)
     segment_id: str
     index: int
     type: SegmentType
@@ -155,13 +157,22 @@ class ManifestSection(BaseModel):
     formula_refs: list[str] = Field(default_factory=list)
     table_refs: list[str] = Field(default_factory=list)
     needs_review: bool = False
+    # 0-based PDF page indices behind this section (from compiled.json's
+    # source_pages). Optional/additive — old packages simply have [].
+    source_pages: list[int] = Field(default_factory=list)
 
 class Manifest(BaseModel):
+    content_mode: Literal["illustrated", "novel"] = "illustrated"
+    character_roster: list[dict] = Field(default_factory=list)
     schema_version: str = "1.0"
     book_id: str
     title: str
     author: str = ""
     source_pdf: str
+    # Package-relative path to the embedded source PDF (e.g. "source.pdf"),
+    # or None when the package predates source-PDF embedding. Optional/
+    # additive — old packages omit it and keep working.
+    source_pdf_path: str | None = None
     generated_at: str  # ISO8601
     pipeline_version: str = "0.1.0"
     narrator_voice: ManifestNarratorVoice = Field(default_factory=ManifestNarratorVoice)

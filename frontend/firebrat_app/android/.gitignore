@@ -8,6 +8,9 @@ GeneratedPluginRegistrant.java
 .cxx/
 
 # Remember to never publicly share your keystore.
+# google-services.json carries this app's Firebase API key — CI injects it
+# from the GOOGLE_SERVICES_JSON secret (same pattern as the keystore).
+google-services.json
 # See https://flutter.dev/to/reference-keystore
 key.properties
 **/*.keystore

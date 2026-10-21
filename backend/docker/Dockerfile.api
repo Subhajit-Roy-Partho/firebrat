@@ -22,7 +22,7 @@ WORKDIR /app
 COPY backend/ /app/backend/
 
 RUN pip install --no-cache-dir \
-    fastapi "uvicorn[standard]" python-multipart pydantic requests pydub pytest httpx
+    fastapi "uvicorn[standard]" python-multipart pydantic requests pydub pypdf pytest httpx
 
 ENV FIREBRAT_OUTPUT_DIR=/data/output \
     FIREBRAT_UPLOAD_DIR=/data/uploads \

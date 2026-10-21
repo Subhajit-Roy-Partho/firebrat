@@ -48,3 +48,14 @@ frontend/firebrat_app/*.iml
 
 # Logs
 *.log
+secrets/
+
+# Local device test evidence and source-book fixtures
+/tmp/
+# Xcode per-user workspace state
+**/xcuserdata/
+# Generated Flutter iOS build configuration
+frontend/firebrat_app/ios/Flutter/Generated.xcconfig
+frontend/firebrat_app/ios/Flutter/flutter_export_environment.sh
+frontend/firebrat_app/ios/Flutter/Flutter.podspec
+frontend/firebrat_app/ios/Flutter/ephemeral/

@@ -75,6 +75,7 @@ class ManifestSection {
   final List<String> formulaRefs;
   final List<String> tableRefs;
   final bool needsReview;
+  final List<int> sourcePages; // 0-based PDF page indices, from compilation
 
   const ManifestSection({
     required this.sectionId,
@@ -87,6 +88,7 @@ class ManifestSection {
     required this.formulaRefs,
     required this.tableRefs,
     this.needsReview = false,
+    this.sourcePages = const [],
   });
 
   Map<String, dynamic> toJson() => {
@@ -101,6 +103,7 @@ class ManifestSection {
         'formula_refs': formulaRefs,
         'table_refs': tableRefs,
         'needs_review': needsReview,
+        'source_pages': sourcePages,
       };
 }
 
@@ -110,11 +113,13 @@ class Manifest {
   final String sourcePdf;
   final String generatedAt;
   final int totalDurationMs;
+  final int sampleRate;
   final List<ManifestSection> sections;
   final List<ManifestFigure> figures;
   final List<ManifestFormula> formulas;
   final List<ManifestTable> tables;
   final String narratorEngine; // "on_device_tts" for this pipeline's narration, distinguishing it from "chatterbox-tts"
+  final String? sourcePdfPath; // relative path of the shipped source PDF (e.g. "source.pdf"), null for old packages
 
   const Manifest({
     required this.bookId,
@@ -122,11 +127,13 @@ class Manifest {
     required this.sourcePdf,
     required this.generatedAt,
     required this.totalDurationMs,
+    this.sampleRate = 22050,
     required this.sections,
     required this.figures,
     required this.formulas,
     required this.tables,
     required this.narratorEngine,
+    this.sourcePdfPath,
   });
 
   Map<String, dynamic> toJson() => {
@@ -139,17 +146,18 @@ class Manifest {
         'pipeline_version': 'mobile-0.1.0',
         'narrator_voice': {
           'engine': narratorEngine,
-          'model_class': 'DeviceTts',
-          'sample_rate': 22050,
+          'model_class': narratorEngine == 'kokoro_onnx' ? 'Kokoro82M' : 'DeviceTts',
+          'sample_rate': sampleRate,
         },
         'audio_format': {
           'codec': 'pcm_s16le',
           'container': 'wav',
-          'sample_rate': 22050,
+          'sample_rate': sampleRate,
           'channels': 1,
           'fallback_codec': null,
         },
         'total_duration_ms': totalDurationMs,
+        'source_pdf_path': sourcePdfPath,
         'sections': sections.map((s) => s.toJson()).toList(),
         'figures': figures.map((f) => f.toJson()).toList(),
         'formulas': formulas.map((f) => f.toJson()).toList(),

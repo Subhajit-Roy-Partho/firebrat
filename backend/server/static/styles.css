@@ -1,0 +1,14 @@
+:root { color-scheme: light dark; }
+body { font-family: system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 16px; }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; }
+#authbar { display: flex; gap: 8px; align-items: center; }
+section { margin-top: 28px; border-top: 1px solid #8884; padding-top: 12px; }
+form { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9em; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid #8884; padding: 6px 8px; text-align: left; }
+.book { border: 1px solid #8884; border-radius: 8px; padding: 10px; margin: 8px 0; }
+.book .row { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.muted { opacity: 0.7; font-size: 0.9em; }
+button { cursor: pointer; }
+#uploadmsg { margin-top: 8px; }

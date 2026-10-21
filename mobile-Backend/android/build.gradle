@@ -1,0 +1,39 @@
+group = 'com.firebrat.mobile_backend_pipeline'
+version = '1.0'
+buildscript {
+    ext.kotlin_version = '2.2.20'
+    repositories { google(); mavenCentral() }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.11.1'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+android {
+    namespace 'com.firebrat.mobile_backend_pipeline'
+    compileSdk 36
+    ndkVersion '27.0.12077973'
+    defaultConfig {
+        minSdk 28
+        ndk { abiFilters 'arm64-v8a', 'x86_64' }
+        externalNativeBuild {
+            cmake {
+                targets 'mtmd'
+                arguments '-DANDROID_STL=c++_shared'
+                // Optional device-specific build. Leave unset for portable APKs.
+                if (project.hasProperty('firebratArmArch')) {
+                    arguments "-DGGML_CPU_ARM_ARCH=${project.property('firebratArmArch')}"
+                }
+            }
+        }
+    }
+    externalNativeBuild {
+        cmake { path 'src/main/cpp/CMakeLists.txt'; version '3.22.1' }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+}

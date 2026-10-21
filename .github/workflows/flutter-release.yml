@@ -15,6 +15,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # softprops/action-gh-release creates the GitHub Release + uploads
+    # assets via GITHUB_TOKEN, which needs contents:write (this repo's
+    # workflow permissions default to read-only — without this the build
+    # succeeds but release creation 403s, as happened for v1.3.2).
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -30,6 +36,46 @@ jobs:
         working-directory: frontend/firebrat_app
         run: flutter pub get
 
+      # CI-only heap bump: the committed gradle.properties pins -Xmx1200m +
+      # daemon=false for the 6GB SLURM sandbox (see that file's header — that
+      # constraint is real locally, so the file itself stays small). CI
+      # runners have 16GB and release R8 minification over the heavy native
+      # libs (llama.cpp, ONNX Runtime, syncfusion viewer) OOMs at 1200m —
+      # raise to -Xmx6g here only.
+      - name: Raise Gradle heap for CI (release)
+        working-directory: frontend/firebrat_app
+        run: sed -i 's/-Xmx1200m/-Xmx6g/; s/MaxMetaspaceSize=512m/MaxMetaspaceSize=2g/' android/gradle.properties
+
+      # Every release APK must share ONE signature (repo secrets
+      # ANDROID_KEYSTORE_BASE64 / KEY_STORE_PASSWORD / KEY_ALIAS /
+      # KEY_PASSWORD hold the upload keystore — generated once, never in
+      # git). CI-only debug-signed builds each minted a fresh random key,
+      # so installing one release over another failed signature checks.
+      - name: Inject release keystore (CI only)
+        working-directory: frontend/firebrat_app
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/release.jks
+          cat > android/key.properties <<EOF
+          storeFile=app/release.jks
+          storePassword=$KEY_STORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      # google-services.json is gitignored (carries the Firebase API key);
+      # CI restores it from the GOOGLE_SERVICES_JSON secret — same pattern
+      # as the release keystore above. The build fails without it now that
+      # the google-services Gradle plugin is applied.
+      - name: Inject google-services.json (CI only)
+        working-directory: frontend/firebrat_app
+        run: echo "$GOOGLE_SERVICES_JSON" | base64 -d > android/app/google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+
       - name: Analyze
         working-directory: frontend/firebrat_app
         run: flutter analyze
@@ -41,12 +87,14 @@ jobs:
       - name: Build APK
         if: inputs.flavor == 'apk' || inputs.flavor == 'both' || github.event_name == 'push'
         working-directory: frontend/firebrat_app
-        run: flutter build apk --release
+        # Stamps the drawer About entry (widgets/app_drawer.dart reads
+        # FIREBRAT_APP_VERSION, defaulting to pubspec's version).
+        run: flutter build apk --release --dart-define=FIREBRAT_APP_VERSION=${GITHUB_REF_NAME#v}
 
       - name: Build App Bundle
         if: inputs.flavor == 'appbundle' || inputs.flavor == 'both'
         working-directory: frontend/firebrat_app
-        run: flutter build appbundle --release
+        run: flutter build appbundle --release --dart-define=FIREBRAT_APP_VERSION=${GITHUB_REF_NAME#v}
 
       - name: Upload APK
         if: always()

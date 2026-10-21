@@ -3,10 +3,14 @@ import json
 import logging
 import os
 import datetime
+import shutil
 
 from firebrat.config import PIPELINE_VERSION, SCHEMA_VERSION, SAMPLE_RATE, TTS_EXAGGERATION, TTS_CFG_WEIGHT
 
 log = logging.getLogger(__name__)
+
+#: Relative path of the shipped source PDF inside the package, when present.
+SOURCE_PDF_FILENAME = "source.pdf"
 
 
 def build_manifest(
@@ -15,11 +19,18 @@ def build_manifest(
     title: str,
     source_pdf: str,
     voice_ref: str | None = None,
+    source_pdf_path: str | None = None,
 ) -> str:
     """Assemble manifest.json inside package_dir.
 
     Reads raw/raw_pages.json + compiled.json + sections/*/segments.json to compute
     durations, refs, counts.
+
+    source_pdf_path: optional absolute path to the original input PDF. When
+    given and the file exists, it is copied to <package_dir>/source.pdf and
+    the manifest records ``source_pdf_path: "source.pdf"`` so readers can
+    offer a "view source page" feature. Old packages without the file keep
+    ``source_pdf_path: null`` and still validate (additive field).
 
     Returns path to written manifest.json.
     """
@@ -61,6 +72,9 @@ def build_manifest(
                 "page": t.get("page", p.get("page_idx", 0)),
             })
 
+    if compiled.get("content_mode") == "novel":
+        figures, tables = [], []
+
     # Formulas are LLM-authored (Stage 2), not Stage-1 extracted — this book typesets
     # math as plain inline text (e.g. "tCK = 1/f"), so there's no LaTeX to scrape from the PDF.
     for fo in compiled.get("formulas", []):
@@ -75,37 +89,17 @@ def build_manifest(
             "page": fo.get("page", 0),
         })
 
-    # Normalize compiled sections: ensure section_id + segment_ids present + deduplicate
-    from firebrat.utils.ids import make_section_id, make_segment_id
+    # Normalize compiled sections: ensure section_id + segment_ids present + deduplicate.
+    # Shared helper (also used by convert.py's Stage-3 prologue and tts_shard.py)
+    # so TTS output dirs and the manifest always agree — never mint here alone.
+    from firebrat.utils.ids import make_segment_id, normalize_section_ids
     sections_out: list[dict] = []
     total_duration = 0
     seen_sids: set[str] = set()
-    # For duplicates, mint from high range to avoid colliding with existing sequential ids
-    next_dup = 9001
-    for order, sec in enumerate(compiled.get("sections", [])):
-        raw_sid = sec.get("section_id")
-        if raw_sid and raw_sid not in seen_sids:
-            sid = raw_sid
-        else:
-            if raw_sid:
-                log.warning("Duplicate section_id %s at order %d — minting replacement", raw_sid, order + 1)
-                # Mint a high-numbered id that is guaranteed free
-                while make_section_id(next_dup) in seen_sids:
-                    next_dup += 1
-                sid = make_section_id(next_dup)
-                next_dup += 1
-            else:
-                sid = make_section_id(order + 1)
-                # Ensure not already seen (gap due to earlier duplicate mint)
-                while sid in seen_sids:
-                    sid = make_section_id(next_dup)
-                    next_dup += 1
-            # Retarget segment_ids that were derived from the old sid
-            if raw_sid and raw_sid != sid:
-                for s in sec.get("segments", []):
-                    old_seg = s.get("segment_id", "")
-                    if old_seg.startswith(raw_sid):
-                        s["segment_id"] = old_seg.replace(raw_sid, sid, 1)
+    for order, sec in enumerate(normalize_section_ids(compiled.get("sections", []))):
+        sid = sec["section_id"]
+        if sid in seen_sids:
+            log.warning("Duplicate section_id %s at order %d after normalization", sid, order + 1)
         seen_sids.add(sid)
         sec["section_id"] = sid
         # Load timing if assembly already ran
@@ -165,8 +159,34 @@ def build_manifest(
             "formula_refs": formula_refs,
             "table_refs": table_refs,
             "needs_review": needs_review_flag,
+            "source_pages": list(sec.get("source_pages") or []),
         })
         total_duration += duration
+
+    # Ship the original PDF inside the package so readers can show the
+    # source page a section was narrated from. A source.pdf at the package
+    # root needs zero route changes: GET /books/{id}/assets/{path} serves
+    # any file under the package dir via resolve_asset(), and
+    # GET /books/{id}/download zips the whole package dir (os.walk over
+    # everything) — both verified in server/storage.py + routes/books.py.
+    # package.py's .tar.gz likewise walks the whole dir with no excludes.
+    shipped_source_pdf: str | None = None
+    if source_pdf_path and os.path.isfile(source_pdf_path):
+        try:
+            dest = os.path.join(package_dir, SOURCE_PDF_FILENAME)
+            if not os.path.isfile(dest) or (
+                    os.path.realpath(source_pdf_path) != os.path.realpath(dest)
+                    and os.path.getsize(dest) != os.path.getsize(source_pdf_path)):
+                shutil.copyfile(source_pdf_path, dest)
+                log.info("Copied source PDF into package: %s", dest)
+            shipped_source_pdf = SOURCE_PDF_FILENAME
+        except OSError as e:
+            log.warning("Could not copy source PDF %s into package (non-fatal): %s",
+                        source_pdf_path, e)
+    elif os.path.isfile(os.path.join(package_dir, SOURCE_PDF_FILENAME)):
+        # Rebuild (e.g. --retry-failed manifest refresh) without the param:
+        # keep referencing the already-embedded file instead of wiping it.
+        shipped_source_pdf = SOURCE_PDF_FILENAME
 
     # Resolve calm female defaults if voice file exists but not explicitly passed
     _eff_voice_for_manifest = voice_ref
@@ -176,10 +196,15 @@ def build_manifest(
             _eff_voice_for_manifest = _DVR
     manifest = {
         "schema_version": SCHEMA_VERSION,
+        "content_mode": compiled.get("content_mode", "illustrated"),
+        "character_roster": compiled.get("character_roster", []),
         "book_id": book_id,
         "title": title or book_id,
         "author": "",
         "source_pdf": source_pdf or book_id,
+        # "source.pdf" once embedded (convert.py passes the input path, or
+        # the backfill script copied it directly); None for older packages.
+        "source_pdf_path": shipped_source_pdf,
         "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
         "pipeline_version": PIPELINE_VERSION,
         "narrator_voice": {

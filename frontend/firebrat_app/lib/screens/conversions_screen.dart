@@ -8,7 +8,8 @@ import '../state/on_device_conversion_providers.dart';
 import '../state/on_device_pipeline_run_provider.dart';
 import 'conversion_settings_screen.dart';
 
-/// Upload a PDF for conversion, and watch every job — queued, converting,
+/// Upload a PDF (or a ZIP of PDFs, merged server-side) for conversion,
+/// and watch every job — queued, converting,
 /// done, or failed — with live stage/progress and a retry action for
 /// anything that needs another pass. This is the whole "manage the
 /// conversion pipeline from the app" surface; the library screen only ever
@@ -18,11 +19,12 @@ class ConversionsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final jobsAsync = ref.watch(jobsProvider);
     final uploadProgress = ref.watch(uploadProgressProvider);
     final conversionMode = ref.watch(conversionModeProvider);
     final onDeviceRun = ref.watch(onDeviceRunProvider);
     final busy = uploadProgress != null || (onDeviceRun != null && !onDeviceRun.done);
+    final isOnDevice = conversionMode.mode == ConversionModePref.onDevice;
+    final isOffline = conversionMode.mode == ConversionModePref.offline;
 
     return Scaffold(
       appBar: AppBar(
@@ -30,7 +32,7 @@ class ConversionsScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Conversion settings (cloud vs on-device)',
+            tooltip: 'Conversion settings',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const ConversionSettingsScreen()),
             ),
@@ -41,43 +43,24 @@ class ConversionsScreen extends ConsumerWidget {
         children: [
           if (onDeviceRun != null && !onDeviceRun.done) _OnDeviceRunBanner(state: onDeviceRun),
           if (onDeviceRun?.error != null) _OnDeviceErrorBanner(message: onDeviceRun!.error!),
+          // Server job queue is meaningless in on-device mode (nothing is
+          // uploaded anywhere) — polling it here is what made the screen
+          // "still look for the server". On-device runs surface above.
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: () => ref.read(jobsProvider.notifier).refresh(),
-              child: jobsAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (err, _) => _ErrorView(message: 'Could not reach the server.\n$err'),
-                data: (jobs) {
-                  if (jobs.isEmpty) {
-                    return LayoutBuilder(
-                      builder: (context, _) => ListView(
-                        children: const [
-                          SizedBox(height: 120),
-                          Center(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 24),
-                              child: Text(
-                                'No conversions yet. Tap "Upload a PDF" to convert a book.',
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                  return ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
-                    itemCount: jobs.length,
-                    itemBuilder: (context, i) => _JobCard(job: jobs[i]),
-                  );
-                },
-              ),
-            ),
+            child: isOffline
+                ? const Center(child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('Offline mode: import finished book files from your library. '
+                        'Choose Server or On-device in settings to convert new books.',
+                        textAlign: TextAlign.center),
+                  ))
+                : isOnDevice
+                ? const _OnDeviceJobsPlaceholder()
+                : const _ServerJobsList(),
           ),
         ],
       ),
-      floatingActionButton: busy
+      floatingActionButton: isOffline ? null : busy
           ? FloatingActionButton.extended(
               onPressed: null,
               icon: SizedBox(
@@ -93,27 +76,38 @@ class ConversionsScreen extends ConsumerWidget {
           : FloatingActionButton.extended(
               onPressed: () => _pickAndConvert(context, ref, conversionMode.mode),
               icon: const Icon(Icons.upload_file_rounded),
-              label: Text(conversionMode.mode == ConversionModePref.onDevice ? 'Convert a PDF' : 'Upload a PDF'),
+              label: const Text('Convert a PDF or ZIP'),
             ),
     );
   }
 
   Future<void> _pickAndConvert(BuildContext context, WidgetRef ref, ConversionModePref mode) async {
-    final result = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf'], withData: false);
-    final path = result?.files.single.path;
-    if (path == null) return; // user cancelled
+    if (mode == ConversionModePref.offline) return;
+    // file_picker 12 returns the picked files directly (empty = cancelled).
+    // Both modes accept a .zip of chapter PDFs: cloud uploads merge
+    // server-side, on-device unzips locally and merges at the text layer.
+    final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'zip']);
+    if (files.isEmpty) return; // user cancelled
+    final path = files.single.path;
+    if (path == null) return;
 
     if (!context.mounted) return;
     if (mode == ConversionModePref.onDevice) {
       await _convertOnDevice(context, ref, path);
     } else {
-      await _uploadPdf(context, ref, path);
+      await _uploadFile(context, ref, path);
     }
   }
 
   Future<void> _convertOnDevice(BuildContext context, WidgetRef ref, String path) async {
     try {
-      await runOnDeviceConversion(ref, path);
+      if (path.toLowerCase().endsWith('.zip')) {
+        final chapters = await unpackZipChapters(path);
+        final zipStem = path.split('/').last.replaceAll(RegExp(r'\.zip$', caseSensitive: false), '');
+        await runOnDeviceConversion(ref, chapters, titleOverride: zipStem);
+      } else {
+        await runOnDeviceConversion(ref, [path]);
+      }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Converted — check your library.')));
       }
@@ -124,12 +118,17 @@ class ConversionsScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _uploadPdf(BuildContext context, WidgetRef ref, String path) async {
+  Future<void> _uploadFile(BuildContext context, WidgetRef ref, String path) async {
     final progressNotifier = ref.read(uploadProgressProvider.notifier);
     progressNotifier.set(0.0);
     try {
       final api = ref.read(apiClientProvider);
-      await api.uploadBook(path, onProgress: progressNotifier.set);
+      final job = await api.uploadBook(path,
+        contentMode: ref.read(conversionModeProvider).contentMode,
+        onProgress: progressNotifier.set);
+      // Follow this job's FCM topic so the server's done/failed push finds
+      // the device even with this screen closed.
+      await JobsNotifier.trackJob(job.jobId);
       await ref.read(jobsProvider.notifier).refresh();
     } catch (e) {
       if (context.mounted) {
@@ -141,8 +140,76 @@ class ConversionsScreen extends ConsumerWidget {
   }
 }
 
-class _OnDeviceRunBanner extends StatelessWidget {
-  final OnDeviceRunState state;
+/// Shown instead of the server queue when conversion mode is on-device:
+/// there is no server involved, so polling GET /jobs would only produce a
+/// connection error. On-device runs surface as banners above.
+class _OnDeviceJobsPlaceholder extends StatelessWidget {
+  const _OnDeviceJobsPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      children: const [
+        SizedBox(height: 120),
+        Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              'On-device mode: conversions run on this phone and finished '
+              'books appear in your library.\n\nTap "Convert a PDF or ZIP" to start one — a ZIP of chapter PDFs is merged automatically.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The server job queue — only ever built in cloud mode, so it never fires
+/// a request (or shows an error) when the user converts on-device.
+class _ServerJobsList extends ConsumerWidget {
+  const _ServerJobsList();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final jobsAsync = ref.watch(jobsProvider);
+    return RefreshIndicator(
+      onRefresh: () => ref.read(jobsProvider.notifier).refresh(),
+      child: jobsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, _) => _ErrorView(message: 'Could not reach the server.\n$err'),
+        data: (jobs) {
+          if (jobs.isEmpty) {
+            return LayoutBuilder(
+              builder: (context, _) => ListView(
+                children: const [
+                  SizedBox(height: 120),
+                  Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 24),
+                      child: Text(
+                        'No conversions yet. Tap "Convert a PDF or ZIP" to convert a book.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+            itemCount: jobs.length,
+            itemBuilder: (context, i) => _JobCard(job: jobs[i]),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _OnDeviceRunBanner extends StatelessWidget {  final OnDeviceRunState state;
   const _OnDeviceRunBanner({required this.state});
 
   @override
@@ -299,6 +366,7 @@ class _JobCard extends ConsumerWidget {
   Future<void> _retry(BuildContext context, WidgetRef ref) async {
     try {
       await ref.read(apiClientProvider).retryJob(job.jobId);
+      await JobsNotifier.trackJob(job.jobId);
       await ref.read(jobsProvider.notifier).refresh();
     } catch (e) {
       if (context.mounted) {
@@ -310,6 +378,7 @@ class _JobCard extends ConsumerWidget {
   Future<void> _resume(BuildContext context, WidgetRef ref) async {
     try {
       await ref.read(apiClientProvider).resumeJob(job.jobId);
+      await JobsNotifier.trackJob(job.jobId);
       await ref.read(jobsProvider.notifier).refresh();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Put back on the queue.')));

@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:archive/archive.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart' show ServiceRequestFailure;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart';
+import 'package:path_provider/path_provider.dart';
 import 'library_providers.dart';
 import 'on_device_conversion_providers.dart';
 
@@ -37,7 +40,16 @@ final onDeviceRunProvider = NotifierProvider<OnDeviceRunNotifier, OnDeviceRunSta
 /// the finished book shows up without a manual refresh — the same
 /// convention `state/conversions_providers.dart`'s `JobsNotifier` uses for
 /// cloud jobs finishing.
-Future<String> runOnDeviceConversion(WidgetRef ref, String pdfPath) async {
+///
+/// [pdfPaths] is one PDF, or a zipped book's chapters in reading order
+/// (see [unpackZipChapters]) — the pipeline merges them at the text layer,
+/// so no on-device PDF merge library is needed (none mature exists for
+/// pure-Dart; the pipeline only ever reads the text layer anyway).
+Future<String> runOnDeviceConversion(WidgetRef ref, List<String> pdfPaths,
+    {String? titleOverride}) async {
+  if (pdfPaths.isEmpty) {
+    throw ArgumentError('runOnDeviceConversion needs at least one PDF');
+  }
   final settings = ref.read(conversionModeProvider);
   if (!settings.isOnDeviceConfigured) {
     throw StateError('On-device LLM url/api key/model are not configured — see Conversion settings.');
@@ -75,11 +87,26 @@ Future<String> runOnDeviceConversion(WidgetRef ref, String pdfPath) async {
   BackgroundConversionRunner.addProgressListener(listener);
 
   final request = ConversionRequest(
-    pdfPath: pdfPath,
+    pdfPath: pdfPaths.first,
+    pdfPaths: pdfPaths.length > 1 ? pdfPaths : null,
     booksRootDir: booksDir.path,
+    titleOverride: titleOverride,
+    // Stable app-storage dir (not temp) so multi-GB GGUF/ONNX weights
+    // survive across conversions — see MobileConversionPipeline.convert.
+    modelsDir: '${(await getApplicationSupportDirectory()).path}/firebrat_models',
+    contentMode: settings.contentMode,
+    allowCloudFallback: settings.allowCloudFallback,
     llmBaseUrl: settings.onDeviceLlmUrl,
     llmApiKey: settings.onDeviceLlmApiKey,
     llmModel: settings.onDeviceLlmModel,
+    // Local model / voice choices from "On-device models & voice" —
+    // previously hardcoded defaults, which is why the catalog and Kokoro
+    // existed in the pipeline but were unreachable from the app.
+    onDeviceLlmModelId: settings.onDeviceLlmModelId,
+    onDeviceGpuLayers: settings.onDeviceGpuLayers,
+    voiceEngine: settings.voiceEngine,
+    kokoroVoice: settings.kokoroVoice,
+        maleVoice: settings.maleVoice, femaleVoice: settings.femaleVoice, characterVoices: settings.characterVoices,
   );
   final result = await BackgroundConversionRunner.start(request);
   if (result is ServiceRequestFailure) {
@@ -90,4 +117,45 @@ Future<String> runOnDeviceConversion(WidgetRef ref, String pdfPath) async {
   }
 
   return completer.future;
+}
+
+/// Unpacks a zipped book (one PDF per chapter) into a temp dir and returns
+/// the chapter PDFs sorted by archive path — the order the pipeline merges
+/// them in. Throws [StateError] when the zip holds no PDFs. Temp files
+/// live under the system temp dir; the pipeline copies what it needs into
+/// the book package, so leftovers are harmless (OS-managed temp).
+Future<List<String>> unpackZipChapters(String zipPath) async {
+  final bytes = await File(zipPath).readAsBytes();
+  late final Archive archive;
+  try {
+    archive = ZipDecoder().decodeBytes(bytes);
+  } catch (_) {
+    throw StateError('Could not read "$zipPath" as a .zip file.');
+  }
+  final pdfNames = archive.files
+      .where((f) => f.isFile && f.name.toLowerCase().endsWith('.pdf'))
+      .map((f) => f.name)
+      .toList()
+    ..sort();
+  if (pdfNames.isEmpty) {
+    throw StateError('Zip contains no .pdf files — add at least one chapter PDF.');
+  }
+  final dir = await Directory(
+          '${(await getTemporaryDirectory()).path}/firebrat_chapters_${DateTime.now().millisecondsSinceEpoch}')
+      .create(recursive: true);
+  final out = <String>[];
+  for (final name in pdfNames) {
+    final file = archive.files.firstWhere((f) => f.name == name);
+    // Flatten subfolders; disambiguate repeat basenames (ch1/a.pdf, ch2/a.pdf).
+    var target = '${dir.path}/${name.split('/').last}';
+    var k = 2;
+    while (await File(target).exists()) {
+      final base = name.split('/').last.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '');
+      target = '${dir.path}/$base-$k.pdf';
+      k++;
+    }
+    await File(target).writeAsBytes(file.content as List<int>);
+    out.add(target);
+  }
+  return out;
 }

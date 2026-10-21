@@ -4,6 +4,8 @@ import '../services/api_client.dart';
 import '../services/download_manager.dart';
 import '../services/import_manager.dart';
 import '../services/library_repository.dart';
+import '../services/firestore_sync_service.dart';
+import '../utils/server_url.dart';
 import 'on_device_conversion_providers.dart';
 
 /// Compile-time fallback only — override at build time with
@@ -22,7 +24,10 @@ const _defaultApiBaseUrl = String.fromEnvironment(
 /// there takes effect app-wide immediately.
 final apiClientProvider = Provider<ApiClient>((ref) {
   final savedUrl = ref.watch(conversionModeProvider).cloudServerUrl.trim();
-  return ApiClient(baseUrl: savedUrl.isNotEmpty ? savedUrl : _defaultApiBaseUrl);
+  // Defensive: values saved before URL normalization existed may lack a
+  // scheme/port — normalizing here keeps them working without a re-save.
+  final baseUrl = savedUrl.isNotEmpty ? normalizeServerUrl(savedUrl) : _defaultApiBaseUrl;
+  return ApiClient(baseUrl: baseUrl);
 });
 
 final downloadManagerProvider =
@@ -35,11 +40,18 @@ final libraryRepositoryProvider = Provider<LibraryRepository>(
   (ref) => LibraryRepository(ref.watch(apiClientProvider), ref.watch(downloadManagerProvider)),
 );
 
+final firestoreSyncServiceProvider = Provider<FirestoreSyncService>(
+  (ref) => FirestoreSyncService.instance,
+);
+
 /// The remote catalog. Errors (server unreachable, no server at all) are
 /// expected and normal here — the library screen treats a failed catalog
 /// fetch as "no books available to download," not a hard error, since
 /// locally-imported books are a fully independent path.
 final catalogProvider = FutureProvider<List<BookSummary>>((ref) async {
+  if (ref.watch(conversionModeProvider).mode != ConversionModePref.cloud) {
+    return const [];
+  }
   final repo = ref.watch(libraryRepositoryProvider);
   return repo.fetchCatalog();
 });
@@ -56,12 +68,28 @@ void invalidateLibrary(WidgetRef ref) {
   ref.invalidate(catalogProvider);
 }
 
-/// Tracks in-progress download percentage per book_id (0.0-1.0), absent = not downloading.
-class DownloadProgressNotifier extends Notifier<Map<String, double>> {
+/// Tracks in-progress downloads per book_id (absent = not downloading).
+/// Values are already monotonic per book (DownloadManager emits throttled,
+/// never-backward snapshots); this layer additionally clamps and drops
+/// stale/duplicate emissions so a rebuild storm can never jitter the UI.
+class DownloadProgressNotifier extends Notifier<Map<String, DownloadProgress>> {
   @override
-  Map<String, double> build() => {};
+  Map<String, DownloadProgress> build() => {};
 
-  void setProgress(String bookId, double p) {
+  DateTime _lastEmit = DateTime.fromMillisecondsSinceEpoch(0);
+
+  void setProgress(String bookId, DownloadProgress p) {
+    final prev = state[bookId];
+    if (prev != null && p.fraction < prev.fraction) return; // never backward
+    final now = DateTime.now();
+    final done = p.fraction >= 1.0;
+    if (!done &&
+        prev != null &&
+        (p.fraction - prev.fraction) < 0.002 &&
+        now.difference(_lastEmit).inMilliseconds < 250) {
+      return; // throttle: at most ~4 rebuilds/sec for sub-0.2% moves
+    }
+    _lastEmit = now;
     state = {...state, bookId: p};
   }
 
@@ -71,15 +99,26 @@ class DownloadProgressNotifier extends Notifier<Map<String, double>> {
   }
 }
 
-final downloadProgressProvider =
-    NotifierProvider<DownloadProgressNotifier, Map<String, double>>(DownloadProgressNotifier.new);
+final downloadProgressProvider = NotifierProvider<DownloadProgressNotifier,
+    Map<String, DownloadProgress>>(DownloadProgressNotifier.new);
 
-/// True while a local-file import is being extracted.
-class ImportInProgressNotifier extends Notifier<bool> {
+/// Cover image path per downloaded book (null = no cover shipped).
+/// File check per card; cheap local stat calls, auto-disposed.
+final bookCoverProvider =
+    FutureProvider.family<String?, String>((ref, bookId) async {
+  final dm = ref.watch(downloadManagerProvider);
+  return dm.coverPath(bookId);
+});
+
+/// Import progress for a local-file import: null = idle, 0.0–1.0 while a
+/// .tar.gz streams to disk. (Zip imports don't report progress and stay at
+/// 0.0 indeterminate until done.) Non-null also means "import running",
+/// which disables the import button — replacing the old bool flag.
+class ImportProgressNotifier extends Notifier<double?> {
   @override
-  bool build() => false;
-  void set(bool v) => state = v;
+  double? build() => null;
+  void set(double? v) => state = v;
 }
 
-final importInProgressProvider =
-    NotifierProvider<ImportInProgressNotifier, bool>(ImportInProgressNotifier.new);
+final importProgressProvider =
+    NotifierProvider<ImportProgressNotifier, double?>(ImportProgressNotifier.new);

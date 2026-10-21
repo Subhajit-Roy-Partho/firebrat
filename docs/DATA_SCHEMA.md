@@ -38,6 +38,7 @@ Source of truth: `backend/firebrat/pipeline/schema.py` (pydantic models). This d
     "sample_rate": 24000, "channels": 1, "fallback_codec": "mp3"
   },
   "total_duration_ms": 26496000,
+  "source_pdf_path": "source.pdf",
   "sections": [
     {
       "section_id": "sec_0001",
@@ -50,7 +51,8 @@ Source of truth: `backend/firebrat/pipeline/schema.py` (pydantic models). This d
       "figure_refs": ["fig_0001"],
       "formula_refs": ["formula_0001"],
       "table_refs": [],
-      "needs_review": false
+      "needs_review": false,
+      "source_pages": [45, 46]
     }
   ],
   "figures": [
@@ -73,6 +75,27 @@ Source of truth: `backend/firebrat/pipeline/schema.py` (pydantic models). This d
 ```
 
 All `*_path` fields are relative to the package root, and directly usable as `GET /books/{id}/assets/{path}` suffixes or as local file paths once the package is downloaded and extracted on-device.
+
+## Source PDF (`source_pdf_path` + `source_pages`)
+
+`schema_version` stays `1.0` — these fields are purely additive, and old
+packages without them still parse everywhere (backend pydantic models default
+them; the Flutter/mobile readers treat them as nullable/with-defaults):
+
+- Manifest-level `source_pdf_path: "source.pdf" | null` — relative path of
+  the original input PDF shipped at the package root (copied there by
+  `build_manifest` during conversion, or by
+  `backend/scripts/backfill_source_pdf.py` for older packages). `null` (or
+  absent) means the package predates this feature. No new route was needed:
+  `source.pdf` is served by the existing `GET /books/{id}/assets/source.pdf`
+  and included in the existing `GET /books/{id}/download` zip, both of which
+  operate over the whole package dir.
+- Per-section `source_pages: list[int]` (default `[]`) — 0-based PDF page
+  indices the section was narrated from, copied verbatim from Stage 2's
+  `compiled.json`. The reader opens the local `source.pdf` at
+  `source_pages[0] + 1` (the viewer is 1-based) and hides the "Source page"
+  button when the path is null, the file is missing locally, or the list is
+  empty.
 
 ## `sections/{id}/segments.json`
 
