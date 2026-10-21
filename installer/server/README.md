@@ -17,7 +17,7 @@ are optional; speech is always synthesized on this computer with Chatterbox.**
 3. Click **Install dependencies**, then **Start server**. Initial setup and model
    downloads need internet and substantial disk space (allow 20–40 GB). The
    first conversion downloads the PDF extraction and Chatterbox voice weights.
-   Keep internet available until that first conversion completes.
+   Keep internet available until that first conversion completes. Public model downloads use resumable HTTPS; the launcher disables the optional Xet downloader after it stalled during first-use validation.
 4. Choose a PDF and **Illustrated** or **Novel**, then Convert. The local setup
    page does not require a Firebase account. It sends the selected PDF only to
    this computer. Local mode sends compilation requests to loopback Ollama;

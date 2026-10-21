@@ -192,6 +192,7 @@ class Controller:
         elif getattr(sys, "frozen", False): env.pop("LD_LIBRARY_PATH", None)
         env.update(UV_CACHE_DIR=str(self.root / "cache/uv"), UV_PYTHON_INSTALL_DIR=str(self.root / "python"),
                    PYTHONPATH=str(self.source), HF_HOME=str(self.root / "models"),
+                   HF_HUB_DISABLE_XET="1", HF_HUB_DOWNLOAD_TIMEOUT="60", HF_HUB_ETAG_TIMEOUT="30",
                    FIREBRAT_EXTRACT_PY=self.python("extract"), FIREBRAT_CONVERT_PY=self.python("extract"),
                    FIREBRAT_TTS_PY=self.python("tts"), FIREBRAT_DESKTOP_TOKEN=self.server_token,
                    FIREBRAT_LOCAL_LLM_URL="http://127.0.0.1:11434/v1", FIREBRAT_OUTPUT_DIR=str(self.root / "books"),
