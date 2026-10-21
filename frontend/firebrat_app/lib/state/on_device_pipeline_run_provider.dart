@@ -94,6 +94,8 @@ Future<String> runOnDeviceConversion(WidgetRef ref, List<String> pdfPaths,
     // Stable app-storage dir (not temp) so multi-GB GGUF/ONNX weights
     // survive across conversions — see MobileConversionPipeline.convert.
     modelsDir: '${(await getApplicationSupportDirectory()).path}/firebrat_models',
+    contentMode: settings.contentMode,
+    allowCloudFallback: settings.allowCloudFallback,
     llmBaseUrl: settings.onDeviceLlmUrl,
     llmApiKey: settings.onDeviceLlmApiKey,
     llmModel: settings.onDeviceLlmModel,
@@ -104,6 +106,7 @@ Future<String> runOnDeviceConversion(WidgetRef ref, List<String> pdfPaths,
     onDeviceGpuLayers: settings.onDeviceGpuLayers,
     voiceEngine: settings.voiceEngine,
     kokoroVoice: settings.kokoroVoice,
+        maleVoice: settings.maleVoice, femaleVoice: settings.femaleVoice, characterVoices: settings.characterVoices,
   );
   final result = await BackgroundConversionRunner.start(request);
   if (result is ServiceRequestFailure) {

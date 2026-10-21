@@ -123,7 +123,9 @@ class ConversionsScreen extends ConsumerWidget {
     progressNotifier.set(0.0);
     try {
       final api = ref.read(apiClientProvider);
-      final job = await api.uploadBook(path, onProgress: progressNotifier.set);
+      final job = await api.uploadBook(path,
+        contentMode: ref.read(conversionModeProvider).contentMode,
+        onProgress: progressNotifier.set);
       // Follow this job's FCM topic so the server's done/failed push finds
       // the device even with this screen closed.
       await JobsNotifier.trackJob(job.jobId);

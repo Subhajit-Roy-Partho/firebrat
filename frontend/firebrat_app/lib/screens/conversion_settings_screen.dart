@@ -66,6 +66,7 @@ class _ConversionSettingsScreenState
   }
 
   Future<void> _refreshDriveStatus() async {
+    if (ref.read(conversionModeProvider).mode != ConversionModePref.cloud) return;
     final enabled = await DriveSyncService.instance.isEnabled();
     String status;
     if (!enabled) {
@@ -127,27 +128,36 @@ class _ConversionSettingsScreenState
               'Cloud server converts with datacenter GPUs (fast, needs the server online). '
               'On this device converts with your phone (private, slower, needs the models below).'),
           const SizedBox(height: 8),
-          SegmentedButton<ConversionModePref>(
-            segments: const [
-              ButtonSegment(
-                  value: ConversionModePref.offline,
-                  label: Text('Offline'),
-                  icon: Icon(Icons.offline_pin_outlined)),
-              ButtonSegment(
-                  value: ConversionModePref.cloud,
-                  label: Text('Server'),
-                  icon: Icon(Icons.cloud_outlined)),
-              ButtonSegment(
-                  value: ConversionModePref.onDevice,
-                  label: Text('On-device'),
-                  icon: Icon(Icons.phone_android_outlined)),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final option in const [
+                (ConversionModePref.offline, 'Offline', Icons.offline_pin_outlined),
+                (ConversionModePref.cloud, 'Server', Icons.cloud_outlined),
+                (ConversionModePref.onDevice, 'On-device', Icons.phone_android_outlined),
+              ])
+                ChoiceChip(
+                  avatar: Icon(option.$3, size: 18),
+                  label: Text(option.$2),
+                  selected: settings.mode == option.$1,
+                  onSelected: (_) => notifier.setMode(option.$1),
+                ),
             ],
-            selected: {settings.mode},
-            onSelectionChanged: (s) => notifier.setMode(s.first),
           ),
           const SizedBox(height: 24),
+          if (settings.mode != ConversionModePref.offline) ...[
+            _SectionTitle('2 · Book type'),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              ChoiceChip(label: const Text('Illustrated / technical'), selected: settings.contentMode == 'illustrated', onSelected: (_) => notifier.setContentMode('illustrated')),
+              ChoiceChip(label: const Text('Novel / characters'), selected: settings.contentMode == 'novel', onSelected: (_) => notifier.setContentMode('novel')),
+            ]),
+            if (settings.contentMode == 'novel')
+              const _HelpText('Scans the whole book for explicitly named speakers, keeps the original prose, and assigns consistent character speaking styles. Uncertain speakers use the narrator. English named speech tags are supported; character aliases and pronouns are not inferred.'),
+            const SizedBox(height: 16),
+          ],
           if (isCloud) ...[
-            _SectionTitle('2 · Get finished books from where?'),
+            _SectionTitle('3 · Get finished books from where?'),
             const _HelpText(
                 'Custom server reads the shelf at the URL below. Google Drive keeps your books '
                 'in your own Drive (your quota, works across devices) — downloads back up there automatically.'),
@@ -196,7 +206,16 @@ class _ConversionSettingsScreenState
               keyboardType: TextInputType.url,
             ),
           ] else if (settings.mode == ConversionModePref.onDevice) ...[
-            _SectionTitle('2 · Cloud helper for hard chunks'),
+            _SectionTitle('Fully local conversion'),
+            const _HelpText('All passages are processed on this phone. Download the model and an offline voice once; no account, API key, or server is required after setup. Original page visuals preserve pictures and table layout alongside narration; precise figure cropping is not yet supported.'),
+            SwitchListTile(
+              title: const Text('Allow cloud helper'),
+              subtitle: const Text('Optional: send difficult passages to your configured provider. Off keeps all conversion local.'),
+              value: settings.allowCloudFallback,
+              onChanged: notifier.setAllowCloudFallback,
+            ),
+            if (settings.allowCloudFallback) ...[
+            _SectionTitle('Cloud helper for hard chunks'),
             const _HelpText(
                 'Easy chunks run on the local model below. Chunks with equations, figures, or tables '
                 'still need one cloud LLM call each — any OpenAI-compatible endpoint (nano-gpt, OpenAI, …).'),
@@ -232,6 +251,7 @@ class _ConversionSettingsScreenState
               ),
             ),
             const SizedBox(height: 24),
+            ],
             _SectionTitle('3 · Local LLM (fully offline)'),
             const _HelpText(
                 'Weights download straight from Hugging Face. Leaving this screen never stops a download — '
@@ -405,7 +425,8 @@ class _DriveStatusRow extends StatelessWidget {
               child: LinearProgressIndicator(),
             ),
             const SizedBox(height: 4),
-            Row(
+            Wrap(
+              spacing: 8,
               children: [
                 TextButton(
                   onPressed: busy ? null : onToggle,
@@ -467,10 +488,12 @@ class _LocalModelPickerState extends ConsumerState<_LocalModelPicker> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DropdownButtonFormField<String>(
+          isExpanded: true,
           initialValue: selected.id,
           decoration: const InputDecoration(
             labelText: 'Model',
             helperText: 'Smaller = less RAM, weaker math. Bigger = slower download, better narration.',
+            helperMaxLines: 5,
             border: OutlineInputBorder(),
           ),
           items: [
@@ -540,8 +563,8 @@ class _LocalModelPickerState extends ConsumerState<_LocalModelPicker> {
         const SizedBox(height: 12),
         Text('Device acceleration', style: Theme.of(context).textTheme.titleSmall),
         const Text(
-          'Transformer layers offloaded to the GPU. 99 pushes everything that fits (fastest); '
-          '0 forces pure CPU if the GPU driver misbehaves (slow but safe).',
+          'Transformer layers offloaded to the GPU. 99 requests all layers and uses more memory; '
+          '0 uses CPU. Use CPU if conversion stalls or Android closes the app.',
           style: TextStyle(fontSize: 12),
         ),
         Row(
@@ -587,37 +610,79 @@ class _VoicePicker extends StatelessWidget {
             children: [
               RadioListTile<String>(
                 title: const Text('System voice'),
-                subtitle: const Text('Your phone\u2019s built-in voice. Zero downloads, instant start.'),
+                subtitle: const Text('Uses an installed offline English voice. Download one in Android speech settings if needed.'),
                 value: 'stockTts',
               ),
               RadioListTile<String>(
                 title: const Text('Kokoro (on-device neural)'),
-                subtitle: const Text('Natural neural voice, fully offline. Voice data (~300 MB) downloads on first use.'),
+                subtitle: const Text('Natural neural voice, fully offline. Voice data (~110 MB) downloads on first use.'),
                 value: 'kokoroOnnx',
               ),
             ],
           ),
         ),
-        if (settings.isKokoroVoice)
+        if (settings.isKokoroVoice) ...[
           DropdownButtonFormField<String>(
+          isExpanded: true,
             initialValue: kKokoroVoices.contains(settings.kokoroVoice)
                 ? settings.kokoroVoice
                 : kKokoroVoices.first,
             decoration: const InputDecoration(
               labelText: 'Kokoro voice',
-              helperText: '50 presets — names hint at character, all speak the same text.',
+              helperText: 'Narrator: four female presets and two male presets. Novel characters use the choices below.',
+              helperMaxLines: 5,
               border: OutlineInputBorder(),
             ),
             items: [
-              for (final v in kKokoroVoices) DropdownMenuItem(value: v, child: Text(v)),
+              for (final v in kKokoroVoices) DropdownMenuItem(value: v, child: Text('$v · ${kKokoroMaleVoices.contains(v) ? 'Male' : 'Female'}')),
             ],
             onChanged: (v) {
               if (v != null) notifier.setKokoroVoice(v);
             },
           ),
+          if (settings.contentMode == 'novel') ...[
+            const SizedBox(height: 12),
+            const _HelpText('Automatic casting uses he/she evidence in the book, never names alone. Conflicting or missing evidence keeps the narrator. Override any named character below; voice casting does not establish a person’s gender.'),
+            for (final male in [true, false]) ...[
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                key: ValueKey(male ? 'male-character-voice' : 'female-character-voice'),
+                initialValue: male ? settings.maleVoice : settings.femaleVoice,
+                decoration: InputDecoration(labelText: male ? 'Male character voice' : 'Female character voice', border: const OutlineInputBorder()),
+                items: [for (final v in male ? kKokoroMaleVoices : kKokoroFemaleVoices)
+                  DropdownMenuItem(value: v, child: Text(v))],
+                onChanged: (v) => notifier.setCharacterVoiceDefaults(male: male ? v : null, female: male ? null : v),
+              ),
+            ],
+            const SizedBox(height: 12),
+            TextFormField(
+              key: const ValueKey('character-voice-overrides'),
+              initialValue: settings.characterVoices.entries.map((e) => '${e.key}=${e.value}').join('\n'),
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Character voice overrides', hintText: 'Alice=Sarah\nBob=Michael', helperText: 'One exact character name=voice per line. Available: Default, Bella, Nicole, Sarah, Adam, Michael.', helperMaxLines: 5, border: OutlineInputBorder()),
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              validator: (value) => _parseVoiceOverrides(value ?? '') == null ? 'Use Name=Voice with an available preset.' : null,
+              onChanged: (value) {
+                final overrides = _parseVoiceOverrides(value);
+                if (overrides != null) notifier.setCharacterVoiceDefaults(overrides: overrides);
+              },
+            ),
+          ],
+        ],
       ],
     );
   }
+}
+
+Map<String, String>? _parseVoiceOverrides(String value) {
+  final result = <String, String>{};
+  for (final line in value.split('\n').where((line) => line.trim().isNotEmpty)) {
+    final parts = line.split('=');
+    if (parts.length != 2 || parts[0].trim().isEmpty || !kKokoroVoices.contains(parts[1].trim())) return null;
+    result[parts[0].trim()] = parts[1].trim();
+  }
+  return result;
 }
 
 class _ServerBooksSection extends ConsumerWidget {
@@ -633,8 +698,7 @@ class _ServerBooksSection extends ConsumerWidget {
       children: [
         Row(
           children: [
-            Text('Server library', style: Theme.of(context).textTheme.titleMedium),
-            const Spacer(),
+            Expanded(child: Text('Server library', style: Theme.of(context).textTheme.titleMedium)),
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
               tooltip: 'Re-check connection',
@@ -659,7 +723,7 @@ class _ServerBooksSection extends ConsumerWidget {
             children: [
               const Icon(Icons.check_circle_rounded, color: Colors.green, size: 18),
               const SizedBox(width: 8),
-              Text('Connected — ${state.books.length} book${state.books.length == 1 ? '' : 's'} on the server'),
+              Expanded(child: Text('Connected — ${state.books.length} book${state.books.length == 1 ? '' : 's'} on the server')),
             ],
           ),
           if (state.error != null)

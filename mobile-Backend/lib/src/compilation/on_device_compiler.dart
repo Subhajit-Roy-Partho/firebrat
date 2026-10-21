@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:isolate';
 import 'package:llama_cpp_dart/llama_cpp_dart.dart';
 import '../models/compiled_models.dart';
 import '../models/raw_page.dart';
@@ -12,7 +14,7 @@ typedef ModelDownloadProgress = void Function(double? progress, String status);
 /// dedicated formatter in `llama_cpp_dart` (Llama 3's and Phi's chat
 /// templates aren't among the package's built-in `ChatMLFormat` /
 /// `GemmaFormat` / `AlpacaFormat` / harmony formatters).
-String _formatPrompt(PromptFormatKind kind, String systemPrompt, String userMessage) {
+String formatOnDevicePrompt(PromptFormatKind kind, String systemPrompt, String userMessage) {
   switch (kind) {
     case PromptFormatKind.chatml:
       return ChatMLFormat().formatMessages([
@@ -20,10 +22,9 @@ String _formatPrompt(PromptFormatKind kind, String systemPrompt, String userMess
         {'role': 'user', 'content': userMessage},
       ]);
     case PromptFormatKind.gemma:
-      return GemmaFormat().formatMessages([
-        {'role': 'system', 'content': systemPrompt},
-        {'role': 'user', 'content': userMessage},
-      ]);
+      // Gemma 1-3 have no system role: prepend instructions to the same
+      // initial user turn instead of emitting consecutive user turns.
+      return GemmaFormat().formatPrompt('$systemPrompt\n\n$userMessage');
     case PromptFormatKind.llama3:
       return '<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n'
           '$systemPrompt<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n'
@@ -33,99 +34,168 @@ String _formatPrompt(PromptFormatKind kind, String systemPrompt, String userMess
   }
 }
 
-/// Runs a Hugging Face GGUF model locally via `llama_cpp_dart` for the
-/// "easy" chunk tier (prose-only, no equation hints — see `routing.dart`).
-///
-/// Replaces an earlier Cactus-based implementation: Cactus turned out not
-/// to run GGUF at all (a closed proprietary tensor format resolved through
-/// Cactus's own hosted catalog, capped at 1.7B/1.16GB on the free tier —
-/// see `model_catalog.dart`'s doc comment), so it couldn't satisfy
-/// "download real weights from Hugging Face, pick from multiple models."
-/// `llama_cpp_dart` compiles real llama.cpp from source via NDK/CMake at
-/// Android build time (see the package's `android/build.gradle`), so any
-/// GGUF file works, not just a fixed catalog.
-///
-/// Model weights are never bundled into the app — [ensureReady] downloads
-/// the selected [OnDeviceLlmModel]'s GGUF file directly from Hugging Face
-/// into [modelsDir] the first time it's needed (see `model_downloader.dart`),
-/// then loads it from disk on every subsequent run.
-///
-/// [gpuLayers] is the hardware-acceleration knob: llama.cpp offloads this
-/// many transformer layers to the GPU via its own Vulkan/OpenCL backend
-/// (compiled in by `llama_cpp_dart`'s native build). `99` (the package's
-/// own default) offloads everything that fits; `0` forces pure-CPU
-/// inference. There's no reliable way to probe "does this phone's GPU
-/// driver actually support this" ahead of time from Dart, so this is a
-/// user-facing setting with a safe-looking default rather than an
-/// auto-detected one — see `mobile-Backend/README.md` for the fallback
-/// advice if a device's GPU driver doesn't cooperate.
-///
-/// **Not runtime-verified**: compiles and links against the real
-/// `llama_cpp_dart` API (types/signatures read directly from the
-/// installed package source and its own example), and the native library
-/// builds successfully via NDK/CMake, but actually running inference needs
-/// a physical device/emulator this sandbox cannot provide (no `adb`, no
-/// emulator). Treat this class as reviewed, not proven — same caveat this
-/// package already carried for the Cactus code it replaces.
+/// Runs downloaded GGUF weights through the Android plugin's pinned llama.cpp.
+/// Call from the conversion service isolate: model loading and token evaluation
+/// use synchronous native calls. Models and voices must be downloaded before
+/// disconnecting. GPU offload depends on driver support and available memory;
+/// setting [gpuLayers] to zero selects CPU inference.
 class OnDeviceCompiler {
   final OnDeviceLlmModel model;
   final int gpuLayers;
   final ModelDownloader _downloader = ModelDownloader();
-  Llama? _llama;
+  Isolate? _worker;
+  ReceivePort? _replies;
+  SendPort? _commands;
+  ModelDownloadProgress? _progress;
+  final Map<int, Completer<Object?>> _pending = {};
+  int _nextRequest = 0;
+  Map<String, dynamic> lastGenerationStats = {};
+  String lastRawResponse = '';
 
-  OnDeviceCompiler({OnDeviceLlmModel? model, this.gpuLayers = 99}) : model = model ?? findOnDeviceLlmModel(null);
+  Future<Object?> _request(Map<String, Object?> message) {
+    final id = _nextRequest++;
+    final result = Completer<Object?>();
+    _pending[id] = result;
+    _commands!.send({...message, 'id': id});
+    return result.future;
+  }
+
+  OnDeviceCompiler({OnDeviceLlmModel? model, this.gpuLayers = 0}) : model = model ?? findOnDeviceLlmModel(null);
 
   Future<void> ensureReady({
     required String modelsDir,
     ModelDownloadProgress? onProgress,
   }) async {
-    if (_llama != null) return;
-    final path = await _downloader.ensureDownloaded(
-      model,
-      modelsDir,
-      onProgress: onProgress,
-    );
-    onProgress?.call(null, 'loading ${model.displayName} into memory');
-    _llama = Llama(
-      path,
-      modelParams: ModelParams()..nGpuLayers = gpuLayers,
-      contextParams: ContextParams()
-        ..nCtx = 4096
-        ..nPredict = 3000,
-      verbose: false,
-    );
+    if (_worker != null) return;
+    _progress = onProgress;
+    final path = await _downloader.ensureDownloaded(model, modelsDir, onProgress: onProgress);
+    final ready = Completer<SendPort>();
+    final replies = _replies = ReceivePort();
+    replies.listen((dynamic message) {
+      if (message is SendPort) {
+        ready.complete(message);
+      } else if (message == null || message is List) {
+        final error = OnDeviceCompilerException('Local model worker stopped: $message');
+        if (!ready.isCompleted) ready.completeError(error);
+        for (final result in _pending.values) {
+          if (!result.isCompleted) result.completeError(error);
+        }
+        _pending.clear();
+        _commands = null;
+      } else if (message is Map && message.containsKey('progress')) {
+        _progress?.call(null, message['progress'] as String);
+      } else if (message is Map) {
+        final pending = _pending.remove(message['id']);
+        if (message['error'] != null) {
+          pending?.completeError(OnDeviceCompilerException(message['error'].toString()));
+        } else {
+          pending?.complete(message['result']);
+        }
+      }
+    });
+    _worker = await Isolate.spawn(_llamaWorker, replies.sendPort,
+        onError: replies.sendPort, onExit: replies.sendPort);
+    _commands = await ready.future;
+    await _request({'command': 'load', 'path': path, 'gpuLayers': gpuLayers});
   }
 
   Future<CompiledChunkOutput> compileChunk(
     PageChunk chunk, {
     required int Function() nextFormulaNumber,
   }) async {
-    final llama = _llama;
-    if (llama == null) {
-      throw StateError('OnDeviceCompiler.ensureReady() must succeed before compileChunk()');
-    }
+    if (_commands == null) throw StateError('Load a local model before compiling');
     final userMessage = buildUserMessage(
       chunk.chunkIdx,
       chunk.pages.map((p) => (pageIdx: p.pageIdx, text: p.text)).toList(),
     );
-    final prompt = _formatPrompt(model.promptFormat, buildSystemPrompt(), userMessage);
+    final prompt = formatOnDevicePrompt(model.promptFormat, buildSystemPrompt(),
+        model.id.startsWith('qwen3-') ? '$userMessage\n/no_think' : userMessage);
 
-    // Each chunk is an independent request — no multi-turn memory wanted
-    // between chunks — so the context is cleared before every prompt
-    // rather than accumulating turns the way the package's own chat-demo
-    // example does.
-    llama.clear();
-    llama.setPrompt(prompt);
-    final response = await llama.generateCompleteText(maxTokens: 3000);
+    final result = Map<String, dynamic>.from(await _request({
+      'command': 'generate', 'prompt': prompt, 'chunk': chunk.chunkIdx + 1}) as Map);
+    final response = result.remove('text') as String;
+    lastGenerationStats = result;
+    lastRawResponse = response;
     if (response.trim().isEmpty) {
       throw OnDeviceCompilerException('on-device generation returned empty output for chunk ${chunk.chunkIdx}');
     }
     return parseCompiledChunkResponse(response, nextFormulaNumber: nextFormulaNumber);
   }
 
-  void dispose() {
-    _llama?.dispose();
-    _llama = null;
+  Future<void> dispose() async {
+    if (_commands != null) {
+      try { await _request({'command': 'dispose'}); } catch (_) {}
+    }
+    _worker?.kill(priority: Isolate.immediate);
+    _worker = null;
+    _commands = null;
+    _replies?.close();
+    for (final pending in _pending.values) {
+      if (!pending.isCompleted) pending.completeError(StateError('Local compiler disposed'));
+    }
+    _pending.clear();
+  }
+}
+
+// Flutter foreground engines can share Android's platform thread. Keep all
+// blocking native model work in a real Dart worker isolate, with no plugins.
+void _llamaWorker(SendPort replies) async {
+  final commands = ReceivePort();
+  replies.send(commands.sendPort);
+  Llama? llama;
+  await for (final dynamic message in commands) {
+    final request = message as Map;
+    try {
+      if (request['command'] == 'load') {
+        replies.send({'progress': 'loading model in background worker'});
+        Llama.lib.ggml_backend_load_all();
+        final devices = Llama.lib.ggml_backend_dev_count();
+        replies.send({'progress': 'native backends: $devices device(s)'});
+        llama = Llama(request['path'] as String,
+          modelParams: ModelParams()..nGpuLayers = request['gpuLayers'] as int,
+          contextParams: ContextParams()
+            ..nCtx = 4096 ..nBatch = 1536 ..nUbatch = 128
+            ..nThreads = 4 ..nThreadsBatch = 4 ..nPredict = 2400,
+          samplerParams: SamplerParams()..temp = 0.2..seed = 42,
+          verbose: false);
+        replies.send({'result': true, 'id': request['id']});
+      } else if (request['command'] == 'dispose') {
+        llama?.dispose();
+        llama = null;
+        replies.send({'result': true, 'id': request['id']});
+      } else if (request['command'] == 'generate') {
+        final engine = llama!;
+        engine.clear();
+        replies.send({'progress': 'chunk ${request['chunk']}: reading source text'});
+        final watch = Stopwatch()..start();
+        engine.setPrompt(request['prompt'] as String);
+        final output = StringBuffer();
+        var tokens = 0;
+        int? firstTokenMs;
+        var contextLimit = false;
+        var hitTokenLimit = false;
+        while (true) {
+          final (piece, done, limit) = engine.getNextWithStatus();
+          contextLimit = limit;
+          if (done || limit) break;
+          firstTokenMs ??= watch.elapsedMilliseconds;
+          output.write(piece);
+          tokens++;
+          if (tokens == 1 || tokens % 32 == 0) {
+            replies.send({'progress': 'chunk ${request['chunk']}: generated $tokens tokens'});
+            await Future<void>.delayed(Duration.zero);
+          }
+          if (tokens >= 2400) { hitTokenLimit = true; break; }
+        }
+        replies.send({'result': {'text': output.toString(),
+          'generated_tokens': tokens, 'first_token_ms': firstTokenMs,
+          'generation_ms': watch.elapsedMilliseconds,
+          'context_limit': contextLimit, 'token_limit': hitTokenLimit},
+          'id': request['id']});
+      }
+    } catch (error) {
+      replies.send({'error': error.toString(), 'id': request['id']});
+    }
   }
 }
 

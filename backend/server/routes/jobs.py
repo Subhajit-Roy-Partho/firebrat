@@ -34,6 +34,7 @@ def _job_view(job: dict) -> dict:
         # the subprocess died before ever writing a status.json at all.
         "error": status.get("error") or job["error"],
         "retry_count": job["retry_count"],
+        "content_mode": job.get("content_mode") or "illustrated",
         "provider": job.get("provider") or "nanogpt",
         "chunk_pages": job.get("chunk_pages") or 0,
         "created_at": job["created_at"],
@@ -47,8 +48,11 @@ async def upload_book(
     title: str | None = Form(None),
     provider: str = Form(""),
     chunk_pages: int = Form(0),
+    content_mode: str = Form("illustrated"),
     _user: dict = Depends(auth.require_user),
 ):
+    if content_mode not in ("illustrated", "novel"):
+        raise HTTPException(status_code=422, detail="content_mode must be illustrated or novel")
     lname = (file.filename or "").lower()
     is_pdf = lname.endswith(".pdf")
     is_zip = lname.endswith(".zip")
@@ -127,7 +131,7 @@ async def upload_book(
         except (TypeError, ValueError):
             eff_chunk = 0
     job_id = jobs.create_job(book_id=book_id, filename=file.filename, title=book_title, pdf_path=dest_path,
-                             provider=eff_provider, chunk_pages=eff_chunk)
+                             provider=eff_provider, chunk_pages=eff_chunk, content_mode=content_mode)
     job_runner.enqueue(job_id)
     return _job_view(jobs.get_job(job_id))
 

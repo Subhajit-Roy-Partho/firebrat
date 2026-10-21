@@ -83,6 +83,8 @@ class LLMOutput(BaseModel):
 
 # ── Stage 3 timed segments ────────────────────────────────────────
 class TimedSegment(BaseModel):
+    speaker_id: str = "narrator"
+    voice_style: dict = Field(default_factory=dict)
     segment_id: str
     index: int
     type: SegmentType
@@ -160,6 +162,8 @@ class ManifestSection(BaseModel):
     source_pages: list[int] = Field(default_factory=list)
 
 class Manifest(BaseModel):
+    content_mode: Literal["illustrated", "novel"] = "illustrated"
+    character_roster: list[dict] = Field(default_factory=list)
     schema_version: str = "1.0"
     book_id: str
     title: str

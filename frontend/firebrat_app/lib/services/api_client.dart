@@ -69,11 +69,13 @@ class ApiClient {
   Future<ConversionJob> uploadBook(
     String filePath, {
     String? title,
+    String contentMode = 'illustrated',
     void Function(double progress)? onProgress,
   }) async {
     final form = FormData.fromMap({
       'file': await MultipartFile.fromFile(filePath, filename: filePath.split('/').last),
       if (title != null && title.isNotEmpty) 'title': title,
+      'content_mode': contentMode,
     });
     final resp = await _dio.post(
       '/books/upload',

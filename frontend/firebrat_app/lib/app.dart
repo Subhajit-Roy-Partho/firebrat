@@ -22,7 +22,7 @@ class FirebratApp extends ConsumerWidget {
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,
       // Automatic screen-view tracking (screen names only, no content).
-      navigatorObservers: ref.watch(conversionModeProvider).mode == ConversionModePref.offline
+      navigatorObservers: ref.watch(conversionModeProvider).mode != ConversionModePref.cloud
           ? const [] : AnalyticsService.observerOrNull(),
       home: const AuthGate(),
     );
@@ -36,7 +36,7 @@ class AuthGate extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (ref.watch(conversionModeProvider).mode == ConversionModePref.offline) {
+    if (ref.watch(conversionModeProvider).mode != ConversionModePref.cloud) {
       return const LibraryScreen();
     }
     return StreamBuilder<User?>(

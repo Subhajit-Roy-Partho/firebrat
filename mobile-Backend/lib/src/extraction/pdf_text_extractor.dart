@@ -7,15 +7,10 @@ import '../models/raw_page.dart';
 /// server pipeline's Stage 1 that has a genuinely mature, lightweight
 /// on-device equivalent (see `mobile-Backend/PROPOSAL.md` §1a).
 ///
-/// **Known limitation (v1)**: this does not detect or extract figures,
-/// tables, or embedded images — the manifest this pipeline produces will
-/// always have empty `figures`/`tables` arrays. Full layout-aware
-/// extraction (distinguishing a figure region from body text, cropping its
-/// image) needs a model like DocLayout-YOLO with no mature Flutter plugin
-/// today — see the proposal's §1a for what that would take. Math typeset
-/// as prose (the common case for the sample book this project targets) is
-/// unaffected: the compilation LLM still authors LaTeX from the extracted
-/// text exactly as the server pipeline does.
+/// Layout-aware extraction retains word spacing from positioned PDF glyphs.
+/// Individual figures are not detected here; the pipeline preserves original
+/// page images separately. Formulas still depend on the quality of PDF text
+/// encoding and the local model's interpretation.
 class MobilePdfTextExtractor {
   /// Extracts every page's text. Pages with implausibly little text
   /// (below [minCharsPerPage]) are returned in [ExtractionResult.ocrCandidatePageIndices]
@@ -33,7 +28,12 @@ class MobilePdfTextExtractor {
       final ocrCandidates = <int>[];
       final extractor = sf.PdfTextExtractor(document);
       for (var i = 0; i < document.pages.count; i++) {
-        final text = extractor.extractText(startPageIndex: i, endPageIndex: i);
+        // Positioned text objects often omit literal space characters. The
+        // word boxes retain those boundaries even when extractText joins words.
+        final lines = extractor.extractTextLines(startPageIndex: i, endPageIndex: i);
+        final text = lines.map((line) => line.wordCollection.isEmpty
+            ? line.text
+            : line.wordCollection.map((word) => word.text).join(' ')).join('\n');
         final cleaned = _normalizeWhitespace(text);
         pages.add(RawPage(pageIdx: i, text: cleaned));
         if (cleaned.length < minCharsPerPage) ocrCandidates.add(i);
@@ -45,7 +45,7 @@ class MobilePdfTextExtractor {
   }
 
   static String _normalizeWhitespace(String s) =>
-      s.replaceAll(RegExp(r'[ \t]+'), ' ').replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
+      s.replaceAll('\r\n', '\n').replaceAll('\r', '\n').replaceAll(RegExp(r'[ \t]+'), ' ').replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
 }
 
 class ExtractionResult {

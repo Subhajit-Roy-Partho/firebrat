@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/server_url.dart';
@@ -17,6 +18,8 @@ class ConversionModeSettings {
   /// server above — downloads + shelf) or 'drive' (your own Google Drive;
   /// books back up there after downloading and other devices pull them).
   final String storageBackend;
+  final String contentMode;
+  final bool allowCloudFallback;
   final String onDeviceLlmUrl;
   final String onDeviceLlmApiKey;
   final String onDeviceLlmModel;
@@ -31,24 +34,34 @@ class ConversionModeSettings {
   final String voiceEngine;
   /// Kokoro preset voice name (kKokoroVoices), only used for kokoroOnnx.
   final String kokoroVoice;
+  final String maleVoice;
+  final String femaleVoice;
+  final Map<String, String> characterVoices;
 
   const ConversionModeSettings({
     this.mode = ConversionModePref.offline,
     this.cloudServerUrl = '',
     this.storageBackend = 'server',
+    this.contentMode = 'illustrated',
+    this.allowCloudFallback = false,
     this.onDeviceLlmUrl = '',
     this.onDeviceLlmApiKey = '',
     this.onDeviceLlmModel = '',
-    this.onDeviceLlmModelId = 'qwen3-4b',
-    this.onDeviceGpuLayers = 99,
+    this.onDeviceLlmModelId = 'qwen3-1.7b',
+    this.onDeviceGpuLayers = 0,
     this.voiceEngine = 'stockTts',
     this.kokoroVoice = 'Bella',
+    this.maleVoice = 'Adam',
+    this.femaleVoice = 'Sarah',
+    this.characterVoices = const {},
   });
 
   ConversionModeSettings copyWith({
     ConversionModePref? mode,
     String? cloudServerUrl,
     String? storageBackend,
+    String? contentMode,
+    bool? allowCloudFallback,
     String? onDeviceLlmUrl,
     String? onDeviceLlmApiKey,
     String? onDeviceLlmModel,
@@ -56,11 +69,14 @@ class ConversionModeSettings {
     int? onDeviceGpuLayers,
     String? voiceEngine,
     String? kokoroVoice,
+    String? maleVoice, String? femaleVoice, Map<String, String>? characterVoices,
   }) =>
       ConversionModeSettings(
         mode: mode ?? this.mode,
         cloudServerUrl: cloudServerUrl ?? this.cloudServerUrl,
         storageBackend: storageBackend ?? this.storageBackend,
+        contentMode: contentMode ?? this.contentMode,
+        allowCloudFallback: allowCloudFallback ?? this.allowCloudFallback,
         onDeviceLlmUrl: onDeviceLlmUrl ?? this.onDeviceLlmUrl,
         onDeviceLlmApiKey: onDeviceLlmApiKey ?? this.onDeviceLlmApiKey,
         onDeviceLlmModel: onDeviceLlmModel ?? this.onDeviceLlmModel,
@@ -68,10 +84,12 @@ class ConversionModeSettings {
         onDeviceGpuLayers: onDeviceGpuLayers ?? this.onDeviceGpuLayers,
         voiceEngine: voiceEngine ?? this.voiceEngine,
         kokoroVoice: kokoroVoice ?? this.kokoroVoice,
+        maleVoice: maleVoice ?? this.maleVoice, femaleVoice: femaleVoice ?? this.femaleVoice,
+        characterVoices: characterVoices ?? this.characterVoices,
       );
 
   bool get isOnDeviceConfigured =>
-      onDeviceLlmUrl.trim().isNotEmpty && onDeviceLlmApiKey.trim().isNotEmpty && onDeviceLlmModel.trim().isNotEmpty;
+      contentMode == 'novel' || !allowCloudFallback || (onDeviceLlmUrl.trim().isNotEmpty && onDeviceLlmApiKey.trim().isNotEmpty && onDeviceLlmModel.trim().isNotEmpty);
 
   bool get isKokoroVoice => voiceEngine == 'kokoroOnnx';
 }
@@ -104,14 +122,30 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
       },
       cloudServerUrl: prefs.getString(_kCloudUrl) ?? '',
       storageBackend: prefs.getString(_kStorage) ?? 'server',
+      contentMode: prefs.getString('conversion.contentMode') ?? 'illustrated',
+      allowCloudFallback: prefs.getBool('conversion.allowCloudFallback') ?? false,
       onDeviceLlmUrl: prefs.getString(_kLlmUrl) ?? '',
       onDeviceLlmApiKey: prefs.getString(_kLlmKey) ?? '',
       onDeviceLlmModel: prefs.getString(_kLlmModel) ?? '',
-      onDeviceLlmModelId: prefs.getString(_kLocalLlmId) ?? 'qwen3-4b',
-      onDeviceGpuLayers: prefs.getInt(_kGpuLayers) ?? 99,
+      onDeviceLlmModelId: prefs.getString(_kLocalLlmId) ?? 'qwen3-1.7b',
+      onDeviceGpuLayers: prefs.getInt(_kGpuLayers) ?? 0,
       voiceEngine: prefs.getString(_kVoiceEngine) ?? 'stockTts',
       kokoroVoice: prefs.getString(_kKokoroVoice) ?? 'Bella',
+      maleVoice: prefs.getString('conversion.maleVoice') ?? 'Adam',
+      femaleVoice: prefs.getString('conversion.femaleVoice') ?? 'Sarah',
+      characterVoices: Map<String, String>.from(jsonDecode(prefs.getString('conversion.characterVoices') ?? '{}') as Map),
     );
+  }
+
+  Future<void> setContentMode(String mode) async {
+    if (mode != 'illustrated' && mode != 'novel') throw ArgumentError.value(mode);
+    state = state.copyWith(contentMode: mode);
+    await (await SharedPreferences.getInstance()).setString('conversion.contentMode', mode);
+  }
+
+  Future<void> setAllowCloudFallback(bool enabled) async {
+    state = state.copyWith(allowCloudFallback: enabled);
+    await (await SharedPreferences.getInstance()).setBool('conversion.allowCloudFallback', enabled);
   }
 
   Future<void> setMode(ConversionModePref mode) async {
@@ -157,6 +191,14 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
     assert(engine == 'stockTts' || engine == 'kokoroOnnx');
     state = state.copyWith(voiceEngine: engine);
     (await SharedPreferences.getInstance()).setString(_kVoiceEngine, engine);
+  }
+
+  Future<void> setCharacterVoiceDefaults({String? male, String? female, Map<String, String>? overrides}) async {
+    state = state.copyWith(maleVoice: male, femaleVoice: female, characterVoices: overrides);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('conversion.maleVoice', state.maleVoice);
+    await prefs.setString('conversion.femaleVoice', state.femaleVoice);
+    await prefs.setString('conversion.characterVoices', jsonEncode(state.characterVoices));
   }
 
   Future<void> setKokoroVoice(String voice) async {

@@ -12,9 +12,11 @@ class BookCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onPauseDownload;
   final VoidCallback? onDiscardDownload;
+
   /// Long-press opens the card's action sheet (open/download, delete
   /// from device, delete from server). Null = no long-press actions.
   final VoidCallback? onLongPress;
+
   /// Absolute cover image path, or null for the generic icon. Resolved by
   /// the library screen via bookCoverProvider (packages may ship cover.*).
   final String? coverPath;
@@ -80,19 +82,34 @@ class BookCard extends StatelessWidget {
                     _fallbackIcon(scheme),
                   const Spacer(),
                   if (isDownloaded)
-                    Icon(Icons.check_circle_rounded, color: scheme.primary, size: 20)
+                    Icon(
+                      Icons.check_circle_rounded,
+                      color: scheme.primary,
+                      size: 20,
+                    )
                   else if (downloadProgress == null)
-                    Icon(Icons.download_rounded, color: scheme.onSurfaceVariant, size: 20),
+                    Icon(
+                      Icons.download_rounded,
+                      color: scheme.onSurfaceVariant,
+                      size: 20,
+                    ),
                 ],
               ),
               const SizedBox(height: 12),
-              Text(book.title, style: Theme.of(context).textTheme.titleMedium, maxLines: 2, overflow: TextOverflow.ellipsis),
+              Text(
+                book.title,
+                style: Theme.of(context).textTheme.titleMedium,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
               if (book.author.isNotEmpty) ...[
                 const SizedBox(height: 2),
-                Text(book.author,
-                    style: Theme.of(context).textTheme.bodySmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  book.author,
+                  style: Theme.of(context).textTheme.bodySmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
               const SizedBox(height: 10),
               if (downloadProgress != null) ...[
@@ -101,8 +118,8 @@ class BookCard extends StatelessWidget {
                 // Compact icon buttons (not labeled TextButtons): the card
                 // has a fixed grid height, and the labeled row overflowed
                 // it on narrow cards, pushing controls out of reach.
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
                   children: [
                     IconButton(
                       onPressed: onPauseDownload,
@@ -119,24 +136,17 @@ class BookCard extends StatelessWidget {
                   ],
                 ),
               ] else
-                Row(
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
                   children: [
-                    Icon(Icons.headphones_rounded, size: 16, color: scheme.onSurfaceVariant),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(_duration(),
-                          style: Theme.of(context).textTheme.bodySmall,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
+                    Text(
+                      _duration(),
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
-                    const SizedBox(width: 12),
-                    Icon(Icons.view_list_rounded, size: 16, color: scheme.onSurfaceVariant),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text('${book.sectionCount} sections',
-                          style: Theme.of(context).textTheme.bodySmall,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
+                    Text(
+                      '${book.sectionCount} sections',
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
                 ),

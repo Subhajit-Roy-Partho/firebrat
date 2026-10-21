@@ -17,6 +17,8 @@ class ConversionRequest {
   final String booksRootDir;
   final String modelsDir;
   final String? titleOverride;
+  final bool allowCloudFallback;
+  final String contentMode;
   final String llmBaseUrl;
   final String llmApiKey;
   final String llmModel;
@@ -24,6 +26,9 @@ class ConversionRequest {
   final int onDeviceGpuLayers;
   final String voiceEngine;
   final String kokoroVoice;
+  final String maleVoice;
+  final String femaleVoice;
+  final Map<String, String> characterVoices;
 
   const ConversionRequest({
     required this.pdfPath,
@@ -31,13 +36,18 @@ class ConversionRequest {
     required this.booksRootDir,
     required this.modelsDir,
     this.titleOverride,
+    this.allowCloudFallback = false,
+    this.contentMode = 'illustrated',
     required this.llmBaseUrl,
     required this.llmApiKey,
     required this.llmModel,
     this.onDeviceLlmModelId,
-    this.onDeviceGpuLayers = 99,
+    this.onDeviceGpuLayers = 0,
     this.voiceEngine = 'stockTts',
     this.kokoroVoice = 'Bella',
+    this.maleVoice = 'Adam',
+    this.femaleVoice = 'Sarah',
+    this.characterVoices = const {},
   });
 
   /// Every source PDF in chapter order — [pdfPaths] when set, else the
@@ -46,36 +56,46 @@ class ConversionRequest {
       (pdfPaths != null && pdfPaths!.isNotEmpty) ? pdfPaths! : [pdfPath];
 
   Map<String, dynamic> toJson() => {
-        'pdfPath': pdfPath,
-        'pdfPaths': pdfPaths,
-        'booksRootDir': booksRootDir,
-        'modelsDir': modelsDir,
-        'titleOverride': titleOverride,
-        'llmBaseUrl': llmBaseUrl,
-        'llmApiKey': llmApiKey,
-        'llmModel': llmModel,
-        'onDeviceLlmModelId': onDeviceLlmModelId,
-        'onDeviceGpuLayers': onDeviceGpuLayers,
-        'voiceEngine': voiceEngine,
-        'kokoroVoice': kokoroVoice,
-      };
+    'pdfPath': pdfPath,
+    'pdfPaths': pdfPaths,
+    'booksRootDir': booksRootDir,
+    'modelsDir': modelsDir,
+    'titleOverride': titleOverride,
+    'allowCloudFallback': allowCloudFallback,
+    'contentMode': contentMode,
+    'llmBaseUrl': llmBaseUrl,
+    'llmApiKey': llmApiKey,
+    'llmModel': llmModel,
+    'onDeviceLlmModelId': onDeviceLlmModelId,
+    'onDeviceGpuLayers': onDeviceGpuLayers,
+    'voiceEngine': voiceEngine,
+    'kokoroVoice': kokoroVoice,
+    'maleVoice': maleVoice, 'femaleVoice': femaleVoice, 'characterVoices': characterVoices,
+  };
 
-  factory ConversionRequest.fromJson(Map<String, dynamic> json) => ConversionRequest(
+  factory ConversionRequest.fromJson(Map<String, dynamic> json) =>
+      ConversionRequest(
         pdfPath: json['pdfPath'] as String,
         pdfPaths: (json['pdfPaths'] as List?)?.cast<String>(),
         booksRootDir: json['booksRootDir'] as String,
         modelsDir: json['modelsDir'] as String,
         titleOverride: json['titleOverride'] as String?,
+        allowCloudFallback: json['allowCloudFallback'] as bool? ?? false,
+        contentMode: json['contentMode'] as String? ?? 'illustrated',
         llmBaseUrl: json['llmBaseUrl'] as String,
         llmApiKey: json['llmApiKey'] as String,
         llmModel: json['llmModel'] as String,
         onDeviceLlmModelId: json['onDeviceLlmModelId'] as String?,
-        onDeviceGpuLayers: json['onDeviceGpuLayers'] as int? ?? 99,
+        onDeviceGpuLayers: json['onDeviceGpuLayers'] as int? ?? 0,
         voiceEngine: json['voiceEngine'] as String? ?? 'stockTts',
         kokoroVoice: json['kokoroVoice'] as String? ?? 'Bella',
+        maleVoice: json['maleVoice'] as String? ?? 'Adam',
+        femaleVoice: json['femaleVoice'] as String? ?? 'Sarah',
+        characterVoices: Map<String, String>.from(json['characterVoices'] as Map? ?? {}),
       );
 
-  static String _filePath(String stateDir) => '$stateDir/firebrat_pending_conversion.json';
+  static String _filePath(String stateDir) =>
+      '$stateDir/firebrat_pending_conversion.json';
 
   Future<void> writeTo(String stateDir) async {
     final file = File(_filePath(stateDir));

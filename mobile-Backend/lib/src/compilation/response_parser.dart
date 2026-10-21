@@ -75,7 +75,8 @@ CompiledChunkOutput parseCompiledChunkResponse(
 }
 
 String _stripCodeFences(String text) {
-  final trimmed = text.trim();
+  final trimmed = text.trim().replaceFirst(
+      RegExp(r'^<think>[\s\S]*?</think>\s*'), '');
   final fenceMatch = RegExp(r'^```(?:json)?\s*([\s\S]*?)\s*```$').firstMatch(trimmed);
   return fenceMatch != null ? fenceMatch.group(1)! : trimmed;
 }

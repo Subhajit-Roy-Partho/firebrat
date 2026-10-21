@@ -25,6 +25,25 @@ Future<void> _pumpCard(WidgetTester tester, BookCard card) async {
 }
 
 void main() {
+  testWidgets('narrow downloading card fits large text and cover', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(2)),
+        child: child!,
+      ),
+      home: Scaffold(body: SizedBox(width: 240, height: 390, child: BookCard(
+        book: _book(title: 'A very long title that needs both lines', author: 'An author'),
+        coverPath: '/nonexistent-cover.png',
+        isDownloaded: false,
+        downloadProgress: const DownloadProgress(fraction: .4, receivedBytes: 40, totalBytes: 100, phase: 'downloading'),
+        onTap: () {},
+      ))),
+    ));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.byTooltip('Cancel and clear download'), findsOneWidget);
+  });
+
   testWidgets('long titles stay inside the card', (tester) async {
     await _pumpCard(
       tester,

@@ -132,9 +132,14 @@ class LibraryScreen extends ConsumerWidget {
                   },
                   child: GridView.builder(
                     padding: const EdgeInsets.all(16),
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 320,
-                      mainAxisExtent: 208,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      // Keep cards readable on narrow phones, with room for
+                      // download actions and accessibility text scaling.
+                      crossAxisCount: ((MediaQuery.sizeOf(context).width - 32) / 254)
+                          .floor().clamp(1, 6),
+                      mainAxisExtent: 320 +
+                          (MediaQuery.textScalerOf(context).scale(130) - 130)
+                              .clamp(0, double.infinity),
                       crossAxisSpacing: 14,
                       mainAxisSpacing: 14,
                     ),
@@ -193,7 +198,7 @@ class LibraryScreen extends ConsumerWidget {
       } catch (_) {}
       // Cloud writes may stay pending indefinitely offline or when Firestore
       // is disabled. Local reading must never wait for metadata or analytics.
-      if (ref.read(conversionModeProvider).mode != ConversionModePref.offline) {
+      if (ref.read(conversionModeProvider).mode == ConversionModePref.cloud) {
         unawaited(ref.read(firestoreSyncServiceProvider).touchOpened(book.bookId));
         unawaited(AnalyticsService.instance.logBookOpened(sectionCount: book.sectionCount));
       }
@@ -412,7 +417,9 @@ class LibraryScreen extends ConsumerWidget {
   Future<void> _backupZipToDrive(WidgetRef ref, String bookId, String zipPath) async {
     try {
       final settings = ref.read(conversionModeProvider);
-      if (settings.mode == ConversionModePref.offline || settings.storageBackend != 'drive') return;
+      if (settings.mode != ConversionModePref.cloud || settings.storageBackend != 'drive') {
+        return;
+      }
       if (!await DriveSyncService.instance.isEnabled()) return;
       await DriveSyncService.instance.uploadBook(bookId: bookId, zipPath: zipPath);
       await FirestoreSyncService.instance.upsertBook(
@@ -432,7 +439,7 @@ class LibraryScreen extends ConsumerWidget {
       progress.set(0.0);
       final bookId = await importMgr.importFromFile(file, onProgress: progress.set);
       invalidateLibrary(ref);
-      if (ref.read(conversionModeProvider).mode != ConversionModePref.offline) {
+      if (ref.read(conversionModeProvider).mode == ConversionModePref.cloud) {
         unawaited(FirestoreSyncService.instance.upsertBook(
           bookId: bookId,
           title: bookId,

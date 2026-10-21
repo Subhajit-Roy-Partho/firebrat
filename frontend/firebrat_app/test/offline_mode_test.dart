@@ -40,6 +40,19 @@ void main() {
     expect((await SharedPreferences.getInstance()).getString('conversion.mode'), 'offline');
   });
 
+  test('novel mode needs no cloud configuration and persists', () async {
+    SharedPreferences.setMockInitialValues({});
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    container.read(conversionModeProvider);
+    await Future<void>.delayed(Duration.zero);
+    await container.read(conversionModeProvider.notifier).setContentMode('novel');
+    final settings = container.read(conversionModeProvider);
+    expect(settings.isOnDeviceConfigured, isTrue);
+    expect(settings.allowCloudFallback, isFalse);
+    expect((await SharedPreferences.getInstance()).getString('conversion.contentMode'), 'novel');
+  });
+
   for (final mode in ConversionModePref.values) {
     test('restores saved ${mode.name} mode', () async {
       SharedPreferences.setMockInitialValues({'conversion.mode': mode.name});

@@ -8,6 +8,14 @@ int Function() _counterFrom(int start) {
 }
 
 void main() {
+  test('strips a complete leading reasoning block before JSON', () {
+    final out = parseCompiledChunkResponse(
+      '<think>Do not narrate these notes.</think>\n```json\n{"sections":[]}\n```',
+      nextFormulaNumber: _counterFrom(1),
+    );
+    expect(out.sections, isEmpty);
+  });
+
   test('parses a well-formed response', () {
     final out = parseCompiledChunkResponse(
       '{"sections":[{"title":"Intro","source_pages":[0],"segments":['

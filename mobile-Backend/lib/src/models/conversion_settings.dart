@@ -25,7 +25,9 @@ class CloudModeSettings {
 /// `tts/narration_engine.dart`) — the platform's built-in stock voice
 /// (`OnDeviceTts`, no download, no cloning) or Kokoro-82M, a real neural
 /// voice model run on-device via ONNX Runtime (`KokoroTtsEngine`,
-/// ~90MB one-time download, 50 preset voices, still no cloning).
+/// one-time model download, six exposed preset voices, still no cloning).
+enum BookContentMode { illustrated, novel }
+
 enum OnDeviceVoiceEngine { stockTts, kokoroOnnx }
 
 /// On-device mode's one required piece of cloud configuration: an
@@ -35,8 +37,11 @@ enum OnDeviceVoiceEngine { stockTts, kokoroOnnx }
 /// nothing here is provider-specific.
 class OnDeviceModeSettings {
   /// e.g. https://nano-gpt.com/api/v1 or https://api.openai.com/v1
+  final bool allowCloudFallback;
+  final BookContentMode contentMode;
   final String llmBaseUrl;
   final String llmApiKey;
+
   /// e.g. "deepseek/deepseek-v4-pro:thinking" or "gpt-4.1"
   final String llmModel;
 
@@ -58,15 +63,23 @@ class OnDeviceModeSettings {
   /// Kokoro preset voice name (see `tts/kokoro_tts_engine.dart`'s
   /// `kKokoroVoices`), only used when [voiceEngine] is `kokoroOnnx`.
   final String kokoroVoice;
+  final String maleVoice;
+  final String femaleVoice;
+  final Map<String, String> characterVoices;
 
   const OnDeviceModeSettings({
-    required this.llmBaseUrl,
-    required this.llmApiKey,
-    required this.llmModel,
+    this.allowCloudFallback = false,
+    this.contentMode = BookContentMode.illustrated,
+    this.llmBaseUrl = '',
+    this.llmApiKey = '',
+    this.llmModel = '',
     this.onDeviceLlmModelId,
-    this.onDeviceGpuLayers = 99,
+    this.onDeviceGpuLayers = 0,
     this.voiceEngine = OnDeviceVoiceEngine.stockTts,
     this.kokoroVoice = 'Bella',
+    this.maleVoice = 'Adam',
+    this.femaleVoice = 'Sarah',
+    this.characterVoices = const {},
   });
 }
 
@@ -76,12 +89,12 @@ class ConversionSettings {
   final OnDeviceModeSettings? onDevice;
 
   const ConversionSettings.cloud(CloudModeSettings settings)
-      : mode = ConversionMode.cloud,
-        cloud = settings,
-        onDevice = null;
+    : mode = ConversionMode.cloud,
+      cloud = settings,
+      onDevice = null;
 
   const ConversionSettings.onDevice(OnDeviceModeSettings settings)
-      : mode = ConversionMode.onDevice,
-        cloud = null,
-        onDevice = settings;
+    : mode = ConversionMode.onDevice,
+      cloud = null,
+      onDevice = settings;
 }

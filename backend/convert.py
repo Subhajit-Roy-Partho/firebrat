@@ -16,6 +16,7 @@ import os
 import subprocess
 import sys
 import json
+import hashlib
 
 # Ensure backend/ is on path when run as `python backend/convert.py`
 _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -45,6 +46,8 @@ def parse_args():
                    help="Output directory (default: backend/output)")
     p.add_argument("--book-id", default=None, help="Override book id")
     p.add_argument("--title", default=None, help="Override book title")
+    p.add_argument("--content-mode", choices=("illustrated", "novel"), default="illustrated",
+                   help="Novel preserves extracted prose and assigns stable character styles")
     p.add_argument("--pages", type=int, default=None,
                    help="Only process N pages starting at --start-page (for testing)")
     p.add_argument("--start-page", type=int, default=0,
@@ -55,6 +58,8 @@ def parse_args():
     p.add_argument("--skip-formulas", action="store_true", help="Skip LaTeX->PNG rendering")
     p.add_argument("--skip-package", action="store_true", help="Skip building the portable .tar.gz")
     p.add_argument("--voice-ref", default=None, help="Path to narrator reference wav for Chatterbox")
+    p.add_argument("--male-voice-ref", default=None, help="Local male character reference WAV")
+    p.add_argument("--female-voice-ref", default=None, help="Local female character reference WAV")
     p.add_argument("--retry-failed", action="store_true",
                    help="Re-run only chunks/sections previously flagged needs_review, "
                         "reusing everything else already on disk (see docs/API.md retry)")
@@ -69,6 +74,9 @@ def _output_dir(args) -> str:
 
 def main():
     args = parse_args()
+    for reference in (args.voice_ref, args.male_voice_ref, args.female_voice_ref):
+        if reference and not os.path.isfile(reference):
+            raise ValueError(f"Voice reference must be an existing local file: {reference}")
     pdf_path = os.path.abspath(args.pdf)
     if not os.path.isfile(pdf_path):
         log.error("PDF not found: %s", pdf_path)
@@ -177,8 +185,12 @@ def main():
         log.info("Stage 2: LLM compilation")
         write_status(pkg_dir, status="running", stage="compiling", detail="running LLM compilation")
         try:
-            from firebrat.pipeline.compile_llm import run_compilation
-            cstats = run_compilation(raw_json, pkg_dir, book_id=book_id, retry_failed=args.retry_failed)
+            if args.content_mode == "novel":
+                from firebrat.pipeline.novel import run_novel_compilation
+                cstats = run_novel_compilation(raw_json, pkg_dir, book_id=book_id)
+            else:
+                from firebrat.pipeline.compile_llm import run_compilation
+                cstats = run_compilation(raw_json, pkg_dir, book_id=book_id, retry_failed=args.retry_failed)
             log.info("Stage 2 done: %s", cstats)
             needs_review = cstats.get("needs_review_chunks", [])
             write_status(pkg_dir, stage="compiling",
@@ -202,6 +214,12 @@ def main():
         compiled_path = alt_compiled
     else:
         compiled_path = None  # type: ignore
+
+    if compiled_path:
+        with open(compiled_path, encoding="utf-8") as f:
+            compiled_mode = json.load(f).get("content_mode", "illustrated")
+        if compiled_mode != args.content_mode:
+            raise ValueError("Existing compiled content has a different content mode; recompile it first")
 
     # ── Stage 2b: LaTeX -> PNG for LLM-authored formulas ─────────
     # Formulas are authored by the Stage 2 LLM (not Stage 1 extracted — this book
@@ -245,9 +263,14 @@ def main():
             TTS_PY, os.path.abspath(__file__), pdf_path,
             "--output", out_root, "--book-id", book_id, "--title", title,
             "--skip-extraction", "--skip-compilation", "--skip-formulas",
+            "--content-mode", args.content_mode,
         ]
         if args.voice_ref:
             delegate_args += ["--voice-ref", args.voice_ref]
+        if args.male_voice_ref:
+            delegate_args += ["--male-voice-ref", os.path.abspath(args.male_voice_ref)]
+        if args.female_voice_ref:
+            delegate_args += ["--female-voice-ref", os.path.abspath(args.female_voice_ref)]
         if args.retry_failed:
             delegate_args += ["--retry-failed"]
         result = subprocess.run(delegate_args)
@@ -287,7 +310,25 @@ def main():
             _eff_voice = args.voice_ref or _auto_voice
             if _eff_voice:
                 log.info("Using voice reference clip: %s (calm female)", _eff_voice)
-            tts = FirebratTTS(voice_ref=_eff_voice)
+            tts = FirebratTTS(voice_ref=_eff_voice, male_voice_ref=args.male_voice_ref,
+                              female_voice_ref=args.female_voice_ref)
+            voice_configuration = {}
+            for label, reference in {"narrator": _eff_voice,
+                                     **tts.character_voice_refs}.items():
+                if reference:
+                    digest = hashlib.sha256()
+                    with open(reference, "rb") as f:
+                        for block in iter(lambda: f.read(1024 * 1024), b""):
+                            digest.update(block)
+                    voice_configuration[label] = digest.hexdigest()
+                else:
+                    voice_configuration[label] = None
+            voice_config_path = os.path.join(pkg_dir, "raw", "narration_voices.json")
+            try:
+                with open(voice_config_path, encoding="utf-8") as f:
+                    same_voice_configuration = json.load(f) == voice_configuration
+            except (OSError, ValueError):
+                same_voice_configuration = args.content_mode != "novel"
             # Synthesize section by section so failures are isolated
             from firebrat.pipeline.audio_assemble import assemble_section
             from firebrat.pipeline.notify import send_telegram as _notify
@@ -302,11 +343,15 @@ def main():
                 # is skipped entirely — this is what makes --retry-failed after a
                 # Stage 3 crash cheap instead of re-synthesizing the whole book.
                 seg_json_path = os.path.join(pkg_dir, "sections", sid, "segments.json")
-                if os.path.isfile(seg_json_path):
+                if same_voice_configuration and os.path.isfile(seg_json_path):
                     try:
                         with open(seg_json_path, "r", encoding="utf-8") as f:
                             existing = json.load(f)
-                        if len(existing.get("segments", [])) == len(segs):
+                        if (os.path.isfile(os.path.join(pkg_dir, "sections", sid, "audio.m4a"))
+                                and [(s.get("text"), s.get("speaker_id", "narrator"), s.get("voice_style", {}))
+                                     for s in existing.get("segments", [])]
+                                == [(s.get("text"), s.get("speaker_id", "narrator"), s.get("voice_style", {}))
+                                    for s in segs]):
                             log.info("TTS section %d/%d %s already assembled, skipping", idx+1, total_sections, sid)
                             continue
                     except (OSError, ValueError):
@@ -318,16 +363,29 @@ def main():
                 seg_wavs: dict[str, str] = {}
                 for seg in segs:
                     wav_path = os.path.join(seg_wavs_dir, f"{seg['segment_id']}.wav")
-                    if os.path.isfile(wav_path) and os.path.getsize(wav_path) > 0:
+                    signature_path = wav_path + ".signature.json"
+                    signature = {"text": seg.get("text", ""),
+                                 "speaker_id": seg.get("speaker_id", "narrator"),
+                                 "voice_style": seg.get("voice_style", {}),
+                                 "voice_configuration": voice_configuration}
+                    signature_matches = args.content_mode != "novel"
+                    if os.path.isfile(signature_path):
+                        try:
+                            with open(signature_path, encoding="utf-8") as f:
+                                signature_matches = json.load(f) == signature
+                        except (OSError, ValueError):
+                            signature_matches = False
+                    if signature_matches and os.path.isfile(wav_path) and os.path.getsize(wav_path) > 0:
                         seg_wavs[seg["segment_id"]] = wav_path
                         continue
-                    ok = tts.synthesize(seg.get("text", ""), wav_path)
+                    ok = tts.synthesize(seg.get("text", ""), wav_path,
+                                        voice_style=seg.get("voice_style"))
                     if ok:
+                        with open(signature_path, "w", encoding="utf-8") as f:
+                            json.dump(signature, f, ensure_ascii=False)
                         seg_wavs[seg["segment_id"]] = wav_path
                     else:
-                        # placeholder silence already handled inside synthesize
-                        if os.path.isfile(wav_path):
-                            seg_wavs[seg["segment_id"]] = wav_path
+                        raise RuntimeError(f"Narration failed for {seg['segment_id']}; retry the conversion")
                 assemble_section(sec, segs, seg_wavs, pkg_dir)
                 write_status(pkg_dir, stage="synthesizing", detail=f"{idx+1}/{total_sections} sections",
                              progress=(idx + 1) / max(1, total_sections))
@@ -335,6 +393,8 @@ def main():
                     _notify(f"Firebrat TTS: {idx+1}/{total_sections} sections done for *{book_id}*",
                             parse_mode="Markdown")
 
+            with open(voice_config_path, "w", encoding="utf-8") as f:
+                json.dump(voice_configuration, f)
             log.info("Stage 3 TTS+assembly done for %s", book_id)
             send_telegram(f"✅ Stage 3 audio done for *{book_id}*", parse_mode="Markdown")
         except Exception as e:

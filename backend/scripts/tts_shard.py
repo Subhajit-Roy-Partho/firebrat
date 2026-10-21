@@ -99,7 +99,7 @@ def main() -> int:
             if os.path.isfile(wav_path) and os.path.getsize(wav_path) > 0:
                 seg_wavs[seg["segment_id"]] = wav_path
                 continue
-            if tts.synthesize(seg.get("text", ""), wav_path):
+            if tts.synthesize(seg.get("text", ""), wav_path, voice_style=seg.get("voice_style")):
                 seg_wavs[seg["segment_id"]] = wav_path
             elif os.path.isfile(wav_path):
                 seg_wavs[seg["segment_id"]] = wav_path

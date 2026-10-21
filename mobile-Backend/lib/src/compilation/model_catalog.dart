@@ -7,16 +7,10 @@
 /// tier, with no way to load an arbitrary Hugging Face model. See
 /// `mobile-Backend/README.md` "On-device LLM engine" for the full story.
 ///
-/// Every entry here is sized to fit comfortably within an 8GB-RAM Android
-/// phone's budget per `PROPOSAL.md`'s own RAM-tier numbers (Q4_K_M, ~1%
-/// quality loss vs full precision, practical ceiling ~4-4.5GB resident for
-/// a 4B model). Repo/filename pairs and approximate sizes were verified
-/// live against the Hugging Face API on 2026-09-16 — re-verify if a
-/// download 404s, since a quantizer can rename or replace a repo.
-/// `approxSizeBytes` is exact only for `qwen3-4b` (byte count read directly
-/// off the HF API); the rest are rounded from the GB figures found during
-/// that same check and are for progress-bar/UI purposes, not exact-match
-/// download verification.
+/// Memory requirements depend on context length, GPU allocations, and other
+/// running apps. A catalog estimate is not a guarantee that Android can keep
+/// a model resident. Smaller models are useful when memory pressure closes
+/// a conversion. File sizes are approximate except the Qwen3 4B entry.
 library;
 
 enum PromptFormatKind { chatml, gemma, llama3, phi }
@@ -51,7 +45,7 @@ const List<OnDeviceLlmModel> kOnDeviceLlmCatalog = [
     displayName: 'Qwen3 0.6B',
     hfRepo: 'bartowski/Qwen_Qwen3-0.6B-GGUF',
     fileName: 'Qwen_Qwen3-0.6B-Q4_K_M.gguf',
-    approxSizeBytes: 484 * 1024 * 1024,
+    approxSizeBytes: 484220320,
     approxRamGb: 1.0,
     promptFormat: PromptFormatKind.chatml,
     description: 'Smallest, fastest option. Safe fallback on 4-6GB RAM phones.',
@@ -71,7 +65,7 @@ const List<OnDeviceLlmModel> kOnDeviceLlmCatalog = [
     displayName: 'Qwen3 1.7B',
     hfRepo: 'bartowski/Qwen_Qwen3-1.7B-GGUF',
     fileName: 'Qwen_Qwen3-1.7B-Q4_K_M.gguf',
-    approxSizeBytes: 1374389534,
+    approxSizeBytes: 1282439584,
     approxRamGb: 2.0,
     promptFormat: PromptFormatKind.chatml,
     description: 'Balanced default for 6-8GB RAM phones.',
@@ -94,7 +88,17 @@ const List<OnDeviceLlmModel> kOnDeviceLlmCatalog = [
     approxSizeBytes: 2497280736,
     approxRamGb: 3.8,
     promptFormat: PromptFormatKind.chatml,
-    description: 'Best general quality that still comfortably fits an 8GB phone. Recommended default.',
+    description: 'Higher quality option; may exceed available memory on 8GB phones, especially with GPU offload.',
+  ),
+  OnDeviceLlmModel(
+    id: 'gemma-3-1b',
+    displayName: 'Gemma 3 1B IT',
+    hfRepo: 'bartowski/google_gemma-3-1b-it-GGUF',
+    fileName: 'google_gemma-3-1b-it-Q4_K_M.gguf',
+    approxSizeBytes: 806058496,
+    approxRamGb: 1.5,
+    promptFormat: PromptFormatKind.gemma,
+    description: 'Compact text-only Gemma option for lower-memory phones.',
   ),
   OnDeviceLlmModel(
     id: 'gemma-3-4b',
@@ -118,7 +122,7 @@ const List<OnDeviceLlmModel> kOnDeviceLlmCatalog = [
   ),
 ];
 
-const String kDefaultOnDeviceLlmId = 'qwen3-4b';
+const String kDefaultOnDeviceLlmId = 'qwen3-1.7b';
 
 OnDeviceLlmModel findOnDeviceLlmModel(String? id) => kOnDeviceLlmCatalog.firstWhere(
       (m) => m.id == id,

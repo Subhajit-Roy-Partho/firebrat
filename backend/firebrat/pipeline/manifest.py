@@ -72,6 +72,9 @@ def build_manifest(
                 "page": t.get("page", p.get("page_idx", 0)),
             })
 
+    if compiled.get("content_mode") == "novel":
+        figures, tables = [], []
+
     # Formulas are LLM-authored (Stage 2), not Stage-1 extracted — this book typesets
     # math as plain inline text (e.g. "tCK = 1/f"), so there's no LaTeX to scrape from the PDF.
     for fo in compiled.get("formulas", []):
@@ -193,6 +196,8 @@ def build_manifest(
             _eff_voice_for_manifest = _DVR
     manifest = {
         "schema_version": SCHEMA_VERSION,
+        "content_mode": compiled.get("content_mode", "illustrated"),
+        "character_roster": compiled.get("character_roster", []),
         "book_id": book_id,
         "title": title or book_id,
         "author": "",

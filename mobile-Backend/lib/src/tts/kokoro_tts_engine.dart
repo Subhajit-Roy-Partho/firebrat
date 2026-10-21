@@ -4,6 +4,7 @@ import 'package:flutter_kokoro_tts/flutter_kokoro_tts.dart';
 import '../models/compiled_models.dart';
 import '../models/segment_models.dart';
 import '../util/ids.dart';
+import '../novel/novel_analyzer.dart';
 import 'narration_engine.dart';
 import 'wav_utils.dart';
 
@@ -20,7 +21,7 @@ const List<String> kKokoroVoices = kokoroVoices;
 /// of the platform's stock TTS engine (`OnDeviceTts`). See
 /// `mobile-Backend/README.md` "On-device voice engines" for why this is
 /// offered as a choice alongside the stock engine rather than a
-/// replacement for it: Kokoro is a fixed 50-preset-voice model (no
+/// replacement for it: this integration exposes six preset voices (no
 /// cloning), while the stock engine needs no ~90MB model download at all.
 ///
 /// The ONNX session `flutter_kokoro_tts` creates internally runs on
@@ -33,22 +34,22 @@ const List<String> kKokoroVoices = kokoroVoices;
 /// than configuring it. Not done here — flagged as a follow-up, not
 /// silently assumed.
 ///
-/// **Not runtime-verified**, same caveat as the rest of this package's
-/// plugin-dependent code — no physical device/emulator available in this
-/// sandbox. `flutter_kokoro_tts` is also itself an early-stage (v0.0.1),
-/// low-adoption package; this is a real, reviewed integration against its
-/// actual public API, not a proven one.
 class KokoroTtsEngine implements NarrationEngine {
   final String voice;
+  final String maleVoice;
+  final String femaleVoice;
   final double speed;
+  final NovelBookPlan? novelPlan;
   final KokoroTts _tts = KokoroTts();
   bool _initialized = false;
 
-  KokoroTtsEngine({this.voice = 'Bella', this.speed = 1.0});
+  KokoroTtsEngine({this.voice = 'Bella', this.maleVoice = 'Adam', this.femaleVoice = 'Sarah', this.speed = 1.0, this.novelPlan});
 
   Future<void> ensureReady({VoiceDownloadProgress? onProgress}) async {
     if (_initialized) return;
-    await _tts.initialize(onProgress: (progress, status) => onProgress?.call(progress, status));
+    await _tts.initialize(
+      onProgress: (progress, status) => onProgress?.call(progress, status),
+    );
     _initialized = true;
   }
 
@@ -60,7 +61,9 @@ class KokoroTtsEngine implements NarrationEngine {
     int pauseMs = 260,
   }) async {
     if (!_initialized) {
-      throw StateError('KokoroTtsEngine.ensureReady() must succeed before narrateSection()');
+      throw StateError(
+        'KokoroTtsEngine.ensureReady() must succeed before narrateSection()',
+      );
     }
     await Directory(sectionDir).create(recursive: true);
 
@@ -70,22 +73,43 @@ class KokoroTtsEngine implements NarrationEngine {
       final segmentId = makeSegmentId(sectionId, i);
       segmentIds.add(segmentId);
       try {
-        final pcmFloat = await _tts.generate(segments[i].text, voice: voice, speed: speed);
-        clips.add(WavAudio(
-          sampleRate: _tts.sampleRate,
-          channels: 1,
-          bitsPerSample: 16,
-          pcmData: _floatToInt16Pcm(pcmFloat),
-        ));
-      } catch (_) {
-        // Same fallback contract as OnDeviceTts: a bad segment gets a
-        // slot of silence instead of sinking the whole section.
-        clips.add(WavAudio(
-          sampleRate: _tts.sampleRate,
-          channels: 1,
-          bitsPerSample: 16,
-          pcmData: Uint8List((_tts.sampleRate * 600 ~/ 1000) * 2),
-        ));
+        final utterances =
+            novelPlan?.split(segments[i].text) ??
+            [NovelUtterance(segments[i].text, null)];
+        final utteranceClips = <WavAudio>[];
+        for (final utterance in utterances) {
+          if (utterance.text.trim().isEmpty) continue;
+          final character = utterance.character;
+          final selectedVoice = resolveKokoroCharacterVoice(character,
+            narrator: voice, male: maleVoice, female: femaleVoice);
+          final selectedSpeed = character == null
+              ? speed
+              : (speed * character.style.rate / 0.48)
+                    .clamp(0.75, 1.25)
+                    .toDouble();
+          final pcmFloat = await _tts.generate(
+            utterance.text,
+            voice: selectedVoice,
+            speed: selectedSpeed,
+          );
+          if (pcmFloat.isEmpty) throw StateError('empty narration audio');
+          utteranceClips.add(
+            WavAudio(
+              sampleRate: _tts.sampleRate,
+              channels: 1,
+              bitsPerSample: 16,
+              pcmData: _floatToInt16Pcm(pcmFloat),
+            ),
+          );
+        }
+        if (utteranceClips.isEmpty) {
+          throw StateError('No narration for $segmentId');
+        }
+        clips.add(WavAudio.concatenate(utteranceClips, pauseMs: 0).combined);
+      } catch (error) {
+        throw StateError(
+          'Could not synthesize narration for $segmentId: $error',
+        );
       }
     }
 
@@ -96,16 +120,18 @@ class KokoroTtsEngine implements NarrationEngine {
     final timedSegments = <TimedSegment>[];
     for (var i = 0; i < segments.length; i++) {
       final seg = segments[i];
-      timedSegments.add(TimedSegment(
-        segmentId: segmentIds[i],
-        index: i,
-        type: seg.type,
-        text: seg.text,
-        ref: seg.ref,
-        startMs: timing[i].startMs,
-        endMs: timing[i].endMs,
-        visuallyEssential: seg.visuallyEssential,
-      ));
+      timedSegments.add(
+        TimedSegment(
+          segmentId: segmentIds[i],
+          index: i,
+          type: seg.type,
+          text: seg.text,
+          ref: seg.ref,
+          startMs: timing[i].startMs,
+          endMs: timing[i].endMs,
+          visuallyEssential: seg.visuallyEssential,
+        ),
+      );
     }
 
     return (
@@ -136,4 +162,15 @@ class KokoroTtsEngine implements NarrationEngine {
     if (_initialized) _tts.dispose();
     _initialized = false;
   }
+}
+
+const kKokoroMaleVoices = ['Adam', 'Michael'];
+const kKokoroFemaleVoices = ['Default', 'Bella', 'Nicole', 'Sarah'];
+String resolveKokoroCharacterVoice(NovelCharacter? character,
+    {required String narrator, required String male, required String female}) {
+  final override = character?.voiceOverride;
+  if (override != null && kKokoroVoices.contains(override)) return override;
+  if (character?.voiceGender == 'male' && kKokoroMaleVoices.contains(male)) return male;
+  if (character?.voiceGender == 'female' && kKokoroFemaleVoices.contains(female)) return female;
+  return narrator;
 }

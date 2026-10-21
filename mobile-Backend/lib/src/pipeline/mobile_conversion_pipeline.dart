@@ -6,6 +6,9 @@ import '../compilation/compilation_router.dart';
 import '../compilation/model_catalog.dart';
 import '../compilation/on_device_compiler.dart';
 import '../extraction/pdf_text_extractor.dart';
+import '../extraction/page_visuals.dart';
+import '../extraction/ocr_fallback.dart';
+import '../novel/novel_analyzer.dart';
 import '../models/compiled_models.dart';
 import '../models/conversion_settings.dart';
 import '../models/manifest_models.dart';
@@ -28,15 +31,15 @@ class MobileConversionProgress {
 typedef ProgressCallback = void Function(MobileConversionProgress progress);
 
 /// Runs the whole PDF -> book-package conversion on-device: text-layer
-/// extraction, chunk-routed compilation (on-device model for easy chunks,
-/// user-configured cloud LLM for hard ones), and on-device TTS narration —
+/// extraction, local compilation (with an optional cloud helper), and
+/// offline TTS narration —
 /// writing the result in exactly the directory layout
 /// `frontend/firebrat_app`'s `LibraryRepository`/`DownloadManager` already
 /// expect (see `docs/DATA_SCHEMA.md`), so a book converted here is
 /// indistinguishable to the reader from one downloaded from a server.
 ///
-/// See package README "Known limitations" — no figure/table extraction in
-/// this v1 (empty catalog), and both on-device voice options (stock TTS or
+/// Original page visuals preserve pictures without individual figure detection.
+/// Both on-device voice options (stock TTS or
 /// Kokoro-82M, see `models/conversion_settings.dart`'s `OnDeviceVoiceEngine`)
 /// are fixed-preset voices, not the cloud pipeline's cloned narrator voice.
 class MobileConversionPipeline {
@@ -103,69 +106,109 @@ class MobileConversionPipeline {
     _report('extracting', 'reading PDF text layer (1/${pdfPaths.length} files)', 0.0);
     final parts = <ExtractionResult>[];
     for (var i = 0; i < pdfPaths.length; i++) {
-      parts.add(await MobilePdfTextExtractor.extractPages(pdfPaths[i]));
+      var part = await MobilePdfTextExtractor.extractPages(pdfPaths[i]);
+      if (part.ocrCandidatePageIndices.isNotEmpty && Platform.isAndroid) {
+        final ocr = OcrFallback();
+        try {
+          final replacements = await ocr.reExtractPages(pdfPaths[i], part.ocrCandidatePageIndices, '$bookDir/ocr');
+          final byIndex = {for (final p in replacements) p.pageIdx: p};
+          part = ExtractionResult(pages: [for (final p in part.pages) byIndex[p.pageIdx] ?? p], ocrCandidatePageIndices: []);
+        } finally { ocr.dispose(); }
+      }
+      parts.add(part);
       _report('extracting',
           'reading PDF text layer (${i + 1}/${pdfPaths.length} files)', (i + 1) / pdfPaths.length * 0.5);
     }
     final extraction = mergeExtractions(parts);
-    if (extraction.ocrCandidatePageIndices.isNotEmpty) {
-      // See ocr_fallback.dart — OCR is wired up but page rasterization
-      // (image-of-a-page -> bitmap) isn't implemented in this v1, so
-      // these pages are narrated from whatever sparse text they have
-      // rather than silently dropped.
-      _report(
-        'extracting',
-        '${extraction.ocrCandidatePageIndices.length} page(s) look scanned (little/no text layer) — OCR fallback not yet implemented, see README',
-        0.5,
-      );
+    if (extraction.pages.isEmpty || extraction.pages.every((p) => p.text.trim().isEmpty)) {
+      throw StateError('No readable text was found in this document.');
     }
+    final isNovel = settings.contentMode == BookContentMode.novel;
+    final novelPlan = isNovel ? NovelBookPlan.analyze(extraction.pages, voiceOverrides: settings.characterVoices) : null;
+    if (novelPlan != null) {
+      await File('$bookDir/character_roster.json').writeAsString(jsonEncode({...novelPlan.toJson(),
+        'voice_engine': settings.voiceEngine.name,
+        if (settings.voiceEngine == OnDeviceVoiceEngine.kokoroOnnx)
+          'assigned_voices': {for (final character in novelPlan.characters)
+            character.name: resolveKokoroCharacterVoice(character, narrator: settings.kokoroVoice, male: settings.maleVoice, female: settings.femaleVoice)},
+      }));
+      _report('extracting', 'scanned ${novelPlan.scannedPages} pages; ${novelPlan.characters.length} explicitly attributed characters', 0.75);
+    }
+    _report('extracting', 'preserving original page visuals', 0.8);
+    final pageVisuals = isNovel ? <ManifestFigure>[] : await PageVisuals.render(pdfPaths: pdfPaths, bookDir: bookDir, pages: extraction.pages);
 
-    final chunks = chunkPages(extraction.pages, chunkPages: 10);
+    final chunks = settings.allowCloudFallback
+        ? chunkPages(extraction.pages, chunkPages: 10)
+        : chunkLocalPages(extraction.pages);
     _report('compiling', '0/${chunks.length} chunks', 0.0);
 
+    final List<CompiledSection> compiledSections;
+    if (isNovel) {
+      // A novel is read verbatim. Educational paraphrasing destroys dialogue
+      // attribution and is neither required nor safe for narrative fiction.
+      compiledSections = [for (final chunk in chunkLocalPages(extraction.pages))
+        CompiledSection(title: 'Page ${chunk.startPage + 1}', sourcePages: [chunk.startPage],
+          segments: [CompiledSegment(type: SegmentKind.prose, text: chunk.pages.single.text)])];
+      _report('compiling', 'preserved novel text and full-book voice roster', 1.0);
+    } else {
     final onDeviceCompiler = OnDeviceCompiler(
       model: findOnDeviceLlmModel(settings.onDeviceLlmModelId),
       gpuLayers: settings.onDeviceGpuLayers,
     );
+    try {
     await onDeviceCompiler.ensureReady(
       modelsDir: '$modelsDir/llm',
       onProgress: (progress, status) => _report('compiling', status, progress),
     );
-    final cloudCompiler = CloudCompiler(settings);
-    final router = CompilationRouter(onDeviceCompiler: onDeviceCompiler, cloudCompiler: cloudCompiler);
+    final cloudCompiler = settings.allowCloudFallback ? CloudCompiler(settings) : null;
+    final router = CompilationRouter(onDeviceCompiler: onDeviceCompiler, cloudCompiler: cloudCompiler, allowCloudFallback: settings.allowCloudFallback);
 
-    final List<CompiledSection> compiledSections;
-    try {
       compiledSections = await router.compileAll(
         chunks,
+        checkpointDir: '$bookDir/checkpoints/compilation',
         onChunkDone: (done, total, usedCloud) =>
             _report('compiling', '$done/$total chunks (${usedCloud ? "cloud" : "on-device"})', done / total),
       );
     } finally {
-      onDeviceCompiler.dispose();
+      await onDeviceCompiler.dispose();
+    }
+
     }
 
     _report('synthesizing', '0/${compiledSections.length} sections', 0.0);
     final NarrationEngine tts;
     final String narratorEngineName;
     if (settings.voiceEngine == OnDeviceVoiceEngine.kokoroOnnx) {
-      final kokoro = KokoroTtsEngine(voice: settings.kokoroVoice);
+      final kokoro = KokoroTtsEngine(voice: settings.kokoroVoice, maleVoice: settings.maleVoice, femaleVoice: settings.femaleVoice, novelPlan: novelPlan);
       await kokoro.ensureReady(
         onProgress: (progress, status) => _report('synthesizing', status, progress),
       );
       tts = kokoro;
       narratorEngineName = 'kokoro_onnx';
     } else {
-      tts = OnDeviceTts();
+      tts = OnDeviceTts(novelPlan: novelPlan);
       narratorEngineName = 'on_device_tts';
     }
     final manifestSections = <ManifestSection>[];
     final manifestFormulas = <ManifestFormula>[];
     var totalDurationMs = 0;
+    int? audioSampleRate;
 
     try {
       for (var i = 0; i < compiledSections.length; i++) {
-        final section = compiledSections[i];
+        final original = compiledSections[i];
+        final visuals = pageVisuals.where((f) => original.sourcePages.contains(f.page)).toList();
+        final segments = [...original.segments];
+        // Attach each original page at a spoken segment without inventing
+        // a figure description. Full-page views retain all vector/table layout.
+        for (var v = 0; v < visuals.length && segments.isNotEmpty; v++) {
+          final index = segments.indexWhere((s) => s.type == SegmentKind.prose && s.ref == null);
+          if (index < 0) break;
+          final old = segments[index];
+          segments[index] = CompiledSegment(type: SegmentKind.figureCallout,
+            text: old.text, ref: visuals[v].figureId, visuallyEssential: true);
+        }
+        final section = CompiledSection(title: original.title, sourcePages: original.sourcePages, segments: segments);
         final sectionId = makeSectionId(i + 1);
         final sectionDir = '$bookDir/sections/$sectionId';
 
@@ -175,6 +218,10 @@ class MobileConversionPipeline {
           sectionDir: sectionDir,
         );
 
+        if (audioSampleRate != null && audioSampleRate != result.segmentsFile.sampleRate) {
+          throw StateError('Narration sample rate changed between sections');
+        }
+        audioSampleRate = result.segmentsFile.sampleRate;
         final segmentsPath = '$sectionDir/segments.json';
         await File(segmentsPath).writeAsString(jsonEncode(result.segmentsFile.toJson()));
 
@@ -203,7 +250,7 @@ class MobileConversionPipeline {
           audioPath: 'sections/$sectionId/audio.wav',
           segmentsPath: 'sections/$sectionId/segments.json',
           durationMs: durationMs,
-          figureRefs: const [],
+          figureRefs: visuals.map((f) => f.figureId).toList(),
           formulaRefs: formulaRefs,
           tableRefs: const [],
           sourcePages: section.sourcePages,
@@ -221,8 +268,9 @@ class MobileConversionPipeline {
       sourcePdf: displayName,
       generatedAt: DateTime.now().toUtc().toIso8601String(),
       totalDurationMs: totalDurationMs,
+      sampleRate: audioSampleRate ?? 22050,
       sections: manifestSections,
-      figures: const [],
+      figures: pageVisuals,
       formulas: manifestFormulas,
       tables: const [],
       narratorEngine: narratorEngineName,

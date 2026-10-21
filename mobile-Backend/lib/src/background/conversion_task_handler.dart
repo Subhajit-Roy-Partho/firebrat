@@ -26,19 +26,27 @@ class MobileConversionTaskHandler extends TaskHandler {
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
-    if (_started) return; // guards against onStart firing more than once (e.g. restartService)
+    if (_started) {
+      return; // guards against repeated service callbacks
+    }
     _started = true;
 
     final stateDir = (await getApplicationSupportDirectory()).path;
     final request = await ConversionRequest.readFrom(stateDir);
     if (request == null) {
-      FlutterForegroundTask.sendDataToMain({'error': 'no pending conversion request found'});
+      FlutterForegroundTask.sendDataToMain({
+        'error': 'no pending conversion request found',
+      });
       FlutterForegroundTask.stopService();
       return;
     }
 
     final pipeline = MobileConversionPipeline(
       settings: OnDeviceModeSettings(
+        allowCloudFallback: request.allowCloudFallback,
+        contentMode: request.contentMode == 'novel'
+            ? BookContentMode.novel
+            : BookContentMode.illustrated,
         llmBaseUrl: request.llmBaseUrl,
         llmApiKey: request.llmApiKey,
         llmModel: request.llmModel,
@@ -48,6 +56,7 @@ class MobileConversionTaskHandler extends TaskHandler {
             ? OnDeviceVoiceEngine.kokoroOnnx
             : OnDeviceVoiceEngine.stockTts,
         kokoroVoice: request.kokoroVoice,
+        maleVoice: request.maleVoice, femaleVoice: request.femaleVoice, characterVoices: request.characterVoices,
       ),
       onProgress: (p) {
         FlutterForegroundTask.sendDataToMain({
@@ -56,8 +65,11 @@ class MobileConversionTaskHandler extends TaskHandler {
           'fraction': p.fraction,
         });
         FlutterForegroundTask.updateService(
-          notificationTitle: 'Converting "${request.titleOverride ?? request.sourcePdfPaths.first.split('/').last}"',
-          notificationText: p.detail.isEmpty ? p.stage : '${p.stage} — ${p.detail}',
+          notificationTitle:
+              'Converting "${request.titleOverride ?? request.sourcePdfPaths.first.split('/').last}"',
+          notificationText: p.detail.isEmpty
+              ? p.stage
+              : '${p.stage} — ${p.detail}',
         );
       },
     );

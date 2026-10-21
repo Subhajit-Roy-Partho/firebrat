@@ -44,94 +44,122 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
-  Future<void> _signIn() => _run('google', AuthService.instance.signInWithGoogle);
+  Future<void> _signIn() =>
+      _run('google', AuthService.instance.signInWithGoogle);
 
   Future<void> _emailAuth() {
     final email = _email.text.trim();
     final password = _password.text;
     if (email.isEmpty || password.length < 6) {
-      setState(() => _error = 'Enter an email and a password of 6+ characters.');
+      setState(
+        () => _error = 'Enter an email and a password of 6+ characters.',
+      );
       return Future.value();
     }
-    return _run(_registerMode ? 'password_signup' : 'password', () => _registerMode
-        ? AuthService.instance.registerWithEmail(email, password)
-        : AuthService.instance.signInWithEmail(email, password));
+    return _run(
+      _registerMode ? 'password_signup' : 'password',
+      () => _registerMode
+          ? AuthService.instance.registerWithEmail(email, password)
+          : AuthService.instance.signInWithEmail(email, password),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Firebrat', style: Theme.of(context).textTheme.displaySmall),
-              const SizedBox(height: 8),
-              Text(
-                'Technical books as narrated audiobooks — figures and formulas kept in view.',
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                _registerMode ? 'Create your account' : 'Welcome back',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: _busy ? null : _signIn,
-                icon: _busy
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.login_rounded),
-                label: Text(_registerMode ? 'Sign up with Google' : 'Sign in with Google'),
-              ),
-              const SizedBox(height: 16),
-              const Divider(),
-              TextField(
-                controller: _email,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: (constraints.maxHeight - 48).clamp(
+                  0,
+                  double.infinity,
                 ),
-                keyboardType: TextInputType.emailAddress,
-                enabled: !_busy,
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _password,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
-                ),
-                obscureText: true,
-                enabled: !_busy,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Firebrat',
+                    style: Theme.of(context).textTheme.displaySmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Technical books as narrated audiobooks — figures and formulas kept in view.',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    _registerMode ? 'Create your account' : 'Welcome back',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _busy ? null : _signIn,
+                    icon: _busy
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.login_rounded),
+                    label: Text(
+                      _registerMode
+                          ? 'Sign up with Google'
+                          : 'Sign in with Google',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  TextField(
+                    controller: _email,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    enabled: !_busy,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _password,
+                    decoration: const InputDecoration(
+                      labelText: 'Password',
+                      border: OutlineInputBorder(),
+                    ),
+                    obscureText: true,
+                    enabled: !_busy,
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton(
+                    onPressed: _busy ? null : _emailAuth,
+                    child: Text(
+                      _registerMode ? 'Create account' : 'Sign in with email',
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _busy
+                        ? null
+                        : () => setState(() {
+                            _registerMode = !_registerMode;
+                            _error = null;
+                          }),
+                    child: Text(
+                      _registerMode
+                          ? 'Have an account? Sign in'
+                          : 'New here? Create an account',
+                    ),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_error!, style: Theme.of(context).textTheme.bodySmall),
+                  ],
+                ],
               ),
-              const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: _busy ? null : _emailAuth,
-                child: Text(_registerMode ? 'Create account' : 'Sign in with email'),
-              ),
-              TextButton(
-                onPressed: _busy
-                    ? null
-                    : () => setState(() {
-                        _registerMode = !_registerMode;
-                        _error = null;
-                      }),
-                child: Text(_registerMode
-                    ? 'Have an account? Sign in'
-                    : 'New here? Create an account'),
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(_error!, style: Theme.of(context).textTheme.bodySmall),
-              ],
-            ],
+            ),
           ),
         ),
       ),

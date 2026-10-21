@@ -113,6 +113,7 @@ class Manifest {
   final String sourcePdf;
   final String generatedAt;
   final int totalDurationMs;
+  final int sampleRate;
   final List<ManifestSection> sections;
   final List<ManifestFigure> figures;
   final List<ManifestFormula> formulas;
@@ -126,6 +127,7 @@ class Manifest {
     required this.sourcePdf,
     required this.generatedAt,
     required this.totalDurationMs,
+    this.sampleRate = 22050,
     required this.sections,
     required this.figures,
     required this.formulas,
@@ -144,13 +146,13 @@ class Manifest {
         'pipeline_version': 'mobile-0.1.0',
         'narrator_voice': {
           'engine': narratorEngine,
-          'model_class': 'DeviceTts',
-          'sample_rate': 22050,
+          'model_class': narratorEngine == 'kokoro_onnx' ? 'Kokoro82M' : 'DeviceTts',
+          'sample_rate': sampleRate,
         },
         'audio_format': {
           'codec': 'pcm_s16le',
           'container': 'wav',
-          'sample_rate': 22050,
+          'sample_rate': sampleRate,
           'channels': 1,
           'fallback_codec': null,
         },

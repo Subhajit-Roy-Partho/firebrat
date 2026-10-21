@@ -173,13 +173,256 @@ flutter pub get
 flutter run --dart-define=FIREBRAT_API_BASE_URL=http://<your-server-host>:8000
 ```
 
-The app downloads a book's package once and reads/plays it fully offline afterward — the backend server only needs to be reachable during that initial download (or while converting a new upload).
+The app defaults to offline reading of imported packages. Server mode downloads finished books or submits uploads; On-device mode converts locally with downloaded model weights and an installed offline voice. The optional cloud helper is off by default.
 
 Beyond the reader itself, the app has:
 - **Upload a book** — the cloud-upload icon on the library screen opens a "Conversions" view: pick a PDF, watch live stage/progress for every upload (queued/converting/done/failed), and retry a failed or `needs_review` conversion with one tap.
 - **Focus mode** — the fullscreen icon in the reader turns the screen into just the current image/formula, crossfading as playback moves on, with transport controls pinned at the bottom.
 - **Lock-screen controls** — playback keeps running and stays controllable (play/pause, prev/next segment) from the lock screen and notification shade, with the current figure/formula as the artwork.
 
+## Offline Android benchmarks and correctness
+
+<!-- DEVICE_BENCHMARK_START -->
+Measured on a **Pixel 9a, Android 17, approximately 7.4 GiB RAM**, on 2026-10-20.
+These are debug-app device measurements, not desktop throughput estimates.
+The native inference libraries use `-O3`; the device-specific build enables
+`armv8.2-a+dotprod+fp16`. Portable builds retain baseline CPU compatibility.
+
+### Test conditions
+
+- Model weights are cached before testing; the phone uses airplane mode with Wi-Fi off.
+- Nonessential background apps are closed using Android's `stop-app` and cached-app
+  cleanup. Seven remaining optional apps were stopped; essential Android services,
+  accessibility, the keyboard, and offline speech remain available. About 2.9 GiB
+  was available immediately afterward. Apps may restart when Android schedules work.
+- Each model starts in a fresh Firebrat process and receives the same worked
+  noise-margin example from *Digital Design and Computer Architecture*, PDF page 35
+  (printed page 24). Source text is retained to check identical input; completed runs also save a SHA-256 hash.
+- Q4_K_M weights; 4 CPU threads; 4,096-token context; batch 1,536; microbatch 128;
+  temperature 0.2; seed 42; maximum 2,400 generated tokens. Model-specific chat
+  templates are used, including Gemma's instructions within the initial user turn.
+- Time to first token includes tokenization and prompt evaluation, but excludes
+  loading weights. Decode rate excludes prompt evaluation. Total inference time
+  includes prompt processing and generation. Download time is excluded.
+- Peak app PSS/RSS is sampled approximately every 5 seconds. This includes the
+  reader/debug runtime and model, rather than claiming model-only RAM. File caches,
+  device heat, and background OS activity are not fully controlled. These are single
+  runs, not statistically robust averages. Battery/power efficiency is not measured
+  because the phone is plugged in; speed and memory are the efficiency measures.
+
+### Measured model results
+
+**Phone testing resumed after the user's call.** Gemma 3 1B, Qwen3 1.7B, and
+Qwen3 0.6B are being tested on the same repaired technical passage. Gemma 1B
+completed but failed source fidelity. Completed component/novel checks are below.
+
+| Controlled configuration | Observed first token | Completion / progress | Peak app PSS / RSS | Correctness |
+|---|---:|---|---:|---|
+| Qwen3 0.6B, CPU, background apps closed | About 67 s (5 s sampling) | At least 320 reported tokens in a 305.6 s measurement window | 1.66 / 1.78 GiB | Interrupted by user request; unscored |
+| Qwen3 0.6B, CPU, completed rerun | 62.778 s (internal timer) | Complete: 365 tokens, 278.215 s generation | 1.69 / 1.79 GiB | Failed: wrong voltage variables in both margin equations, copied prompt example; 4/6 checked facts fully retained |
+| Qwen3 0.6B, GPU layers=99 | 44.997 s (internal timer) | Complete: 549 tokens, 69.570 s generation | 2.02 / 2.08 GiB | Failed: same two variable errors and invented prompt-example narration; 4/6 checked facts fully retained |
+| Gemma 3 1B, CPU | 73.514 s (internal timer) | Complete: 563 tokens, 314.318 s generation | 1.79 / 1.90 GiB | Failed: 0/6 required facts faithfully retained; invented formulas and source pages |
+| Qwen3 1.7B, CPU | 138.501 s (internal timer) | Complete: 335 tokens, 596.408 s generation | 2.43 / 2.52 GiB | 6/6 checked facts retained; equations left in prose, no formula callouts |
+
+Qwen3 1.7B GPU layers=99 completed the **identical raw answer** as CPU in
+122.545 s versus 596.408 s (4.87× faster), with first token at 99.235 s,
+335 output tokens, peak PSS 2.72 GiB / RSS 2.66 GiB. The six-fact fidelity
+result is unchanged; missing formula callouts remain a limitation. These are
+single sequential debug runs, not repeated thermal/power-controlled trials.
+
+Gemma returned parseable JSON but copied the schema’s alternative-type string,
+invented five sections/page ranges for a one-page passage, and omitted all six
+required numerical/conclusion facts. This is a conversion failure, not an accuracy
+pass. Its average output rate was 1.79 tokens/s including first-token latency.
+Qwen3 1.7B retained all six checked facts and the correct source page, but
+returned symbolic equations inside long prose segments instead of separate
+formula callouts. Its average output rate was 0.56 tokens/s including first-token
+latency. This single-passage fidelity check is not a general accuracy benchmark.
+
+The interrupted Qwen first-token observation is sampled externally; the incomplete run has no final
+native timing counters or complete JSON. Do not infer an accuracy pass/fail from
+this pause. Earlier source-selection diagnostic errors are excluded from model
+results because inference never started.
+
+Preliminary exploratory runs are separate:
+
+| Exploratory configuration | Observation | Correctness result |
+|---|---|---|
+| Qwen3 4B, GPU | Android low-memory kill, about 3.9 GB RSS in exit report | No completed output; unscored |
+| Qwen3 1.7B, GPU | No tokens during the observed prompt-evaluation interval; test stopped | Unscored; no GPU speed advantage established |
+| Qwen3 1.7B, portable CPU | First 32 tokens at about 198 s | Partial output only; unscored |
+| Qwen3 1.7B, specialized CPU | First 32 tokens at 196 s; 320 at 535 s on the longer Apollo input | Partial output only; no large speed improvement demonstrated |
+
+The exploratory inputs and background-app state differ from the controlled runs;
+these rows cannot be treated as a fair model leaderboard. Initial main-thread
+blocking was fixed by moving native inference to a dedicated worker isolate.
+
+### What correctness means here
+
+For the textbook example, inspect the generated narration and formulas against six
+source facts: low noise margin 1.02 V; high noise margin 0.69 V; tolerance of 1 V
+noise on LOW; failure to guarantee HIGH with that noise; 3.84 − 1 = 2.84 V;
+and 2.84 V below the required 3.15 V HIGH threshold. Report claims preserved out of
+six, malformed JSON, omissions, invented statements, truncation, and bad references
+separately. A valid JSON object alone is not an accuracy pass. This is a small
+source-fidelity test, not a general reasoning benchmark.
+
+The technical PDF exposed joined-word extraction (`Theinverternoisemarginsare`).
+Extraction now rebuilds lines from PDF word boxes; a positioned-word regression
+fails on the old extractor and passes with the fix. Scanned OCR and original page
+rendering are tested independently, since an LLM cannot repair every extraction error.
+
+### Reader, narration, and visuals
+
+| Flow | Current evidence |
+|---|---|
+| Existing imported technical book | Earlier device test opened sections and played narration offline; user confirmed audio |
+| Offline novel fixture, 2 pages | 3 s conversion; 2 sections; 16.007 s non-silent audio; Alice and Bob detected across both pages |
+| Technical PDF extraction + original visuals | 153 ms text extraction + 345 ms rendering = 498 ms; all six checked numeric strings retained |
+| Image-only scanned version + OCR + visuals | 181 ms initial extraction + 1,345 ms OCR + 146 ms rendering = 1,674 ms; all six numeric strings retained |
+| Three-page illustrated conversion, Qwen1.7B GPU=99 | 302 s; 3 sections, 3 full-page images, 42.228 s non-silent audio; normal offline reader opens images and advances playback |
+| Full local technical conversion, Qwen1.7B GPU=99 | 329 s; 2 sections, 1 full-page image, 163.513 s audio; **content fidelity FAILED**: omitted worked noise-margin example, no formula callouts |
+| Short illustrated story excerpt | Three intact PDF pages from NASA's *You Are Going* prepared for end-to-end testing |
+
+Novel attribution currently uses explicit named speech tags over the full extracted
+book. Ambiguous/untagged speech stays with the narrator; this is not unrestricted
+character understanding. Voice styles are stable, but no human listening score is
+claimed from a non-silent-WAV check alone.
+
+Original page images preserve circuit diagrams, photographs, and their placement.
+They synchronize by source page. Individual semantic figure cropping, precise
+figure-level narration alignment, and cloud narrator voice cloning are not yet
+matched by this offline path. OCR, equations, and model hallucinations still require
+quality review before relying on a long technical conversion.
+
+The same-source Qwen3 0.6B GPU-requested run finished generation about 4.0×
+faster than CPU (69.570 vs 278.215 s), while generating different-length outputs
+(549 vs 365 tokens). Including first-token latency, rates were 7.89 vs 1.31
+tokens/s. This is one sequential comparison, not a thermally controlled repeated
+trial; GPU rounding can change output despite a fixed seed. Both outputs failed
+fidelity, so speed does not establish conversion quality.
+
+### Published Gemma/Qwen benchmarks (not phone measurements)
+
+| Model | Publisher-reported MMLU-Pro |
+|---|---:|
+| Gemma 3 4B IT | 43.6 |
+| Gemma 4 E2B | 60.0 |
+| Gemma 4 E4B | 69.4 |
+| Qwen3 4B Instruct 2507 | 69.6 |
+
+Sources: [Gemma 3](https://ai.google.dev/gemma/docs/core/model_card_3),
+[Gemma 4](https://ai.google.dev/gemma/docs/core/model_card_4),
+[Qwen3](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507).
+Different publisher evaluation setups and full-precision results are not a direct
+comparison of these quantized phone builds.
+
+Gemma 4 E2B's mobile text-only weights are listed at approximately 0.84 GB, and
+E4B at 2.2 GB, excluding runtime/context memory. Those mobile versions require
+LiteRT-LM, which is not integrated here. The pinned llama.cpp engine supports
+Gemma 3/3n but not Gemma 4; Gemma 4 is not silently substituted into the older
+Gemma prompt format. [Google memory documentation](https://ai.google.dev/gemma/docs/core)
+
+### Reproduce
+
+The development entry points are `tool/model_benchmark.dart` for inference and
+component diagnostics, and `tool/local_conversion_probe.dart` for the real foreground
+conversion service. Both live under `frontend/firebrat_app`; normal app builds use
+`lib/main.dart`. Download/cache models first and push the selected PDF to the device.
+Build the benchmark entry point, install it while preserving data, then run
+`tool/benchmark_android_models.py` with `--models`, `--output-dir`, and the source
+PDF/marker options. The script restarts only Firebrat and saves raw responses,
+source text/hash, timings, memory samples, device state, and failures. Raw textbook
+text/results stay in local test output rather than being published in this README.
+
+Detailed investigation notes: [offline device testing](docs/OFFLINE_DEVICE_TESTING.md).
+<!-- DEVICE_BENCHMARK_END -->
+
 ## License
 
 Firebrat is licensed under the [GNU Affero General Public License v3.0](LICENSE). The narrator voice setup and its licensing considerations are documented separately in [docs/VOICE.md](docs/VOICE.md).
+
+The full-page technical test exposes a larger-context failure that the short
+passage benchmark missed: the source contains the worked example but generated
+narration omits it. A working pipeline/package is not proof of content accuracy.
+Technical offline conversion is not yet at cloud/server parity. The illustrated
+fixture retained its checked claims (teamwork, Orion, SLS, Statue of Liberty,
+160,000 engines), with repetitive paraphrasing on the first page. Page images
+were inspected in the normal reader, including the full-image viewer; playback
+advanced across sections while airplane mode remained on. Fine-grained semantic
+figure placement and formula extraction remain unresolved.
+
+The default local model is now Qwen3 1.7B. GPU remains opt-in because performance
+and memory safety vary by device. A discovered manifest sample-rate mismatch was
+fixed: metadata now uses the actual narration sample rate (24 kHz on this phone).
+41 mobile pipeline tests and 25 frontend tests pass; both analyzers report clean.
+
+### Kokoro neural voice device verification
+
+The earlier stock-voice tests did **not** test Kokoro. Kokoro was subsequently
+verified on the same Pixel 9a through the production foreground conversion
+pipeline, using its quantized ONNX model on CPU. This is local neural speech,
+not Android stock TTS and not a cloud voice service. This integration exposes
+six presets: Default, Bella, Nicole, Sarah, Adam, Michael; there is no cloning.
+
+| Test | Processing time | Generated audio | Result |
+|---|---:|---:|---|
+| Initial setup + two-page novel, Bella narrator | 206 s including network downloads | 28.716 s | Two sections, named-character roster, non-silent WAVs |
+| Cold app restart, same novel, airplane mode + Wi-Fi off | 29 s | 28.716 s | Offline synthesis passed; narrator Bella plus character presets Default/Nicole |
+| Three-page illustrated book, Adam narrator, offline | 75 s | 55.055 s | Three sections and all three page images; existing LLM compilation checkpoints reused |
+
+The offline novel run took about 1.01 seconds of total pipeline time per second
+of output audio. Illustrated timing includes model loading, cached compilation,
+rendering, synthesis and packaging; it is not an isolated TTS kernel benchmark.
+The model/voice/espeak asset directory occupied 112,589 KiB (about 110 MiB).
+One memory snapshot during offline novel synthesis showed 751,804 KiB app PSS;
+this is **not** a sampled peak. Both novel WAVs were mono 24 kHz, non-silent,
+with zero clipped PCM samples (peaks 20,028 and 20,418 of 32,767).
+Timing, waveform checks and successful generation do not establish subjective
+voice preference or an exhaustive pronunciation benchmark. The initial round exercised Bella/Default/Nicole/Adam. A subsequent automatic
+casting device test also exercised Sarah/Michael, covering all six presets. The first-time download requires internet; subsequent
+cold-start narration passed with networking disabled. No stock-voice fallback
+was used. Kokoro does not fix the technical LLM coverage failure described above.
+
+Backend novel conversion is also implemented via multipart `content_mode=novel`
+and CLI `--content-mode novel`; app server uploads now carry the selected book
+type. See [backend novel documentation](docs/BACKEND_NOVELS.md). Backend automated
+tests pass, but real server Chatterbox character voice quality has not been
+listening-tested in this device session.
+
+Final normal-reader Kokoro playback was verified offline: the highlighted
+segment and playback position advanced (19/22 s), then Android reported the next
+Orion section playing with no media-session error. Normal app is restored, and
+temporary airplane/stay-awake settings were reset after testing.
+
+### Voice selection and automatic novel casting
+
+In Conversion settings → On-device → Kokoro, the narrator picker labels four
+female presets (Default, Bella, Nicole, Sarah) and two male presets (Adam,
+Michael). These are voices of the same Kokoro model, not six separate models.
+Novel mode additionally offers a male character voice, female character voice,
+and exact-name overrides such as `Alice=Nicole` and `Bob=Michael` (one per line).
+Choices survive restarts and are included in background conversion requests.
+Overrides take priority over automatic casting. Changes apply to new narration;
+existing audio does not change just by changing settings.
+
+The full extracted book is scanned before casting. Mobile casting uses explicit
+role statements and narrowly bounded narration such as `Alice smiled as she
+waved` or `Bob nodded as he left`. Only one known named character may be present
+in the sentence. Quoted speech is removed before collecting evidence; mere names,
+reported `Alice said that he left`, and conflicting evidence remain unknown.
+Unknown characters use the narrator preset. This is a conservative English
+heuristic, not complete literary coreference or a determination of identity;
+manual overrides are provided for missed/incorrect casting. Pronoun-only speech
+still cannot identify its speaker. The saved roster records evidence and, for
+Kokoro, selected voices so results can be inspected.
+
+Pixel 9a offline test with Sarah/Michael: two-page fixture, two detected
+characters, 32 s total pipeline time, 32.491 s non-silent 24 kHz narration.
+Automatic female/male categories were confirmed in the saved roster. This
+validates the supported patterns, not arbitrary novels or subjective voice quality.
+Tests cover unknown/conflicting evidence, reported speech, overrides, persistence,
+and background request serialization. Backend uses explicit role statements and
+optional local Chatterbox male/female reference clips; see
+[backend voice casting](docs/BACKEND_NOVELS.md). No additional server voices are
+bundled, and no client-supplied filesystem path is accepted by the upload API.

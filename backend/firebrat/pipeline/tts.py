@@ -10,11 +10,16 @@ log = logging.getLogger(__name__)
 class FirebratTTS:
     def __init__(self, device: str = "cuda", hf_home: str | None = None,
                  exaggeration: float = 0.4, cfg_weight: float = 0.5,
-                 voice_ref: str | None = None):
+                 voice_ref: str | None = None,
+                 male_voice_ref: str | None = None, female_voice_ref: str | None = None):
         self.device = device
         self.exaggeration = exaggeration
         self.cfg_weight = cfg_weight
         self.voice_ref = voice_ref
+        self.character_voice_refs = {"male": male_voice_ref, "female": female_voice_ref}
+        for reference in (voice_ref, male_voice_ref, female_voice_ref):
+            if reference and not os.path.isfile(reference):
+                raise ValueError(f"Voice reference must be an existing local file: {reference}")
         if hf_home:
             os.environ["HF_HOME"] = hf_home
         elif "HF_HOME" not in os.environ:
@@ -35,7 +40,12 @@ class FirebratTTS:
         log.info("ChatterboxTTS loaded, sr=%s", self.sample_rate)
         return self._model
 
-    def synthesize(self, text: str, out_wav_path: str) -> bool:
+    def reference_for_style(self, voice_style: dict | None = None):
+        gender = (voice_style or {}).get("voice_gender", "unknown")
+        return self.character_voice_refs.get(gender) or self.voice_ref
+
+    def synthesize(self, text: str, out_wav_path: str,
+                   voice_style: dict | None = None) -> bool:
         """Synthesize one utterance to wav. Returns True on success."""
         text = text.strip()
         if not text:
@@ -46,13 +56,14 @@ class FirebratTTS:
             model = self.load()
             kwargs: dict = {}
             # exaggeration/cfg only present in some versions
-            if self.voice_ref and os.path.isfile(self.voice_ref):
-                kwargs["audio_prompt_path"] = self.voice_ref
+            reference = self.reference_for_style(voice_style)
+            if reference:
+                kwargs["audio_prompt_path"] = reference
             # Not all versions accept exaggeration/cfg_weight — probe safely
             import inspect
             sig = inspect.signature(model.generate)
             if "exaggeration" in sig.parameters:
-                kwargs["exaggeration"] = self.exaggeration
+                kwargs["exaggeration"] = (voice_style or {}).get("exaggeration", self.exaggeration)
             if "cfg_weight" in sig.parameters:
                 kwargs["cfg_weight"] = self.cfg_weight
 
@@ -69,6 +80,14 @@ class FirebratTTS:
                 if wav.ndim == 2:
                     wav = wav[0]
             sf.write(out_wav_path, wav, self.sample_rate)
+            semitones = (voice_style or {}).get("pitch_semitones", 0)
+            if semitones:
+                from pydub import AudioSegment
+                audio = AudioSegment.from_wav(out_wav_path)
+                audio = audio._spawn(audio.raw_data, overrides={
+                    "frame_rate": round(audio.frame_rate * 2 ** (semitones / 12))
+                }).set_frame_rate(self.sample_rate)
+                audio.export(out_wav_path, format="wav")
             return True
         except Exception as e:
             log.exception("TTS synthesize failed for %r: %s", text[:80], e)
@@ -82,7 +101,7 @@ class FirebratTTS:
             sid = seg.get("segment_id") or seg.get("id") or str(id(seg))
             text = seg.get("text", "")
             wav_path = os.path.join(out_dir, f"{sid}.wav")
-            if self.synthesize(text, wav_path):
+            if self.synthesize(text, wav_path, voice_style=seg.get("voice_style")):
                 result[sid] = wav_path
                 log.info("TTS %s -> %s", sid, wav_path)
             else:
