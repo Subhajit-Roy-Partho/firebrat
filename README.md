@@ -445,7 +445,7 @@ establish physical-iPhone performance or full-book semantic accuracy.
 
 ## Desktop server installer (preview)
 
-[Guided macOS DMG and Linux installer](https://github.com/Subhajit-Roy-Partho/firebrat/releases/tag/server-v0.1.1)
+[Guided macOS DMG and Linux installer](https://github.com/Subhajit-Roy-Partho/firebrat/releases/tag/server-v0.1.2)
 lets you choose a PDF on your computer, convert it there, and download the result
 in Firebrat on your phone. Setup manages isolated Python environments; Docker is
 not required. First setup/model downloads need internet and around 20–40 GB of

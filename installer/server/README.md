@@ -8,7 +8,7 @@ are optional; speech is always synthesized on this computer with Chatterbox.**
 ## Install and convert
 
 1. Download the installer matching your computer from the GitHub release.
-   macOS: open the DMG and drag **FirebratServer.app** to Applications. Linux:
+   macOS (Apple silicon): open the DMG and drag **FirebratServer.app** to Applications. Linux:
    `chmod +x Firebrat-Server-*.run`, then run that file as your normal user.
    Linux builds target x86-64, Ubuntu 22.04 or newer / compatible glibc systems.
 2. Open Firebrat Server. Choose a local Ollama model or your own
@@ -149,8 +149,7 @@ python installer/server/build.py --output /tmp/firebrat-server-installer --versi
 
 The build verifies SHA-256 of official uv and Tectonic archives, bundles the
 tracked backend source and licenses, and creates a DMG or Linux `.run`/tarball
-with SHA-256 companions. GitHub Actions builds Apple silicon, Intel Mac and
-Linux x86-64 separately; this is not a single cross-compiled binary.
+with SHA-256 companions. GitHub Actions builds Apple silicon and Linux x86-64 separately; this is not a single cross-compiled binary.
 Tectonic renders formulas locally with TeX/amsmath and PyMuPDF rasterization,
 without a system TeX/Ghostscript installation. Its first font/package download
 needs internet; cached rendering works offline afterward.
@@ -171,8 +170,10 @@ bash Firebrat-Server-Docker-Linux.sh gpu
 
 The script downloads `subhajitroy/firebrat:desktop-cpu` or `:desktop-gpu`, opens the same browser setup screen, and runs as your own user without privileged mode. Docker Engine must already be installed. Linux host networking is used so the manager, Ollama, and backend remain on this PC's loopback interface. This launcher is intended for a single local user; do not share its private setup URL. The phone connects to the backend through Tailscale Serve on port 8000, not to the setup screen.
 
-Data lives in `~/.local/share/firebrat-server-docker`, including configuration, models, uploads, finished books, and logs. Keep it when replacing containers. Set `FIREBRAT_DATA` before first launch to choose another directory. Stop with `docker stop firebrat-desktop`; resume with `docker start firebrat-desktop` and run the script again to reopen the setup screen. To update, stop and remove **only the container**, then rerun the script; the data directory remains. Changing between CPU/GPU requires replacing the container. `FIREBRAT_IMAGE` can pin an immutable release tag such as `subhajitroy/firebrat:server-v0.1.1-desktop-cpu` instead of the moving desktop tag.
+Data lives in `~/.local/share/firebrat-server-docker`, including configuration, models, uploads, finished books, and logs. Keep it when replacing containers. Set `FIREBRAT_DATA` before first launch to choose another directory. Stop with `docker stop firebrat-desktop`; resume with `docker start firebrat-desktop` and run the script again to reopen the setup screen. To update, stop and remove **only the container**, then rerun the script; the data directory remains. Changing between CPU/GPU requires replacing the container. `FIREBRAT_IMAGE` can pin an immutable release tag such as `subhajitroy/firebrat:server-v0.1.2-desktop-cpu` instead of the moving desktop tag.
 
 These images contain the Python runtimes, extraction, formula tools, Ollama, and local Chatterbox speech engine. Model weights download on first use; complete one conversion online before expecting offline use. Both CPU and GPU images keep voice synthesis local even when you choose a remote LLM API. The GPU image needs NVIDIA hardware and the Container Toolkit; CPU is the fallback for other Linux machines. Docker Desktop on macOS does not provide Apple Metal acceleration: use the native macOS installer and native Ollama there.
 
 Images are built and smoke-tested by GitHub Actions before publication. Import/startup checks do not constitute an actual NVIDIA hardware benchmark. Source builds are also possible with `backend/docker/Dockerfile.desktop`, using the matching backend image as `BASE_IMAGE`.
+
+Native Intel Mac builds are not offered: the extraction and Chatterbox PyTorch versions have no current Intel macOS wheels. Use a Linux x86-64 PC/VM running the Docker image and connect the Mac or phone as a reader. Apple silicon has native supported wheels.

@@ -39,7 +39,6 @@ ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
 ARG TTS_TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
 
 WORKDIR /app
-COPY backend/ /app/backend/
 
 # ── firebrat-extract venv (marker-pdf + pymupdf) ─────────────────────────
 # Also runs convert.py itself plus Stages 1/2/2b/manifest/package (only
@@ -67,6 +66,8 @@ RUN python -m venv /opt/venvs/serve && \
     /opt/venvs/serve/bin/pip install --no-cache-dir --upgrade pip && \
     /opt/venvs/serve/bin/pip install --no-cache-dir \
         fastapi "uvicorn[standard]" python-multipart pydantic requests pydub pypdf pytest httpx firebase-admin
+
+COPY backend/ /app/backend/
 
 ENV FIREBRAT_EXTRACT_PY=/opt/venvs/extract/bin/python \
     FIREBRAT_TTS_PY=/opt/venvs/tts/bin/python \
