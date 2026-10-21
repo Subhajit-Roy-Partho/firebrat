@@ -1,14 +1,32 @@
 {
   "Darwin-arm64": {
-    "uv": ["https://github.com/astral-sh/uv/releases/download/0.13.4/uv-aarch64-apple-darwin.tar.gz", "e0b1d4743ce64c55d9f0f4a444afa6b81125680070ee04e853fcd0f6c1ebf8f1"],
-    "tectonic": ["https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.17.0/tectonic-0.17.0-aarch64-apple-darwin.tar.gz", "a3f1cac7c5678f01661a92212f58480ae3b0634115d880dbc59e2953ded45667"]
+    "uv": [
+      "https://github.com/astral-sh/uv/releases/download/0.13.4/uv-aarch64-apple-darwin.tar.gz",
+      "e0b1d4743ce64c55d9f0f4a444afa6b81125680070ee04e853fcd0f6c1ebf8f1"
+    ],
+    "tectonic": [
+      "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.17.0/tectonic-0.17.0-aarch64-apple-darwin.tar.gz",
+      "a3f1cac7c5678f01661a92212f58480ae3b0634115d880dbc59e2953ded45667"
+    ]
   },
   "Darwin-x86_64": {
-    "uv": ["https://github.com/astral-sh/uv/releases/download/0.13.4/uv-x86_64-apple-darwin.tar.gz", "7be2dcd316122f4b3e5a0a7889f6248266c14425374e105ff7dc9779184603a6"],
-    "tectonic": ["https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.17.0/tectonic-0.17.0-x86_64-apple-darwin.tar.gz", "7c90ef5b6ddb1eb1937e4337add5237b79338e4b9676459fa91187d24d6cdf80"]
+    "uv": [
+      "https://github.com/astral-sh/uv/releases/download/0.13.4/uv-x86_64-apple-darwin.tar.gz",
+      "7be2dcd316122f4b3e5a0a7889f6248266c14425374e105ff7dc9779184603a6"
+    ],
+    "tectonic": [
+      "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.17.0/tectonic-0.17.0-x86_64-apple-darwin.tar.gz",
+      "7c90ef5b6ddb1eb1937e4337add5237b79338e4b9676459fa91187d24d6cdf80"
+    ]
   },
   "Linux-x86_64": {
-    "uv": ["https://github.com/astral-sh/uv/releases/download/0.13.4/uv-x86_64-unknown-linux-gnu.tar.gz", "2b428396f12572d4429cf210ca234dd599a33b3af0958a4d5ed569d63e3f344f"],
-    "tectonic": ["https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.17.0/tectonic-0.17.0-x86_64-unknown-linux-gnu.tar.gz", "1a715688baf591e650c8aeb160ae934e181685eecbb38b317de30b269ac5d606"]
+    "uv": [
+      "https://github.com/astral-sh/uv/releases/download/0.13.4/uv-x86_64-unknown-linux-gnu.tar.gz",
+      "2b428396f12572d4429cf210ca234dd599a33b3af0958a4d5ed569d63e3f344f"
+    ],
+    "tectonic": [
+      "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.17.0/tectonic-0.17.0-x86_64-unknown-linux-musl.tar.gz",
+      "8533d07f9ccbd7a65824b9e0459041bca34af1eb33daba48f59215593753a3b7"
+    ]
   }
 }
