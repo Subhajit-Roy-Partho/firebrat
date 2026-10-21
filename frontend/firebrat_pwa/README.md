@@ -63,3 +63,9 @@ scope. Publish that generated output to the repository's `gh-pages` root. The
 registered public Firebase web config is bundled for static hosting. Google
 sign-in reached the popup flow on the published hostname without an unauthorized
 domain error; actual account consent still needs Safari verification.
+
+On the connected iPad (9th generation), iPadOS 27.2, a Safari UI test passed
+opening the published sample, showing the original illustration in zoom, starting
+Kokoro narration through a text segment and pausing it with the media control.
+This verifies the public reader in actual iPad Safari; it does not establish
+home-screen installation, airplane-mode storage persistence or Google consent.

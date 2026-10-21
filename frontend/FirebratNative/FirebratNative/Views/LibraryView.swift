@@ -36,11 +36,20 @@ struct LibraryView: View {
                         .padding(.vertical, 4)
                     }
                     ForEach(store.localBooks) { book in
-                        NavigationLink(value: book) {
-                            BookRow(book: book,
-                                    progress: store.downloadProgress[book.bookId])
+                        HStack {
+                            NavigationLink(value: book) {
+                                BookRow(book: book,
+                                        progress: store.downloadProgress[book.bookId])
+                            }
+                            .accessibilityIdentifier("local-book-\(book.bookId)")
+                            Button(role: .destructive) { pendingDelete = book } label: {
+                                Image(systemName: "trash")
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("Delete \(book.title)")
+                            .accessibilityIdentifier("delete-book-\(book.bookId)")
+                            .disabled(store.downloadProgress[book.bookId] != nil)
                         }
-                        .accessibilityIdentifier("local-book-\(book.bookId)")
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 pendingDelete = book
@@ -131,23 +140,31 @@ struct LibraryView: View {
                     errorMessage = error.localizedDescription
                 }
             }
-            .alert("Couldn't open that file", isPresented: .constant(errorMessage != nil)) {
-                Button("OK") { errorMessage = nil }
-            } message: {
-                Text(errorMessage ?? "")
-            }
-            .confirmationDialog(
-                "Delete this book from the device?",
-                isPresented: .constant(pendingDelete != nil),
-                titleVisibility: .visible
+            .alert(
+                pendingDelete == nil ? "Couldn't complete that action" : "Delete this book?",
+                isPresented: Binding(
+                    get: { pendingDelete != nil || errorMessage != nil },
+                    set: { if !$0 { pendingDelete = nil; errorMessage = nil } }
+                )
             ) {
-                Button("Delete", role: .destructive) {
-                    if let book = pendingDelete {
-                        Task { await store.deleteLocal(bookId: book.bookId) }
+                if let book = pendingDelete {
+                    Button("Delete", role: .destructive) {
+                        pendingDelete = nil
+                        Task {
+                            do { try await store.deleteLocal(bookId: book.bookId) }
+                            catch { errorMessage = error.localizedDescription }
+                        }
                     }
-                    pendingDelete = nil
+                    Button("Cancel", role: .cancel) { pendingDelete = nil }
+                } else {
+                    Button("OK") { errorMessage = nil }
                 }
-                Button("Cancel", role: .cancel) { pendingDelete = nil }
+            } message: {
+                if let book = pendingDelete {
+                    Text("\(book.title) will be removed from this device. Your original file and server copy are kept.")
+                } else {
+                    Text(errorMessage ?? "")
+                }
             }
             .task(id: settings.mode) {
                 await store.refreshLocalBooks()

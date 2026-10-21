@@ -132,6 +132,14 @@ public final class PlayerEngine: ObservableObject {
         lastActiveId = nil
     }
 
+    public func closeBook() {
+        stop()
+        manifest = nil; segments = nil; bookId = nil
+        positionMs = 0; durationMs = 0; currentVisualId = nil
+        onSectionComplete = nil
+        nowPlaying.clear()
+    }
+
     /// 0.75 – 2.0, persisted via AppSettings by the caller. AVPlayer has no
     /// separate "default rate", so the speed is stored and re-applied on
     /// every play() plus immediately when already playing.

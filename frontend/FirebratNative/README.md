@@ -84,8 +84,8 @@ Fixture generation needs reportlab and pdftoppm. UI tests expose fixture-only
 buttons in DEBUG builds through test launch environment variables. They add no
 production authentication bypass. The loopback preview script disables heavy
 conversion workers; it validates transport and reader flows, not server neural
-conversion. Live Google account sign-in and physical-device conversion remain unverified;
-connected iPad testing is being prepared separately.
+conversion. Live Google account sign-in remains unverified. Physical iPad conversion and
+reading checks are documented below.
 
 ## Dependency provenance
 
@@ -101,8 +101,8 @@ Kokoro model URL and verified digest are in `Stores/KokoroRuntime.swift`.
 These are **simulator CPU measurements on the Mac**, not iPad performance or
 battery measurements. Four inference threads, cached Q4_K_M weights, context 2048,
 greedy decoding, one original illustrated circuit page, 384-token cap. Times
-include local model generation/setup as recorded by the wrapper; downloads and
-speech generation are excluded. One final run per model is shown; repeated runs
+include prompt evaluation and token decoding as recorded by the wrapper; model
+loading, downloads and speech generation are excluded. One final run per model is shown; repeated runs
 varied, so these do not establish a general model ranking.
 
 | Model | Download bytes | Prompt / generated tokens | Final generation time | Coverage result |
@@ -146,3 +146,70 @@ be installed directly on an iPad: it must be signed and provisioned first.
 The PWA at https://subhajit-roy-partho.github.io/firebrat/ needs no signing and
 uses server conversion only. Original website documentation lives under its
 Documentation link.
+
+## Physical iPad checks (2026-10-21)
+
+Connected iPad (9th generation), iPadOS 27.2, native Debug build signed with a
+Personal Team. Six UI tests passed: illustrated conversion/reader/playback/source
+PDF, scanned-page OCR, nested package import, offline library/settings, Kokoro
+novel, and six-character Kokoro casting. Generated WAVs contained real nonzero
+audio, and the six expected gender/voice assignments were verified in saved
+metadata. Original circuit image/layout was visually checked in the device
+screenshot. These are tiny original fixtures, not a whole-textbook benchmark.
+
+| Device fixture | Extraction | Speech generation | Audio produced | Total conversion |
+|---|---:|---:|---:|---:|
+| Illustrated, Apple speech, 1 page | 0.052 s | 1.377 s | 9.967 s | 1.584 s |
+| Scanned image, Vision + Apple speech, 1 page | 0.926 s | 1.562 s | 9.967 s | 2.632 s |
+| Novel, Kokoro, 2 pages, cached model | 0.041 s | 27.175 s | 18.154 s | 28.550 s |
+| Six-character novel, Kokoro, first setup | 0.042 s | 32.876 s | 22.823 s | 96.298 s |
+
+Kokoro speech generation used about 1.44–1.50 seconds of processing per second
+of audio on this iPad. First setup includes the verified approximately 103 MB
+model download and extraction; it is excluded from the speech-only column.
+Network conditions and first-use setup affect total time. No battery, temperature,
+energy or perceptual-quality score was measured. The app was connected to Wi-Fi
+for first model setup; these checks do not prove an airplane-mode run.
+
+### Language models on the physical iPad
+
+Same circuit passage and inference settings as above; cached verified Q4_K_M
+weights. Two runs for each smaller model/backend, one for Qwen 1.7B. Generation
+times include prompt evaluation and decoding, but exclude model loading and TTS.
+Total conversion includes those stages. No energy or peak-memory measurements
+were captured. Different CPU/Metal floating-point results produced different
+wording/token counts despite greedy decoding; this is not a controlled identical-
+output comparison.
+
+| Model/backend | Generated tokens | Generation time | Total conversion | Result |
+|---|---:|---:|---:|---|
+| Qwen3 0.6B CPU | 32 | 1.418 / 1.479 s | 17.505 / 17.547 s | Completed; guard rejected omitted labels, original retained |
+| Qwen3 0.6B Metal GPU | 37 | 13.454 / 12.399 s | 28.930 / 27.896 s | Completed; guard rejected omitted labels, original retained |
+| Gemma 3 1B CPU | 37 | 3.829 / 3.686 s | 42.585 / 20.083 s | Completed; numeric words triggered conservative guard, original retained |
+| Qwen3 1.7B CPU | 32 | 98.154 s | 114.609 s | Completed; coverage guard accepted; human review still required |
+
+Metal was slower on this iPad in both measured runs. Keep GPU off for this
+device unless a different workload is measured to benefit. Qwen 1.7B passed the
+small source check but its speed makes a whole book costly in time. Verbatim
+narration remains the reliable default for complete source retention. These
+measurements do not establish model accuracy on unseen books.
+
+The physical-device runs covered eleven distinct checks, with repeated model
+checks to investigate the CPU/GPU difference. The Safari check opened the
+published PWA sample, expanded its image, started narration and paused it.
+The initial Safari test needed a selector fix to distinguish its image Close
+button from Safari's tab Close button; the corrected test passed.
+
+Raw original-fixture measurements are in
+[`Tests/benchmarks/ipad9-2026-10-21.json`](Tests/benchmarks/ipad9-2026-10-21.json).
+Re-export from a copied test book directory with
+`python3 scripts/collect_benchmarks.py /path/to/books`. The exporter only includes
+the named original fixtures and omits device IDs, account details and file paths.
+
+## Deleting a local book
+
+Use the trash button beside a downloaded book, or swipe left and choose Delete.
+Confirming removes only that app-local package and its saved playback position.
+The original file in Files and any server copy remain. Deleting the currently
+playing book stops its audio and clears lock-screen playback state. File errors
+are shown rather than silently ignored. Cancel leaves the book unchanged.

@@ -1,0 +1,386 @@
+[
+  {
+    "fixture": "native-illustrated",
+    "generated_at": "2026-10-21T17:29:08Z",
+    "figure_count": 1,
+    "metrics": {
+      "audio_seconds": 9.967,
+      "compiler": "verbatim",
+      "elapsed_seconds": 1.5835570096969604,
+      "extraction_seconds": 0.05225801467895508,
+      "source_page_count": 1,
+      "tts_realtime_factor": 0.1381133807582172,
+      "tts_seconds": 1.3765760660171509,
+      "voice_engine": "apple"
+    },
+    "characters": []
+  },
+  {
+    "fixture": "native-voices",
+    "generated_at": "2026-10-21T17:31:01Z",
+    "figure_count": 0,
+    "metrics": {
+      "audio_seconds": 22.823,
+      "compiler": "verbatim",
+      "elapsed_seconds": 96.29808294773102,
+      "extraction_seconds": 0.0415949821472168,
+      "source_page_count": 1,
+      "tts_realtime_factor": 1.4404914331379746,
+      "tts_seconds": 32.876335978507996,
+      "voice_engine": "kokoro"
+    },
+    "characters": [
+      {
+        "gender": "female",
+        "evidencePages": [
+          0
+        ],
+        "voice": "Default",
+        "name": "Alice"
+      },
+      {
+        "gender": "female",
+        "evidencePages": [
+          0
+        ],
+        "voice": "Bella",
+        "name": "Bella"
+      },
+      {
+        "gender": "female",
+        "evidencePages": [
+          0
+        ],
+        "voice": "Nicole",
+        "name": "Clara"
+      },
+      {
+        "gender": "female",
+        "evidencePages": [
+          0
+        ],
+        "voice": "Sarah",
+        "name": "Diana"
+      },
+      {
+        "gender": "male",
+        "evidencePages": [
+          0
+        ],
+        "voice": "Adam",
+        "name": "Evan"
+      },
+      {
+        "name": "Felix",
+        "voice": "Michael",
+        "gender": "male",
+        "evidencePages": [
+          0
+        ]
+      }
+    ]
+  },
+  {
+    "fixture": "native-novel",
+    "generated_at": "2026-10-21T17:31:37Z",
+    "figure_count": 0,
+    "metrics": {
+      "audio_seconds": 18.154,
+      "compiler": "verbatim",
+      "elapsed_seconds": 28.55008900165558,
+      "extraction_seconds": 0.04060494899749756,
+      "source_page_count": 2,
+      "tts_realtime_factor": 1.4969006802944593,
+      "tts_seconds": 27.174734950065613,
+      "voice_engine": "kokoro"
+    },
+    "characters": [
+      {
+        "name": "Alice",
+        "evidencePages": [
+          0,
+          1
+        ],
+        "voice": "Sarah",
+        "gender": "female"
+      },
+      {
+        "name": "Bob",
+        "evidencePages": [
+          0,
+          1
+        ],
+        "voice": "Michael",
+        "gender": "male"
+      }
+    ]
+  },
+  {
+    "fixture": "native-scanned",
+    "generated_at": "2026-10-21T17:32:07Z",
+    "figure_count": 1,
+    "metrics": {
+      "audio_seconds": 9.967,
+      "compiler": "verbatim",
+      "elapsed_seconds": 2.6319550275802612,
+      "extraction_seconds": 0.9259690046310425,
+      "source_page_count": 1,
+      "tts_realtime_factor": 0.15673623516074725,
+      "tts_seconds": 1.562190055847168,
+      "voice_engine": "apple"
+    },
+    "characters": []
+  },
+  {
+    "fixture": "native-illustrated",
+    "generated_at": "2026-10-21T17:34:45Z",
+    "figure_count": 1,
+    "metrics": {
+      "audio_seconds": 10.614,
+      "compiler": "llm",
+      "elapsed_seconds": 42.58514404296875,
+      "extraction_seconds": 0.0503770112991333,
+      "source_page_count": 1,
+      "tts_realtime_factor": 1.2552732237094715,
+      "tts_seconds": 13.323469996452332,
+      "voice_engine": "kokoro"
+    },
+    "compilation": {
+      "chunks": [
+        {
+          "accelerator": "cpu",
+          "accepted": false,
+          "elapsedSeconds": 3.8288769721984863,
+          "generatedTokens": 37,
+          "model": "gemma-3-1b",
+          "page": 0,
+          "promptTokens": 89,
+          "source_preserved_on_failure": true,
+          "stopped": true,
+          "text": "The Lantern Circuit. A battery supplies three volts to a lamp. The lamp lights when the switch is closed. The diagram below preserves the original circuit layout. Three volts battery, Lamp."
+        }
+      ],
+      "human_review_required": true,
+      "model": "gemma-3-1b",
+      "provider": "llama.cpp",
+      "requested_metal": false
+    },
+    "characters": []
+  },
+  {
+    "fixture": "native-illustrated",
+    "generated_at": "2026-10-21T17:35:11Z",
+    "figure_count": 1,
+    "metrics": {
+      "audio_seconds": 10.612,
+      "compiler": "llm",
+      "elapsed_seconds": 17.50527000427246,
+      "extraction_seconds": 0.035201072692871094,
+      "source_page_count": 1,
+      "tts_realtime_factor": 1.244062192027541,
+      "tts_seconds": 13.201987981796265,
+      "voice_engine": "kokoro"
+    },
+    "compilation": {
+      "chunks": [
+        {
+          "accelerator": "cpu",
+          "accepted": false,
+          "elapsedSeconds": 1.4179240465164185,
+          "generatedTokens": 32,
+          "model": "qwen3-0.6b",
+          "page": 0,
+          "promptTokens": 98,
+          "source_preserved_on_failure": true,
+          "stopped": true,
+          "text": "The lantern circuit is set up with a battery providing three volts. When the switch is closed, the lamp lights. The diagram below preserves the original circuit layout."
+        }
+      ],
+      "human_review_required": true,
+      "model": "qwen3-0.6b",
+      "provider": "llama.cpp",
+      "requested_metal": false
+    },
+    "characters": []
+  },
+  {
+    "fixture": "native-illustrated",
+    "generated_at": "2026-10-21T17:35:48Z",
+    "figure_count": 1,
+    "metrics": {
+      "audio_seconds": 10.62,
+      "compiler": "llm",
+      "elapsed_seconds": 28.930454969406128,
+      "extraction_seconds": 0.035830020904541016,
+      "source_page_count": 1,
+      "tts_realtime_factor": 1.192067325002954,
+      "tts_seconds": 12.659754991531372,
+      "voice_engine": "kokoro"
+    },
+    "compilation": {
+      "chunks": [
+        {
+          "accelerator": "metal",
+          "accepted": false,
+          "elapsedSeconds": 13.454270005226135,
+          "generatedTokens": 37,
+          "model": "qwen3-0.6b",
+          "page": 0,
+          "promptTokens": 98,
+          "source_preserved_on_failure": true,
+          "stopped": true,
+          "text": "The lantern circuit works as follows: a 3-volt battery powers a lamp. When the switch is closed, the lamp lights up. The diagram below preserves the original circuit layout."
+        }
+      ],
+      "human_review_required": true,
+      "model": "qwen3-0.6b",
+      "provider": "llama.cpp",
+      "requested_metal": true
+    },
+    "characters": []
+  },
+  {
+    "fixture": "native-illustrated",
+    "generated_at": "2026-10-21T17:38:39Z",
+    "figure_count": 1,
+    "metrics": {
+      "audio_seconds": 10.614,
+      "compiler": "llm",
+      "elapsed_seconds": 20.0829039812088,
+      "extraction_seconds": 0.05271804332733154,
+      "source_page_count": 1,
+      "tts_realtime_factor": 1.2197482601630838,
+      "tts_seconds": 12.946408033370972,
+      "voice_engine": "kokoro"
+    },
+    "compilation": {
+      "chunks": [
+        {
+          "accelerator": "cpu",
+          "accepted": false,
+          "elapsedSeconds": 3.686031937599182,
+          "generatedTokens": 37,
+          "model": "gemma-3-1b",
+          "page": 0,
+          "promptTokens": 89,
+          "source_preserved_on_failure": true,
+          "stopped": true,
+          "text": "The Lantern Circuit. A battery supplies three volts to a lamp. The lamp lights when the switch is closed. The diagram below preserves the original circuit layout. Three volts battery, Lamp."
+        }
+      ],
+      "human_review_required": true,
+      "model": "gemma-3-1b",
+      "provider": "llama.cpp",
+      "requested_metal": false
+    },
+    "characters": []
+  },
+  {
+    "fixture": "native-illustrated",
+    "generated_at": "2026-10-21T17:39:05Z",
+    "figure_count": 1,
+    "metrics": {
+      "audio_seconds": 10.614,
+      "compiler": "llm",
+      "elapsed_seconds": 17.54744803905487,
+      "extraction_seconds": 0.035452961921691895,
+      "source_page_count": 1,
+      "tts_realtime_factor": 1.2404574992091997,
+      "tts_seconds": 13.166215896606445,
+      "voice_engine": "kokoro"
+    },
+    "compilation": {
+      "chunks": [
+        {
+          "accelerator": "cpu",
+          "accepted": false,
+          "elapsedSeconds": 1.4793510437011719,
+          "generatedTokens": 32,
+          "model": "qwen3-0.6b",
+          "page": 0,
+          "promptTokens": 98,
+          "source_preserved_on_failure": true,
+          "stopped": true,
+          "text": "The lantern circuit is set up with a battery providing three volts. When the switch is closed, the lamp lights. The diagram below preserves the original circuit layout."
+        }
+      ],
+      "human_review_required": true,
+      "model": "qwen3-0.6b",
+      "provider": "llama.cpp",
+      "requested_metal": false
+    },
+    "characters": []
+  },
+  {
+    "fixture": "native-illustrated",
+    "generated_at": "2026-10-21T17:39:41Z",
+    "figure_count": 1,
+    "metrics": {
+      "audio_seconds": 10.614,
+      "compiler": "llm",
+      "elapsed_seconds": 27.89571702480316,
+      "extraction_seconds": 0.03593599796295166,
+      "source_page_count": 1,
+      "tts_realtime_factor": 1.1973041294882116,
+      "tts_seconds": 12.708186030387878,
+      "voice_engine": "kokoro"
+    },
+    "compilation": {
+      "chunks": [
+        {
+          "accelerator": "metal",
+          "accepted": false,
+          "elapsedSeconds": 12.398906946182251,
+          "generatedTokens": 37,
+          "model": "qwen3-0.6b",
+          "page": 0,
+          "promptTokens": 98,
+          "source_preserved_on_failure": true,
+          "stopped": true,
+          "text": "The lantern circuit works as follows: a 3-volt battery powers a lamp. When the switch is closed, the lamp lights up. The diagram below preserves the original circuit layout."
+        }
+      ],
+      "human_review_required": true,
+      "model": "qwen3-0.6b",
+      "provider": "llama.cpp",
+      "requested_metal": true
+    },
+    "characters": []
+  },
+  {
+    "fixture": "native-illustrated",
+    "generated_at": "2026-10-21T17:43:09Z",
+    "figure_count": 1,
+    "metrics": {
+      "audio_seconds": 9.476,
+      "compiler": "llm",
+      "elapsed_seconds": 114.60939300060272,
+      "extraction_seconds": 0.049079060554504395,
+      "source_page_count": 1,
+      "tts_realtime_factor": 1.250482161571427,
+      "tts_seconds": 11.849568963050842,
+      "voice_engine": "kokoro"
+    },
+    "compilation": {
+      "chunks": [
+        {
+          "accelerator": "cpu",
+          "accepted": true,
+          "elapsedSeconds": 98.15437805652618,
+          "generatedTokens": 32,
+          "model": "qwen3-1.7b",
+          "page": 0,
+          "promptTokens": 98,
+          "source_preserved_on_failure": false,
+          "stopped": true,
+          "text": "A battery supplies three volts to a lamp. The lamp lights when the switch is closed. The diagram below preserves the original circuit layout. 3 V battery Lamp"
+        }
+      ],
+      "human_review_required": true,
+      "model": "qwen3-1.7b",
+      "provider": "llama.cpp",
+      "requested_metal": false
+    },
+    "characters": []
+  }
+]

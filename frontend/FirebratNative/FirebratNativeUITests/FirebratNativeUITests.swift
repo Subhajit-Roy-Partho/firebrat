@@ -2,6 +2,47 @@ import XCTest
 
 @MainActor final class FirebratNativeUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
+    func testLibraryDeleteConfirmation() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-conversion.mode", "offline"]
+        app.launchEnvironment["FIREBRAT_TEST_ARCHIVE_NAME"] = "native-package.tar.gz"
+        app.launch(); app.buttons["Add"].tap(); app.buttons["Import test package"].tap()
+        let remove = app.buttons["delete-book-native-import"]
+        XCTAssertTrue(remove.waitForExistence(timeout: 20)); remove.tap()
+        XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
+        let confirmation = XCTAttachment(screenshot: app.screenshot()); confirmation.lifetime = .keepAlways; add(confirmation)
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(remove.exists)
+        remove.tap(); app.buttons["Delete"].tap()
+        let gone = NSPredicate(format: "exists == false")
+        expectation(for: gone, evaluatedWith: remove)
+        waitForExpectations(timeout: 10)
+    }
+
+    func testRemoveGeneratedFixtureBooks() throws {
+        guard let raw = ProcessInfo.processInfo.environment["FIREBRAT_CLEANUP_IDS"], !raw.isEmpty else {
+            throw XCTSkip("Explicit IDs required for device fixture cleanup")
+        }
+        var remaining = Set(raw.split(separator: ",").map { "delete-book-" + String($0) })
+        let app = XCUIApplication(); app.launchArguments = ["-conversion.mode", "offline"]; app.launch()
+        var misses = 0
+        while !remaining.isEmpty {
+            let candidates = app.buttons.matching(NSPredicate(format: "identifier IN %@", Array(remaining)))
+            if let remove = candidates.allElementsBoundByIndex.first(where: { $0.isHittable }) {
+                let id = remove.identifier; remove.tap()
+                XCTAssertTrue(app.buttons["Delete"].waitForExistence(timeout: 5)); app.buttons["Delete"].tap()
+                expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: app.buttons[id])
+                waitForExpectations(timeout: 10)
+                remaining.remove(id); misses = 0
+            } else {
+                misses += 1
+                XCTAssertLessThan(misses, 30, "Could not find the remaining explicitly selected fixture rows")
+                if misses < 15 { app.swipeUp() } else { app.swipeDown() }
+            }
+        }
+        let cleaned = XCTAttachment(screenshot: app.screenshot()); cleaned.lifetime = .keepAlways; add(cleaned)
+    }
+
     func testOfflineLibraryAndSettings() {
         let app = XCUIApplication()
         app.launchArguments = ["-conversion.mode", "offline"]
@@ -80,6 +121,18 @@ import XCTest
         XCTAssertTrue(safari.wait(for: .runningForeground, timeout: 15))
         XCTAssertTrue(safari.staticTexts["Your books"].waitForExistence(timeout: 30))
         XCTAssertTrue(safari.links["Documentation"].exists)
+        let read = safari.buttons["Read"].firstMatch
+        XCTAssertTrue(read.waitForExistence(timeout: 20)); read.tap()
+        XCTAssertTrue(safari.buttons["Source PDF"].waitForExistence(timeout: 20))
+        let illustration = safari.buttons["Expand illustration"]
+        XCTAssertTrue(illustration.waitForExistence(timeout: 20)); illustration.tap()
+        XCTAssertTrue(safari.webViews.buttons["Close"].firstMatch.waitForExistence(timeout: 5))
+        safari.webViews.buttons["Close"].firstMatch.tap()
+        let narration = safari.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "The Lantern Circuit.")).firstMatch
+        XCTAssertTrue(narration.waitForExistence(timeout: 10)); narration.tap()
+        let pause = safari.buttons.matching(NSPredicate(format: "label MATCHES[c] %@", "pause")).firstMatch
+        XCTAssertTrue(pause.waitForExistence(timeout: 10), safari.debugDescription)
+        pause.tap()
         print("SAFARI_STATE", safari.debugDescription)
         let attachment = XCTAttachment(screenshot: safari.screenshot()); attachment.lifetime = .keepAlways; add(attachment)
     }
@@ -95,7 +148,7 @@ import XCTest
         XCTAssertTrue(app.staticTexts["Converted offline — open the book in your library."].exists, app.debugDescription)
     }
     func testQwenSmallLocalConversion() { convertWithModel("qwen3-0.6b") }
-    func testSimulatorGPURequestUsesCPU() { convertWithModel("qwen3-0.6b", metal: true) }
+    func testQwenSmallRequestedMetalConversion() { convertWithModel("qwen3-0.6b", metal: true) }
     func testQwenBalancedLocalConversion() { convertWithModel("qwen3-1.7b") }
     func testGemmaLocalConversion() { convertWithModel("gemma-3-1b") }
 

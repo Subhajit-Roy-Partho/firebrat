@@ -428,12 +428,16 @@ optional local Chatterbox male/female reference clips; see
 bundled, and no client-supplied filesystem path is accepted by the upload API.
 
 
-## Apple app and published PWA (1.6.0)
+## Apple app and published PWA (1.6.1)
 
 - [Open the Apple PWA](https://subhajit-roy-partho.github.io/firebrat/): server-only conversion, a short original narrated sample, and explicitly saved offline reading. The previous website is under its **Documentation** link.
 - [Native iPhone/iPad app, setup and measured results](frontend/FirebratNative/README.md): local OCR, PDF conversion, Kokoro voices, novel casting, optional Qwen/Gemma compilation, and Metal selection.
 - [PWA source, deployment and offline behavior](frontend/firebrat_pwa/README.md).
 - [Release downloads](https://github.com/Subhajit-Roy-Partho/firebrat/releases/latest): Android APK and a clearly labeled **unsigned IPA**. The IPA needs signing before installation; it is not an App Store or TestFlight distribution.
+
+The native library has a visible trash button with confirmation; deleting a local
+copy keeps the original import file and server copy. Physical iPad measurements
+(including CPU/Metal comparisons) are in the native app README.
 
 Swift and Flutter store their preferences independently. The native source and
 remaining platform limits are documented explicitly; small simulator tests do not

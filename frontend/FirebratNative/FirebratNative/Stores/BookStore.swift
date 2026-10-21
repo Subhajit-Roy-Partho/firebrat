@@ -156,10 +156,14 @@ public final class BookStore: ObservableObject {
 
     // MARK: - Delete
 
-    public func deleteLocal(bookId: String) async {
-        if let dir = try? bookDirectory(bookId: bookId) {
-            try? FileManager.default.removeItem(at: dir)
+    public func deleteLocal(bookId: String) async throws {
+        let dir = try bookDirectory(bookId: bookId)
+        if PlayerEngine.shared.bookId == bookId { PlayerEngine.shared.closeBook() }
+        if FileManager.default.fileExists(atPath: dir.path) {
+            try FileManager.default.removeItem(at: dir)
         }
+        UserDefaults.standard.removeObject(forKey: "progress.\(bookId).section")
+        UserDefaults.standard.removeObject(forKey: "progress.\(bookId).position")
         await refreshLocalBooks()
     }
 
