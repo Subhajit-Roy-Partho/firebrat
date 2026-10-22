@@ -445,12 +445,12 @@ establish physical-iPhone performance or full-book semantic accuracy.
 
 ## Desktop server installer (preview)
 
-[Guided macOS DMG and Linux installer](https://github.com/Subhajit-Roy-Partho/firebrat/releases/tag/server-v0.1.3)
+[Guided Apple silicon macOS DMG and Linux installer](https://github.com/Subhajit-Roy-Partho/firebrat/releases/tag/server-v0.1.3)
 lets you choose a PDF on your computer, convert it there, and download the result
 in Firebrat on your phone. Setup manages isolated Python environments; Docker is
 not required. First setup/model downloads need internet and around 20–40 GB of
 free disk space. macOS builds are unsigned/not notarized; no paid Apple enrollment
-is performed. [Full installation, privacy and troubleshooting guide](installer/server/README.md).
+is performed. Native Intel macOS is unsupported by the required PyTorch wheels; use a Linux backend/VM. [Full installation, privacy and troubleshooting guide](installer/server/README.md).
 
 Choose **On this computer** with native Ollama, or enter your existing
 OpenAI-compatible LLM API and model ID. **Voice generation always runs locally**
@@ -496,3 +496,5 @@ similar mesh VPN can also work with private reachability and valid HTTPS.
 [Official Tailscale Serve instructions](https://tailscale.com/docs/reference/tailscale-cli/serve).
 
 Linux users can also use the [Docker launcher](installer/server/firebrat-docker.sh): run it with `cpu` or `gpu` to open the same desktop conversion screen. The images are `subhajitroy/firebrat:desktop-cpu` and `subhajitroy/firebrat:desktop-gpu`; the GPU option requires NVIDIA Container Toolkit. Books, models, and settings persist on the host. See the [Docker setup and update guide](installer/server/README.md#linux-docker-installer). Narration always runs locally, including when an LLM API is selected.
+
+Measured desktop startup and cached offline CPU speech results are recorded in the [installer validation guide](installer/server/README.md#measured-desktop-validation-2026-10-21).
