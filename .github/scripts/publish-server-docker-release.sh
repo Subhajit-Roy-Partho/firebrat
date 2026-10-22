@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Called only after both desktop images pass startup checks and are pushed.
-tag="$GITHUB_REF_NAME"
+tag="${FIREBRAT_RELEASE_TAG:-$GITHUB_REF_NAME}"
+[[ "$tag" =~ ^server-v[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || { echo "Invalid server release tag" >&2; exit 1; }
 body="$RUNNER_TEMP/server-release-notes.md"
 if gh release view "$tag" --json body --jq .body > "$body" 2>/dev/null; then
   if ! rg -q '^### Docker Hub images' "$body"; then
