@@ -59,6 +59,9 @@ android {
                 }
                 signingConfig = signingConfigs.getByName("release")
             } else {
+                check(System.getenv("FIREBRAT_PLAY_RELEASE") != "true") {
+                    "Play Store builds require android/key.properties and an upload keystore; debug signing is forbidden."
+                }
                 signingConfig = signingConfigs.getByName("debug")
             }
             isMinifyEnabled = true

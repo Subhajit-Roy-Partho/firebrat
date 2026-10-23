@@ -502,3 +502,5 @@ Measured desktop startup and cached offline CPU speech results are recorded in t
 ### Android conversion and support
 
 See the [Android conversion guide](docs/ANDROID_CONVERSION_GUIDE.md) for offline models, desktop/server conversion and [bug reporting](https://github.com/Subhajit-Roy-Partho/firebrat/issues/new?template=bug_report.yml).
+
+Play Store preparation: [release and signing guide](docs/PLAY_STORE_RELEASE.md). This branch retains Google and all current Android features.
