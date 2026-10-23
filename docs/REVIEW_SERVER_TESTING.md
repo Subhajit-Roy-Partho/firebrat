@@ -23,8 +23,8 @@ tensor operation passed, and both the language and speech models loaded on GPU.
 Runtime environment settings are in `runtime/server.env` (not versioned), logs
 in `logs/`, and services run in named tmux sessions. The API binds to loopback
 port 8000; Qwen binds to loopback port 8080. These tmux sessions survive SSH
-disconnects, but do not establish reboot/startup supervision. A stable HTTPS
-hostname and persistent service supervision are still required for reviewer
+disconnects, but do not establish reboot/startup supervision. Tailscale Funnel now supplies the stable HTTPS hostname documented below.
+Persistent service supervision is still required after a host reboot for reviewer
 availability. Do not treat an SSH tunnel or a temporary tunnel as permanent
 hosting.
 
@@ -116,5 +116,54 @@ Android is connected and authorized, but continued to report a secure lock
 screen after the owner's confirmation. The source PDF and initial server
 package are in its Downloads folder. Do not claim that Android local conversion,
 Android import, audible playback, or live image transitions passed in this run.
-These require the owner to unlock the phone. The stable HTTPS hostname was also
-requested; it has not yet been supplied, so the API remains loopback-only.
+These require the owner to unlock the phone. The owner deferred Android testing while using the phone. No further phone
+actions should run until the owner resumes that test. Funnel now proxies the
+loopback API through the public HTTPS address below.
+
+
+## Public HTTPS through Tailscale Funnel
+
+Live URL (verified 2026-10-23):
+https://firebrat-review-server.rohu-hexatonic.ts.net
+
+The owner authenticated the dedicated `firebrat-review-server` Tailscale node.
+Official ARM64 Tailscale 1.104.2 was installed under `runtime/tailscale/` after
+verifying the vendor SHA-256 checksum. It runs without root and without changing
+host networking, using userspace networking in tmux session `firebrat-tailscale`.
+State, certificates, and node keys are local runtime data, never Git content.
+The runtime directory is permission-limited; do not delete its state to redeploy
+application code, because that would discard the authenticated node identity.
+
+Daemon launch (from the server checkout):
+
+```sh
+runtime/tailscale/tailscaled --tun=userspace-networking \
+  --statedir=/home/roy/Github/firebrat/runtime/tailscale/data \
+  --state=/home/roy/Github/firebrat/runtime/tailscale/state \
+  --socket=/home/roy/Github/firebrat/runtime/tailscale/tailscaled.sock
+```
+
+Funnel configuration:
+
+```sh
+runtime/tailscale/tailscale --socket=runtime/tailscale/tailscaled.sock funnel --bg 8000
+runtime/tailscale/tailscale --socket=runtime/tailscale/tailscaled.sock funnel status
+# Disable only this public HTTPS proxy:
+runtime/tailscale/tailscale --socket=runtime/tailscale/tailscaled.sock funnel --https=443 off
+```
+
+An explicit `--statedir` is necessary: without it the isolated daemon could not
+store/request its HTTPS certificate (`no TailscaleVarRoot`). With it, certificate
+issuance succeeded and Funnel configuration survived the daemon restart.
+The background Funnel configuration persists, but the daemon, API, and model
+still need to be started after a host/container reboot. The current tmux setup
+survives SSH disconnects, not a full reboot. Keep all three services available
+throughout Google review.
+
+Verification over HTTPS: `/health` and the public sample `/books` returned 200;
+`/jobs` returned 401 anonymously and 200 with the dedicated reviewer Firebase
+token. A direct request to a public Funnel relay IP with the correct hostname
+and TLS verification also returned 200, avoiding reliance on the Mac's private
+Tailscale DNS route. The service does not require reviewers to install Tailscale.
+Only the public-domain sample shelf is exposed. Existing authenticated mutation
+restrictions remain in place. No paid hosting or billing was enabled.
