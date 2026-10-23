@@ -104,6 +104,11 @@ jobs:
           path: frontend/firebrat_app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: warn
 
+      - name: Check native 16 KB alignment
+        if: inputs.flavor == 'appbundle' || inputs.flavor == 'both'
+        working-directory: frontend/firebrat_app
+        run: python3 tool/check_native_alignment.py build/app/outputs/bundle/release/app-release.aab
+
       - name: Upload AAB
         if: always()
         uses: actions/upload-artifact@v4

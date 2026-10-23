@@ -82,6 +82,10 @@ jobs:
         working-directory: frontend/firebrat_app
         run: flutter build appbundle --release
 
+      - name: Check native 16 KB alignment
+        working-directory: frontend/firebrat_app
+        run: python3 tool/check_native_alignment.py build/app/outputs/bundle/release/app-release.aab
+
       - name: Upload Play bundle
         uses: actions/upload-artifact@v4
         with:
