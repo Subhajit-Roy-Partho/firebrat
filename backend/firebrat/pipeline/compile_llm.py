@@ -11,6 +11,26 @@ from firebrat.pipeline.schema import LLMOutput
 
 log = logging.getLogger(__name__)
 
+
+def _anchor_page_illustration(output: LLMOutput, pages: list[dict]) -> None:
+    """Keep an unambiguous page illustration when the model omits its ref.
+
+    Attach it to existing narration without inventing an image description.
+    Multiple pages/figures need explicit model alignment and are left alone.
+    """
+    by_page = {page["page_idx"]: page.get("figures", []) for page in pages}
+    for section in output.sections:
+        if len(section.source_pages) != 1 or any(s.ref for s in section.segments):
+            continue
+        figures = by_page.get(section.source_pages[0], [])
+        if len(figures) != 1:
+            continue
+        for segment in section.segments:
+            if segment.type == "prose":
+                segment.type = "figure_callout"
+                segment.ref = figures[0]["figure_id"]
+                break
+
 SYSTEM_PROMPT = """You are a technical audiobook narrator for a textbook on Arm Cortex-M microcontrollers and SoC design.
 You convert raw extracted pages into a spoken narration script that is accurate, natural, and easy to follow by ear.
 
@@ -381,6 +401,8 @@ def run_compilation(raw_pages_path: str, output_dir: str, book_id: str | None = 
             for sec in output.sections:
                 if not sec.source_pages:
                     sec.source_pages = [p["page_idx"] for p in chunk["pages"]]
+
+            _anchor_page_illustration(output, chunk["pages"])
 
             # Mint formula ids for LLM-authored LaTeX (our code assigns ids, not the LLM)
             for sec in output.sections:

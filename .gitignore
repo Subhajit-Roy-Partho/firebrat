@@ -76,3 +76,8 @@ frontend/FirebratNative/Packages/LlamaIOS/Artifacts/
 installer/server/dist/
 installer/server/build/
 installer/server/*.spec
+
+# Isolated server environments and deployment runtime state
+.venvs/
+runtime/
+logs/

@@ -28,6 +28,26 @@ log = logging.getLogger("firebrat.auth")
 _firebase_inited = False
 
 
+def _verify_keyless_token(token: str, project: str) -> dict:
+    """Verify public signing keys without loading Admin SDK credentials.
+
+    google-auth checks signature, audience, expiry and issued-at. Firebase's
+    issuer, subject and authentication-time requirements are checked here.
+    """
+    import time
+    from google.auth.transport.requests import Request
+    from google.oauth2 import id_token
+    decoded = id_token.verify_firebase_token(token, Request(), audience=project)
+    subject = decoded.get("sub")
+    auth_time = decoded.get("auth_time")
+    if (decoded.get("iss") != f"https://securetoken.google.com/{project}"
+            or not isinstance(subject, str) or not 1 <= len(subject) <= 128
+            or not isinstance(auth_time, (int, float)) or isinstance(auth_time, bool)
+            or auth_time > time.time()):
+        raise ValueError("invalid Firebase claims")
+    return {**decoded, "uid": subject}
+
+
 def _ensure_init() -> bool:
     """Initialize firebase_admin for ID-token verification.
 
@@ -68,8 +88,12 @@ def get_current_user(authorization: str | None = None) -> dict | None:
     if not token or not _ensure_init():
         return None
     try:
-        from firebase_admin import auth as fb_auth
-        decoded = fb_auth.verify_id_token(token)
+        project = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("FIREBASE_PROJECT_ID")
+        if project and not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
+            decoded = _verify_keyless_token(token, project)
+        else:
+            from firebase_admin import auth as fb_auth
+            decoded = fb_auth.verify_id_token(token)
         return {"uid": decoded.get("uid"), "email": decoded.get("email")}
     except Exception:
         return None
@@ -80,6 +104,12 @@ def require_user(authorization: str | None = Header(default=None)) -> dict:
     user = get_current_user(authorization)
     if user is None or not user.get("uid"):
         raise HTTPException(status_code=401, detail="sign-in required")
+    # Optional deployment boundary for a private/reviewer server. An empty
+    # allowlist preserves the shared-server behaviour used by existing installs.
+    allowed = {uid.strip() for uid in os.environ.get(
+        "FIREBRAT_ALLOWED_USER_IDS", "").split(",") if uid.strip()}
+    if allowed and user["uid"] not in allowed:
+        raise HTTPException(status_code=403, detail="account not authorized for this server")
     return user
 
 
@@ -100,6 +130,9 @@ def _messaging():
         # ADC without a service account (e.g. no GOOGLE_APPLICATION_CREDENTIALS
         # and no GCE metadata) can't mint push tokens — probe cheaply.
         cred = app.credential
+        # ApplicationDefault resolves lazily. Merely inspecting the wrapper
+        # doesn't prove credentials exist; force resolution before publishing.
+        cred.get_credential()
         get_token = getattr(cred, "get_access_token", None)
         if get_token is None:
             return None

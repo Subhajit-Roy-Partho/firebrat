@@ -1,0 +1,120 @@
+# Review server verification — 2026-10-23
+
+## Deployment
+
+The authorized SSH target is `docker`, not `ringtail`. The server checkout is
+`/home/roy/Github/firebrat`, on `codex/play-store`. This is an ARM64 Ubuntu 24.04
+container with an NVIDIA RTX 4080 (16 GB), driver 580.82.09, and Python 3.12.
+No paid API, hosting, or billing was enabled.
+
+Three isolated environments are used: `.venvs/serve`, `.venvs/extract`, and
+`.venvs/tts`. GPU wheels are PyTorch 2.9.1/cu128; extraction uses torchvision
+0.24.1, speech uses torchaudio 2.9.1. ARM64 wheels for the originally pinned
+PyTorch version were unavailable. Dependencies were installed with an explicit
+local override; this is a tested deployment variant, not a change to every
+installer's dependency pins. Marker remains 1.9.3; Chatterbox remains 0.1.7,
+transformers 5.2.0 in the speech environment, and setuptools <81.
+
+The inherited shared NVIDIA MPS socket failed with CUDA error 805. Setting
+`CUDA_MPS_PIPE_DIRECTORY=/tmp/firebrat-no-mps` for Firebrat allows a direct GPU
+connection without stopping or altering other users' workloads. A real CUDA
+tensor operation passed, and both the language and speech models loaded on GPU.
+
+Runtime environment settings are in `runtime/server.env` (not versioned), logs
+in `logs/`, and services run in named tmux sessions. The API binds to loopback
+port 8000; Qwen binds to loopback port 8080. These tmux sessions survive SSH
+disconnects, but do not establish reboot/startup supervision. A stable HTTPS
+hostname and persistent service supervision are still required for reviewer
+availability. Do not treat an SSH tunnel or a temporary tunnel as permanent
+hosting.
+
+Qwen/Qwen3-4B-Instruct-2507 runs locally in FP16 with an 8192-token context.
+Server defaults select the local provider with one page per compilation chunk.
+Speech is generated locally with Chatterbox and the existing narrator reference.
+The first run downloads open model weights; later conversion does not need an
+LLM API. Authentication still contacts Firebase/Google and is not an offline
+server feature.
+
+## Access
+
+A dedicated Firebase email/password reviewer account was created and fresh
+sign-in verified. Its password is stored only in the ignored, permission-limited
+`secrets/play-reviewer.json` on the development Mac. Never commit this file or
+publish credentials in release notes. Authenticated `/jobs` returned HTTP 200;
+`/health` returned HTTP 200.
+
+Set `GOOGLE_CLOUD_PROJECT=firebrat-8c597` (or `FIREBASE_PROJECT_ID`) for keyless
+Firebase token verification. Google signing keys, audience, expiry, issued-at,
+issuer, subject, and authentication time are validated. No service-account key
+is needed for this path. Push sending still requires separate credentials;
+polled conversion status remains available without them.
+
+The deployed `FIREBRAT_ALLOWED_USER_IDS` restricts mutations to the dedicated
+reviewer UID. Add explicitly authorized owner UIDs as a comma-separated list
+when required. An empty setting preserves the existing shared-server policy.
+Reads remain public by design: expose only the public-domain review shelf.
+Do not upload private books to a publicly reachable instance of this deployment.
+
+## Illustrated fixture and findings
+
+The same three-page input is prepared for server and Android testing:
+`peter-rabbit-review.pdf`, the opening three story pages of Beatrix Potter's
+*The Tale of Peter Rabbit* (1902), with original illustrations.
+
+- Original text and illustrations: https://www.gutenberg.org/ebooks/14838
+- PDF edition: https://mlw.media.mit.edu/assets/TheTaleofPeterRabbit.pdf
+- Full original PDF, excerpt, attribution, preview, and local test evidence:
+  ignored `tmp/review-readiness/`.
+
+Extraction found all three pages, readable text on every page, and three
+illustrations. Cold extraction including initial model loading/downloading took
+about 187 seconds. Qwen compilation took 38.9 seconds, produced three sections,
+and flagged no failed/review chunks. Manual comparison found the narrative
+facts retained, although dialogue was paraphrased; this is not proof of
+word-for-word fidelity.
+
+The initial model output omitted every figure reference despite extracting the
+images. The compiler now anchors an omitted illustration to existing prose only
+when a section covers exactly one page with exactly one figure and no explicit
+visual reference. It preserves spoken text and does not guess across multiple
+pages/figures. More complex layouts still require explicit model alignment and
+must be checked on their own fixtures. Cached speech metadata is refreshed when
+visual references change, preserving valid audio and timestamps.
+
+Other real deployment failures fixed during the test:
+
+1. Symlinked Python executables in separate virtual environments were resolved
+   to the same base interpreter, incorrectly blocking the speech handoff.
+2. Firebase Admin SDK token verification attempted to load absent application
+   credentials, rejecting a valid reviewer login. Explicit keyless verification
+   now uses Google's public signing keys with Firebase claim checks.
+
+Targeted authentication, illustration alignment, and package consistency checks:
+**16 passed**. Speech completion, exported package verification, Android local
+conversion, and actual playback/picture checks must be recorded below before
+claiming end-to-end review readiness.
+
+## Completed server round trip
+
+The authenticated reviewer uploaded the same three-page PDF through
+`POST /books/upload`, rather than invoking the converter directly. Job
+`0b25fdc0a9f5404c` completed from 18:33:30 to 18:35:30 UTC, with local provider,
+one-page chunks, illustrated mode, no error, and zero review flags. Its final
+book ID is `peter-rabbit-review-2`; the duplicate initial CLI fixture was moved
+out of the served output directory. The result has three sections, three
+figures, and 27.84 seconds of narration (speech sampling varies between runs).
+The first run's package was also decoded structurally: all assets existed,
+all three sections referenced their correct page figure, and every segment
+range was positive and within its section duration. Visual inspection confirmed
+the first extracted illustration matches the source rabbits-under-tree image.
+
+The full lightweight backend suite passed **57 tests**; the subsequent optional
+push-credential handling change passed **11 authentication tests**. Missing
+push credentials now return a clean no-op before attempting to send.
+
+Android is connected and authorized, but continued to report a secure lock
+screen after the owner's confirmation. The source PDF and initial server
+package are in its Downloads folder. Do not claim that Android local conversion,
+Android import, audible playback, or live image transitions passed in this run.
+These require the owner to unlock the phone. The stable HTTPS hostname was also
+requested; it has not yet been supplied, so the API remains loopback-only.

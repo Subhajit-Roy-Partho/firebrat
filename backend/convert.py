@@ -252,7 +252,9 @@ def main():
     # pins conflict with marker-pdf's). If this process doesn't have chatterbox,
     # delegate Stage 3 to the tts env's python as a subprocess instead of crashing.
     if not args.skip_tts and compiled_path and importlib.util.find_spec("chatterbox") is None:
-        if os.path.realpath(sys.executable) == os.path.realpath(TTS_PY):
+        # Separate venvs commonly symlink to the same system Python. Resolving
+        # those links incorrectly identifies the extraction venv as the TTS venv.
+        if os.path.abspath(sys.executable) == os.path.abspath(TTS_PY):
             log.error("Running under the tts env python but 'chatterbox' still not importable — env is broken.")
             sys.exit(1)
         if not os.path.isfile(TTS_PY):
@@ -353,6 +355,14 @@ def main():
                                 == [(s.get("text"), s.get("speaker_id", "narrator"), s.get("voice_style", {}))
                                     for s in segs]):
                             log.info("TTS section %d/%d %s already assembled, skipping", idx+1, total_sections, sid)
+                            # Visual alignment can change without changing speech.
+                            # Retain audio/timestamps, but refresh its visual metadata.
+                            for timed, source in zip(existing["segments"], segs):
+                                timed.update(type=source.get("type", "prose"),
+                                             ref=source.get("ref"),
+                                             visually_essential=bool(source.get("visually_essential", False)))
+                            with open(seg_json_path, "w", encoding="utf-8") as f:
+                                json.dump(existing, f, ensure_ascii=False, indent=2)
                             continue
                     except (OSError, ValueError):
                         pass

@@ -33,6 +33,12 @@ Link the [Android conversion guide](ANDROID_CONVERSION_GUIDE.md) from the store 
 
 The default listing, Firebrat icon/banner and three actual-widget UI previews are saved in Play Console and ready for review. RoyFoundry's approved maker R icon and matching developer header are saved. Public support email: `royduck@duck.com`. Category: Books & reference. No-ads, non-government, no-financial-features, no-health-features and content-rating declarations were saved. The current Analytics SDK's advertising-ID use is declared for analytics, consistent with the merged bundle manifest.
 
-The intended audience is 13+, authorized by the owner. The audience form remains dependent on sign-in-details completion; it must not be reported as saved yet. Reviewer/server access is deferred until the owner's Ringtail setup. Privacy/Data safety, verified account deletion, and production testing/access gates remain open. See [the policy draft](PLAY_PRIVACY_DRAFT.md) for the known data flows and unresolved operational details.
+The intended audience is 13+, authorized by the owner. The audience form remains dependent on sign-in-details completion; it must not be reported as saved yet. Version 1.6.2 is active and available to internal testers (verified in Play Console on 2026-10-23). Reviewer/server preparation now uses the owner's authorized `docker` SSH host, with a dedicated Firebase reviewer login; see [deployment and test evidence](REVIEW_SERVER_TESTING.md). A stable HTTPS address and completed device checks are still required. Privacy/Data safety, verified account deletion, and production testing/access gates remain open. See [the policy draft](PLAY_PRIVACY_DRAFT.md) for the known data flows and unresolved operational details.
 
 The initial 1.6.1+24 AAB was uploaded as an internal-test draft. It exposed eSpeak's 4 KB ELF alignment. The 1.6.2+25 rebuild adds flexible-page linker arguments to the Kokoro native plugin. GitHub run `39917654070` passed analysis, tests, signed AAB build and the 28-library 64-bit ELF alignment check. Native alignment is a build check; it does not establish complete runtime compatibility on a 16 KB Android device.
+
+Internal test opt-in: https://play.google.com/apps/internaltest/4701750160663480733
+(only accounts on the configured tester list can join; currently the owner's
+“Close friends” list is selected). This is internal availability, not production
+approval. A debug-signed installation cannot be updated in place by a
+Play-signed build; preserve/export local books before changing signing channels.
