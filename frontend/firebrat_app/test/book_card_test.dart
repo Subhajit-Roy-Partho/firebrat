@@ -1,4 +1,5 @@
 import 'package:firebrat_app/models/book.dart';
+import 'package:firebrat_app/state/library_layout_provider.dart';
 import 'package:firebrat_app/services/download_manager.dart';
 import 'package:firebrat_app/widgets/book_card.dart';
 import 'package:flutter/material.dart';
@@ -8,37 +9,103 @@ import 'package:flutter_test/flutter_test.dart';
 /// card, unreachable download controls, and the missing long-press menu.
 /// RenderFlex overflows surface as test failures via takeException.
 BookSummary _book({String title = 'T', String author = ''}) => BookSummary(
-      bookId: 'b1',
-      title: title,
-      author: author,
-      totalDurationMs: 99 * 60000,
-      sectionCount: 1929,
-      sizeBytes: 100,
-      updatedAt: '',
-    );
+  bookId: 'b1',
+  title: title,
+  author: author,
+  totalDurationMs: 99 * 60000,
+  sectionCount: 1929,
+  sizeBytes: 100,
+  updatedAt: '',
+);
 
 Future<void> _pumpCard(WidgetTester tester, BookCard card) async {
-  await tester.pumpWidget(MaterialApp(
-    home: Scaffold(body: SizedBox(width: 300, height: 400, child: card)),
-  ));
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(body: SizedBox(width: 300, height: 400, child: card)),
+    ),
+  );
   await tester.pump();
 }
 
 void main() {
-  testWidgets('narrow downloading card fits large text and cover', (tester) async {
-    await tester.pumpWidget(MaterialApp(
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(2)),
-        child: child!,
+  for (final layout in LibraryLayout.values) {
+    testWidgets('$layout supports missing covers and accessible downloads', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: SizedBox(
+                width: layout == LibraryLayout.list ? 320 : 164,
+                height: layout == LibraryLayout.list ? null : 480,
+                child: BookCard(
+                  layout: layout,
+                  book: _book(
+                    title: 'Digital design with a very long title',
+                    author: 'An author',
+                  ),
+                  isDownloaded: false,
+                  downloadProgress: const DownloadProgress(
+                    fraction: .4,
+                    receivedBytes: 40,
+                    totalBytes: 100,
+                    phase: 'downloading',
+                  ),
+                  onTap: () {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.bySemanticsLabel('Default book cover'), findsOneWidget);
+      expect(find.byTooltip('Cancel and clear download'), findsOneWidget);
+    });
+  }
+
+  testWidgets('narrow downloading card fits large text and cover', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(2)),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: SizedBox(
+            width: 240,
+            height: 390,
+            child: BookCard(
+              book: _book(
+                title: 'A very long title that needs both lines',
+                author: 'An author',
+              ),
+              coverPath: '/nonexistent-cover.png',
+              isDownloaded: false,
+              downloadProgress: const DownloadProgress(
+                fraction: .4,
+                receivedBytes: 40,
+                totalBytes: 100,
+                phase: 'downloading',
+              ),
+              onTap: () {},
+            ),
+          ),
+        ),
       ),
-      home: Scaffold(body: SizedBox(width: 240, height: 390, child: BookCard(
-        book: _book(title: 'A very long title that needs both lines', author: 'An author'),
-        coverPath: '/nonexistent-cover.png',
-        isDownloaded: false,
-        downloadProgress: const DownloadProgress(fraction: .4, receivedBytes: 40, totalBytes: 100, phase: 'downloading'),
-        onTap: () {},
-      ))),
-    ));
+    );
     await tester.pump();
     expect(tester.takeException(), isNull);
     expect(find.byTooltip('Cancel and clear download'), findsOneWidget);
@@ -49,8 +116,10 @@ void main() {
       tester,
       BookCard(
         book: _book(
-          title: 'Digital Design and Computer Architecture ARM Edition with a very long subtitle that must wrap',
-          author: 'David Money Harris and Sarah L. Harris with extra names appended',
+          title:
+              'Digital Design and Computer Architecture ARM Edition with a very long subtitle that must wrap',
+          author:
+              'David Money Harris and Sarah L. Harris with extra names appended',
         ),
         isDownloaded: true,
         downloadProgress: null,
@@ -61,13 +130,17 @@ void main() {
     expect(find.textContaining('Digital Design'), findsOneWidget);
   });
 
-  testWidgets('downloading card fits pause and cancel controls', (tester) async {
+  testWidgets('downloading card fits pause and cancel controls', (
+    tester,
+  ) async {
     var paused = 0;
     var cancelled = 0;
     await _pumpCard(
       tester,
       BookCard(
-        book: _book(title: 'A very long book title that wraps to two full lines here'),
+        book: _book(
+          title: 'A very long book title that wraps to two full lines here',
+        ),
         isDownloaded: false,
         downloadProgress: const DownloadProgress(
           fraction: 0.42,

@@ -2,11 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import '../models/book.dart';
+import '../state/library_layout_provider.dart';
 import '../services/download_manager.dart';
 import 'download_progress_indicator.dart';
 
 class BookCard extends StatelessWidget {
   final BookSummary book;
+  final LibraryLayout layout;
   final bool isDownloaded;
   final DownloadProgress? downloadProgress; // null = not downloading
   final VoidCallback onTap;
@@ -17,13 +19,14 @@ class BookCard extends StatelessWidget {
   /// from device, delete from server). Null = no long-press actions.
   final VoidCallback? onLongPress;
 
-  /// Absolute cover image path, or null for the generic icon. Resolved by
+  /// Absolute cover image path, or null for the built-in cover. Resolved by
   /// the library screen via bookCoverProvider (packages may ship cover.*).
   final String? coverPath;
 
   const BookCard({
     super.key,
     required this.book,
+    this.layout = LibraryLayout.largeCards,
     required this.isDownloaded,
     required this.downloadProgress,
     required this.onTap,
@@ -33,14 +36,41 @@ class BookCard extends StatelessWidget {
     this.coverPath,
   });
 
-  Widget _fallbackIcon(ColorScheme scheme) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: scheme.primaryContainer,
-        borderRadius: BorderRadius.circular(14),
+  Widget _cover(ColorScheme scheme) {
+    final fallback = Semantics(
+      label: 'Default book cover',
+      image: true,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [scheme.primaryContainer, scheme.tertiaryContainer],
+          ),
+          border: Border(left: BorderSide(color: scheme.primary, width: 5)),
+        ),
+        child: Center(
+          child: Icon(
+            Icons.auto_stories_rounded,
+            color: scheme.onPrimaryContainer,
+            size: 28,
+          ),
+        ),
       ),
-      child: Icon(Icons.menu_book_rounded, color: scheme.onPrimaryContainer),
+    );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: SizedBox(
+        width: 44,
+        height: 62,
+        child: coverPath == null
+            ? fallback
+            : Image.file(
+                File(coverPath!),
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => fallback,
+              ),
+      ),
     );
   }
 
@@ -54,32 +84,88 @@ class BookCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    if (layout == LibraryLayout.list) {
+      return Card(
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                _cover(scheme),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        book.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      if (book.author.isNotEmpty)
+                        Text(
+                          book.author,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      Text(
+                        '${_duration()} · ${book.sectionCount} sections',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      if (downloadProgress != null) ...[
+                        DownloadProgressIndicator(progress: downloadProgress!),
+                        Wrap(
+                          children: [
+                            IconButton(
+                              onPressed: onPauseDownload,
+                              tooltip:
+                                  'Pause download (tap the book to resume)',
+                              icon: const Icon(Icons.pause_rounded),
+                            ),
+                            IconButton(
+                              onPressed: onDiscardDownload,
+                              tooltip: 'Cancel and clear download',
+                              icon: const Icon(Icons.close_rounded),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (downloadProgress == null)
+                  Icon(
+                    isDownloaded
+                        ? Icons.check_circle_rounded
+                        : Icons.download_rounded,
+                    color: scheme.primary,
+                    size: 20,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         onLongPress: onLongPress,
         child: Padding(
-          padding: const EdgeInsets.all(18),
+          padding: EdgeInsets.all(layout == LibraryLayout.smallCards ? 10 : 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 children: [
-                  if (coverPath != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: Image.file(
-                        File(coverPath!),
-                        width: 44,
-                        height: 60,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => _fallbackIcon(scheme),
-                      ),
-                    )
-                  else
-                    _fallbackIcon(scheme),
+                  _cover(scheme),
                   const Spacer(),
                   if (isDownloaded)
                     Icon(
