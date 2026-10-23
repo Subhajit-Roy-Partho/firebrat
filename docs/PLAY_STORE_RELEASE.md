@@ -28,3 +28,11 @@ These are open release gates, not completed checks. See [Google Play policies](h
 ## User instructions and support
 
 Link the [Android conversion guide](ANDROID_CONVERSION_GUIDE.md) from the store listing. Bugs go to the [structured GitHub report form](https://github.com/Subhajit-Roy-Partho/firebrat/issues/new?template=bug_report.yml).
+
+## Console preparation — 23 October 2026
+
+The default listing, Firebrat icon/banner and three actual-widget UI previews are saved in Play Console and ready for review. RoyFoundry's approved maker R icon and matching developer header are saved. Public support email: `royduck@duck.com`. Category: Books & reference. No-ads, non-government, no-financial-features, no-health-features and content-rating declarations were saved. The current Analytics SDK's advertising-ID use is declared for analytics, consistent with the merged bundle manifest.
+
+The intended audience is 13+, authorized by the owner. The audience form remains dependent on sign-in-details completion; it must not be reported as saved yet. Reviewer/server access is deferred until the owner's Ringtail setup. Privacy/Data safety, verified account deletion, and production testing/access gates remain open. See [the policy draft](PLAY_PRIVACY_DRAFT.md) for the known data flows and unresolved operational details.
+
+The initial 1.6.1+24 AAB was uploaded as an internal-test draft. It exposed eSpeak's 4 KB ELF alignment. The 1.6.2+25 rebuild adds flexible-page linker arguments to the Kokoro native plugin. GitHub run `39917654070` passed analysis, tests, signed AAB build and the 28-library 64-bit ELF alignment check. Native alignment is a build check; it does not establish complete runtime compatibility on a 16 KB Android device.
