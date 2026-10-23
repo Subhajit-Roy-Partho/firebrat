@@ -1,39 +1,60 @@
-# Firebrat privacy policy — draft for owner review
+# Privacy and Data safety publication
 
-Prepared 23 October 2026 for RoyFoundry. Contact: royduck@duck.com.
-This draft describes the current Android implementation. It is not yet a published policy URL. Confirm operational retention/deletion procedures and the Ringtail server configuration before publishing or submitting the Data safety declaration.
+The original draft was superseded on 23 October 2026 by the published pages:
 
-## Offline reading and local conversion
+- [Privacy policy](https://subhajit-roy-partho.github.io/firebrat/privacy/)
+- [Data use and safety](https://subhajit-roy-partho.github.io/firebrat/data-safety/)
+- [Account/data deletion requests](https://subhajit-roy-partho.github.io/firebrat/delete-account/)
+- [Support and bug reporting](https://subhajit-roy-partho.github.io/firebrat/support/)
+- [Conversion guide](https://subhajit-roy-partho.github.io/firebrat/help/)
 
-Imported packages, downloaded books, narration, images, source PDFs, model files, settings and progress are stored on the device. Offline reading does not require an account. On-device conversion processes the selected PDF locally when cloud fallback is disabled. System speech voices are provided by the device's speech engine; download an offline voice to avoid that engine's network services. Kokoro requires initial downloads before local narration can run offline.
+Canonical editable sources are `frontend/firebrat_pwa/public/` and the app-footer
+links in `frontend/firebrat_pwa/index.html`. The backend-served PWA build also
+includes these pages. The `gh-pages` deployment preserves its existing PWA
+bundle and adds the pages/footer plus a refreshed service-worker shell ID.
+All five URLs returned HTTP 200 and the Pages deployment succeeded.
 
-## Optional online features
+Play Console has saved the privacy URL, reviewer sign-in instructions and the
+owner-approved 13–15, 16–17 and 18+ audience groups. The public explanatory
+Data safety page does **not** complete Google's separate Play Console form.
+The in-app privacy/support entry is included in Android 1.6.3+26.
 
-Google or email sign-in uses Firebase Authentication. It processes account identifiers, email and, where supplied by the sign-in provider, name and profile information. Firebase may also process device and network information to provide and secure authentication.
+## Manual deletion-request operation
 
-Cloud library sync stores book identifiers, titles, source, timestamps and optional hashes under the signed-in user's Firestore library. Push notifications use Firebase Cloud Messaging installation identifiers and notification tokens. Firebase Analytics is included and records app usage events and device/installation information; the current Android bundle includes the advertising-ID permission through its SDK dependencies. Application events include sign-in method, feature use, section counts, conversion mode, model IDs and download/sync activity. The app does not intentionally attach book text or account email to these custom events. SDK automatic collection must also be included in the final Data safety declaration. The app contains no advertisements.
+Requests go to the owner's public support inbox, `royduck@duck.com`. The website
+prepares an email; it never sends one automatically. This is a manual request
+process, not instant self-service deletion. The owner must monitor that inbox.
 
-If Google Drive backup is enabled, selected book packages are uploaded to the user's Google Drive using the granted Drive file-access scope.
+1. Verify control of the Firebrat account email before deleting anything. Never
+   request a password, API key, private key, or access token. If the requester
+   lacks email access, verify ownership through another appropriate channel.
+2. Find the Firebase Authentication UID in project `firebrat-8c597`. Do not
+   confuse the Google account with the Firebrat Firebase account.
+3. Remove the user's `users/{uid}/library` documents in Firestore and any
+   account document that exists. Removing the parent alone does not remove
+   its subcollections. Then delete the Firebase Authentication user.
+4. For hosted files, locate the specified book/job IDs and remove the upload,
+   generated package and exposed shelf entry using the server controls. Jobs
+   have no private per-user ownership, so identifiers may be necessary. Do not
+   delete shared/public samples or another user's files by guessing ownership.
+5. Explain that local files and personal Drive backups require their separate
+   controls. Independently operated servers are controlled by their operators.
+   Analytics/service logs follow provider/project retention settings; the app
+   does not attach account email or Firebase UID to its custom analytics events.
+6. Confirm completion by email and keep only the minimal necessary support
+   record securely. Never commit deletion requests, account data or credentials.
 
-Selecting Server conversion uploads the selected PDF to the configured Firebrat server. That server processes book content and generated narration and stores conversion results. A configured LLM API or cloud fallback can receive selected text/images needed for conversion. Downloaded language and voice models are retrieved from their configured distributors, which receive ordinary network requests. Service operators' privacy terms apply to their processing.
+The dedicated reviewer account must remain available throughout review. Do not
+use it for a destructive account-deletion test.
 
-## Transport and service choice
+## Disclosure references
 
-Firebase and Google service connections use their service endpoints. Firebrat permits user-configured local HTTP servers; those connections are not protected by HTTPS. Use HTTPS or a trusted encrypted private network for remote access. The final policy must identify the operator and retention practices of any RoyFoundry-hosted server; that deployment is still pending.
+- https://firebase.google.com/docs/android/play-data-disclosure
+- https://support.google.com/analytics/answer/11582702
+- https://support.google.com/googleplay/android-developer/answer/13327111
 
-## Controls and deletion
-
-Users can delete downloaded books from the library and remove local app data in Android settings. Deleting a local book does not delete server, Drive or account copies. Drive copies can be removed in Google Drive. Server copies depend on the configured server's deletion controls and operator.
-
-Account/cloud-data deletion requests should be directed to royduck@duck.com. Do not send a password or API key. The owner must establish and verify account, Firestore and hosted-server deletion procedures, any legally required retention and a public request page before adopting this as the released policy. The current app still needs a verified in-app account-deletion path.
-
-## Intended audience
-
-The intended release audience is ages 13 and older. Do not claim that this declaration has been saved in Play Console until the sign-in-details prerequisite is complete.
-
-## Items to resolve before publication
-
-- Publish this policy and an account-deletion request page on the app website after owner review.
-- Implement and verify in-app account deletion and the corresponding cloud-data cleanup.
-- Confirm server operator, accessible HTTPS address, retention and deletion handling after Ringtail setup.
-- Complete Data safety using Firebase SDK disclosures as well as app-level code behavior. Do not declare that no data is collected or that every configurable server connection is encrypted.
+SDK disclosures include identifiers, app interactions and network-derived coarse
+location. Do not declare "no data collected" merely because book conversion can
+run offline. Configurable HTTP servers prevent a universal encrypted-transit
+claim. No advertisements are included, although the Android analytics dependency
+currently contributes the AD_ID permission.

@@ -69,3 +69,13 @@ opening the published sample, showing the original illustration in zoom, startin
 Kokoro narration through a text segment and pausing it with the media control.
 This verifies the public reader in actual iPad Safari; it does not establish
 home-screen installation, airplane-mode storage persistence or Google consent.
+
+## Public information pages
+
+The PWA footer links privacy policy (`privacy/`), data-use explanations
+(`data-safety/`), manual account/data deletion requests (`delete-account/`),
+conversion instructions (`help/`) and bug reporting (`support/`). These static
+pages are accessible without sign-in and load no analytics scripts. Editable
+sources live in `public/`. The public Data safety explanation is separate from
+Google Play's declaration. See `docs/PLAY_PRIVACY_DRAFT.md` for the owner's
+manual deletion-request procedure and remaining release requirements.

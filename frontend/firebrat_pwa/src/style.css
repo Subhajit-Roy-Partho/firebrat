@@ -3,3 +3,5 @@
 .documentation-link{color:var(--muted);font-size:.85rem;white-space:nowrap;}
 
 .brand{display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap}.brand-icon{width:2rem;height:2rem;border-radius:.5rem;flex-shrink:0}#connection{flex:1;min-width:0;text-align:center;font-size:.8rem}
+
+.information-links{max-width:1000px;margin:0 auto 30px;padding:20px 18px;display:flex;flex-wrap:wrap;gap:12px 24px;border-top:1px solid #555d80;font-size:.9rem}.information-links a{color:var(--muted)}
