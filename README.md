@@ -498,3 +498,7 @@ similar mesh VPN can also work with private reachability and valid HTTPS.
 Linux users can also use the [Docker launcher](installer/server/firebrat-docker.sh): run it with `cpu` or `gpu` to open the same desktop conversion screen. The images are `subhajitroy/firebrat:desktop-cpu` and `subhajitroy/firebrat:desktop-gpu`; the GPU option requires NVIDIA Container Toolkit. Books, models, and settings persist on the host. See the [Docker setup and update guide](installer/server/README.md#linux-docker-installer). Narration always runs locally, including when an LLM API is selected.
 
 Measured desktop startup and cached offline CPU speech results are recorded in the [installer validation guide](installer/server/README.md#measured-desktop-validation-2026-10-21).
+
+### Android conversion and support
+
+See the [Android conversion guide](docs/ANDROID_CONVERSION_GUIDE.md) for offline models, desktop/server conversion and [bug reporting](https://github.com/Subhajit-Roy-Partho/firebrat/issues/new?template=bug_report.yml).

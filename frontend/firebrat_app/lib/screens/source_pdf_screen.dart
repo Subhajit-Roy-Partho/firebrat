@@ -37,7 +37,7 @@ class _SourcePdfScreenState extends ConsumerState<SourcePdfScreen> {
   final PdfViewerController _controller = PdfViewerController();
   late final Future<_LoadedSourcePdf?> _loadFuture;
   int _currentPage = 1;
-  int _pageCount = 1;
+  int _pageCount = 0;
 
   @override
   void initState() {
@@ -62,7 +62,6 @@ class _SourcePdfScreenState extends ConsumerState<SourcePdfScreen> {
     final reader = ref.read(readerControllerProvider(widget.bookId));
     final pages = reader?.section.sourcePages ?? const <int>[];
     final initial = pages.isNotEmpty ? pages.first + 1 : 1;
-    _currentPage = initial;
     return _LoadedSourcePdf(
       title: manifest.title,
       file: file,
@@ -79,6 +78,7 @@ class _SourcePdfScreenState extends ConsumerState<SourcePdfScreen> {
   }
 
   void _goToPage(int page) {
+    if (_pageCount < 1) return;
     final target = page.clamp(1, _pageCount);
     _controller.jumpToPage(target);
   }
@@ -96,20 +96,28 @@ class _SourcePdfScreenState extends ConsumerState<SourcePdfScreen> {
               child: snapshot.hasError
                   ? Text('Could not open the source PDF: ${snapshot.error}')
                   : missing
-                      ? const Text('This book has no source PDF on this device.')
-                      : const CircularProgressIndicator(),
+                  ? const Text('This book has no source PDF on this device.')
+                  : const CircularProgressIndicator(),
             ),
           );
         }
         final data = snapshot.data!;
+        // The section page can be far beyond page 1 before the PDF loads.
+        // Keep slider bounds valid until the document supplies its real count.
+        final sliderMax = _pageCount > 0 ? _pageCount : 1;
+        final sliderPage = _currentPage.clamp(1, sliderMax);
         return Scaffold(
           appBar: AppBar(
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Source page'),
-                Text(data.sectionTitle, style: Theme.of(context).textTheme.bodySmall, maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  data.sectionTitle,
+                  style: Theme.of(context).textTheme.bodySmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
             actions: [
@@ -129,15 +137,27 @@ class _SourcePdfScreenState extends ConsumerState<SourcePdfScreen> {
                 child: SfPdfViewer.file(
                   data.file,
                   controller: _controller,
-                  initialPageNumber: data.initialPageNumber,
+                  initialPageNumber: 1,
                   onDocumentLoaded: (details) {
+                    if (!mounted) return;
+                    final count = details.document.pages.count;
+                    final target = count > 0
+                        ? data.initialPageNumber.clamp(1, count)
+                        : 1;
                     setState(() {
-                      _pageCount = details.document.pages.count;
-                      _currentPage = _currentPage.clamp(1, _pageCount);
+                      _pageCount = count;
+                      _currentPage = target;
                     });
+                    if (count > 0) _controller.jumpToPage(target);
                   },
                   onPageChanged: (details) {
-                    setState(() => _currentPage = details.newPageNumber);
+                    if (!mounted || _pageCount < 1) return;
+                    setState(
+                      () => _currentPage = details.newPageNumber.clamp(
+                        1,
+                        _pageCount,
+                      ),
+                    );
                   },
                 ),
               ),
@@ -153,25 +173,29 @@ class _SourcePdfScreenState extends ConsumerState<SourcePdfScreen> {
                           IconButton(
                             icon: const Icon(Icons.chevron_left_rounded),
                             tooltip: 'Previous page',
-                            onPressed: _currentPage > 1 ? () => _goToPage(_currentPage - 1) : null,
+                            onPressed: _currentPage > 1
+                                ? () => _goToPage(_currentPage - 1)
+                                : null,
                           ),
                           Expanded(
-                            child: Slider(
-                              value: _currentPage.toDouble(),
-                              min: 1,
-                              max: _pageCount.toDouble(),
-                              divisions: _pageCount > 1 ? _pageCount - 1 : null,
-                              label: 'p. $_currentPage',
-                              onChanged: (v) => _goToPage(v.round()),
+                            child: SourcePdfPageSlider(
+                              currentPage: _currentPage,
+                              pageCount: _pageCount,
+                              onPageSelected: _goToPage,
                             ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.chevron_right_rounded),
                             tooltip: 'Next page',
-                            onPressed:
-                                _currentPage < _pageCount ? () => _goToPage(_currentPage + 1) : null,
+                            onPressed: _currentPage < _pageCount
+                                ? () => _goToPage(_currentPage + 1)
+                                : null,
                           ),
-                          Text('p. $_currentPage / $_pageCount'),
+                          Text(
+                            _pageCount > 0
+                                ? 'p. $sliderPage / $_pageCount'
+                                : 'Loading pages…',
+                          ),
                         ],
                       ),
                       SizedBox(
@@ -183,7 +207,11 @@ class _SourcePdfScreenState extends ConsumerState<SourcePdfScreen> {
                             final p = _currentSectionPage();
                             if (p == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Current section has no page mapping.')),
+                                const SnackBar(
+                                  content: Text(
+                                    'Current section has no page mapping.',
+                                  ),
+                                ),
                               );
                               return;
                             }
@@ -199,6 +227,35 @@ class _SourcePdfScreenState extends ConsumerState<SourcePdfScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Keeps document-loading and stale page callbacks outside Slider's assertions.
+class SourcePdfPageSlider extends StatelessWidget {
+  final int currentPage;
+  final int pageCount;
+  final ValueChanged<int> onPageSelected;
+  const SourcePdfPageSlider({
+    super.key,
+    required this.currentPage,
+    required this.pageCount,
+    required this.onPageSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final maximum = pageCount > 0 ? pageCount : 1;
+    final page = currentPage.clamp(1, maximum);
+    return Slider(
+      value: page.toDouble(),
+      min: 1,
+      max: maximum.toDouble(),
+      divisions: maximum > 1 ? maximum - 1 : null,
+      label: 'p. $page',
+      onChanged: pageCount > 1
+          ? (value) => onPageSelected(value.round())
+          : null,
     );
   }
 }

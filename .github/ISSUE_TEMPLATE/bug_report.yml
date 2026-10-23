@@ -1,0 +1,26 @@
+name: Bug report
+description: Report a reader, conversion, audio or server problem
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: "Do not attach private books, account tokens, passwords or API keys. Use a public-domain sample when possible."
+  - type: textarea
+    id: environment
+    attributes:
+      label: App version and environment
+      description: Include release/branch, device, Android version, available RAM/storage, conversion mode and model/voice names.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include what you expected and what actually happened. State whether the problem happens offline.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots, error and sample
+      description: Include the exact error and a legal public sample or page range. Redact personal data from logs.

@@ -61,13 +61,6 @@ class ReaderScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(state.manifest.title, maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
-          Builder(
-            builder: (ctx) => IconButton(
-              icon: const Icon(Icons.menu_rounded),
-              tooltip: 'Sections',
-              onPressed: () => Scaffold.of(ctx).openDrawer(),
-            ),
-          ),
           IconButton(
             icon: const Icon(Icons.fullscreen_rounded),
             tooltip: 'Focus mode',
