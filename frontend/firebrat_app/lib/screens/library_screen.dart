@@ -10,6 +10,7 @@ import '../services/drive_sync_service.dart';
 import '../services/firestore_sync_service.dart';
 import '../services/notification_service.dart';
 import '../state/library_providers.dart';
+import '../state/library_layout_provider.dart';
 import '../state/on_device_conversion_providers.dart';
 import '../state/theme_providers.dart';
 import '../widgets/app_drawer.dart';
@@ -27,14 +28,38 @@ class LibraryScreen extends ConsumerWidget {
     final catalogAsync = ref.watch(catalogProvider);
     final progress = ref.watch(downloadProgressProvider);
     final importing = ref.watch(importProgressProvider);
+    final layout = ref.watch(libraryLayoutProvider);
     final themeMode = ref.watch(themeModeProvider);
-    final isCloud = ref.watch(conversionModeProvider).mode == ConversionModePref.cloud;
+    final isCloud =
+        ref.watch(conversionModeProvider).mode == ConversionModePref.cloud;
 
     return Scaffold(
       drawer: const AppDrawer(),
       appBar: AppBar(
-        title: const Text('Firebrat'),
+        title: const Text('Firebrat', maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
+          PopupMenuButton<LibraryLayout>(
+            tooltip: 'Library layout',
+            icon: Icon(
+              layout == LibraryLayout.list
+                  ? Icons.view_list_rounded
+                  : Icons.grid_view_rounded,
+            ),
+            initialValue: layout,
+            onSelected: (value) =>
+                ref.read(libraryLayoutProvider.notifier).select(value),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: LibraryLayout.list, child: Text('List')),
+              PopupMenuItem(
+                value: LibraryLayout.smallCards,
+                child: Text('Small cards'),
+              ),
+              PopupMenuItem(
+                value: LibraryLayout.largeCards,
+                child: Text('Large cards'),
+              ),
+            ],
+          ),
           PopupMenuButton<ThemeMode>(
             icon: Icon(switch (themeMode) {
               ThemeMode.light => Icons.light_mode_rounded,
@@ -43,9 +68,13 @@ class LibraryScreen extends ConsumerWidget {
             }),
             tooltip: 'Theme',
             initialValue: themeMode,
-            onSelected: (mode) => ref.read(themeModeProvider.notifier).setThemeMode(mode),
+            onSelected: (mode) =>
+                ref.read(themeModeProvider.notifier).setThemeMode(mode),
             itemBuilder: (context) => const [
-              PopupMenuItem(value: ThemeMode.system, child: Text('Match system')),
+              PopupMenuItem(
+                value: ThemeMode.system,
+                child: Text('Match system'),
+              ),
               PopupMenuItem(value: ThemeMode.light, child: Text('Light')),
               PopupMenuItem(value: ThemeMode.dark, child: Text('Dark')),
             ],
@@ -66,9 +95,14 @@ class LibraryScreen extends ConsumerWidget {
                     // Zip imports never report a fraction (stays 0.0):
                     // indeterminate spinner. Tar.gz streams 0→1.
                     child: CircularProgressIndicator(
-                        value: importing > 0 ? importing : null, strokeWidth: 2)),
+                      value: importing > 0 ? importing : null,
+                      strokeWidth: 2,
+                    ),
+                  ),
             tooltip: 'Import a book file (.tar.gz / .zip)',
-            onPressed: importing != null ? null : () => _importFile(context, ref),
+            onPressed: importing != null
+                ? null
+                : () => _importFile(context, ref),
           ),
         ],
       ),
@@ -82,7 +116,9 @@ class LibraryScreen extends ConsumerWidget {
           final local = {for (final b in localBooks) b.bookId: b};
           final catalogBooks = catalogAsync.value ?? const <BookSummary>[];
           // Remote-only entries (not yet downloaded) show as download targets.
-          final remoteOnly = catalogBooks.where((b) => !local.containsKey(b.bookId)).toList();
+          final remoteOnly = catalogBooks
+              .where((b) => !local.containsKey(b.bookId))
+              .toList();
           final allEntries = [...localBooks, ...remoteOnly];
 
           if (allEntries.isEmpty) {
@@ -104,14 +140,20 @@ class LibraryScreen extends ConsumerWidget {
                 Material(
                   color: Theme.of(context).colorScheme.errorContainer,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Row(
                       children: [
                         Expanded(
                           child: Text(
                             'Could not reach the server — showing on-device books only.',
                             style: TextStyle(
-                                color: Theme.of(context).colorScheme.onErrorContainer),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onErrorContainer,
+                            ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -130,40 +172,62 @@ class LibraryScreen extends ConsumerWidget {
                     invalidateLibrary(ref);
                     await ref.read(localBooksProvider.future);
                   },
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(16),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      // Keep cards readable on narrow phones, with room for
-                      // download actions and accessibility text scaling.
-                      crossAxisCount: ((MediaQuery.sizeOf(context).width - 32) / 254)
-                          .floor().clamp(1, 6),
-                      mainAxisExtent: 320 +
-                          (MediaQuery.textScalerOf(context).scale(130) - 130)
-                              .clamp(0, double.infinity),
-                      crossAxisSpacing: 14,
-                      mainAxisSpacing: 14,
-                    ),
-                    itemCount: allEntries.length,
-                    itemBuilder: (context, i) {
-                      final book = allEntries[i];
-                      final isLocal = local.containsKey(book.bookId);
-                      return BookCard(
-                        book: book,
-                        isDownloaded: isLocal,
-                        downloadProgress: progress[book.bookId],
-                        coverPath: isLocal
-                            ? ref.watch(bookCoverProvider(book.bookId)).value
-                            : null,
-                        onTap: () => _openOrDownload(context, ref, book, isLocal),
-                        onLongPress: () => _showBookActions(context, ref, book, isLocal),
-                        onPauseDownload: progress[book.bookId] == null
-                            ? null
-                            : () => _pauseDownload(context, ref, book),
-                        onDiscardDownload: progress[book.bookId] == null
-                            ? null
-                            : () => _discardDownload(context, ref, book),
-                      );
-                    },
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsets.all(16),
+                        sliver: layout == LibraryLayout.list
+                            ? SliverList.builder(
+                                itemCount: allEntries.length,
+                                itemBuilder: (context, i) => _buildBook(
+                                  context,
+                                  ref,
+                                  allEntries[i],
+                                  local,
+                                  progress,
+                                  layout,
+                                ),
+                              )
+                            : SliverGrid(
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount:
+                                          ((MediaQuery.sizeOf(context).width -
+                                                      32) /
+                                                  (layout ==
+                                                          LibraryLayout
+                                                              .smallCards
+                                                      ? 164
+                                                      : 254))
+                                              .floor()
+                                              .clamp(1, 6),
+                                      mainAxisExtent:
+                                          (layout == LibraryLayout.smallCards
+                                              ? 290
+                                              : 320) +
+                                          (MediaQuery.textScalerOf(
+                                                    context,
+                                                  ).scale(190) -
+                                                  190)
+                                              .clamp(0, double.infinity),
+                                      crossAxisSpacing: 10,
+                                      mainAxisSpacing: 10,
+                                    ),
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, i) => _buildBook(
+                                    context,
+                                    ref,
+                                    allEntries[i],
+                                    local,
+                                    progress,
+                                    layout,
+                                  ),
+                                  childCount: allEntries.length,
+                                ),
+                              ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -171,6 +235,34 @@ class LibraryScreen extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildBook(
+    BuildContext context,
+    WidgetRef ref,
+    BookSummary book,
+    Map<String, BookSummary> local,
+    Map<String, DownloadProgress> progress,
+    LibraryLayout layout,
+  ) {
+    final isLocal = local.containsKey(book.bookId);
+    return BookCard(
+      book: book,
+      layout: layout,
+      isDownloaded: isLocal,
+      downloadProgress: progress[book.bookId],
+      coverPath: isLocal
+          ? ref.watch(bookCoverProvider(book.bookId)).value
+          : null,
+      onTap: () => _openOrDownload(context, ref, book, isLocal),
+      onLongPress: () => _showBookActions(context, ref, book, isLocal),
+      onPauseDownload: progress[book.bookId] == null
+          ? null
+          : () => _pauseDownload(context, ref, book),
+      onDiscardDownload: progress[book.bookId] == null
+          ? null
+          : () => _discardDownload(context, ref, book),
     );
   }
 
