@@ -15,8 +15,12 @@ bundle and adds the pages/footer plus a refreshed service-worker shell ID.
 All five URLs returned HTTP 200 and the Pages deployment succeeded.
 
 Play Console has saved the privacy URL, reviewer sign-in instructions and the
-owner-approved 13–15, 16–17 and 18+ audience groups. The public explanatory
-Data safety page does **not** complete Google's separate Play Console form.
+owner-approved 13–15, 16–17 and 18+ audience groups. The separate Play Console Data safety form was also saved on 23 October 2026.
+It discloses optional account/book transfers and required SDK analytics collection,
+including identifiers and approximate location. No universal encrypted-transit
+claim is made because custom HTTP servers remain supported. User-initiated
+transfers and service-provider processing are treated under Google's sharing
+exemptions; this must be reassessed if provider settings or integrations change.
 The in-app privacy/support entry is included in Android 1.6.3+26.
 
 ## Manual deletion-request operation
