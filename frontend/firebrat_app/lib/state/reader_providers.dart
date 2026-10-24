@@ -268,6 +268,7 @@ class ReaderController extends Notifier<ReaderState?> {
     final wasPlaying = player.isPlaying;
     await _saveCheckpoint(force: true);
     await _loadSection(index);
+    await _saveCheckpoint(force: true);
     if (wasPlaying) await player.play();
   }
 
@@ -294,6 +295,7 @@ class ReaderController extends Notifier<ReaderState?> {
   }
 
   Future<void> _saveCheckpoint({bool force = false}) async {
+    if (!ref.mounted) return;
     final s = state;
     if (s == null || s.loadingSection || _progressStore == null ||
         ref.read(audioHandlerProvider).mediaItem.valueOrNull?.id != _currentAudioPath) {

@@ -2,7 +2,10 @@
 
 The Play Android client stores only small per-user Firestore documents. Book
 packages stay on device, on the chosen server, or in the user's Google Drive.
-No Firebase Storage is used. Native Apple and PWA clients do not yet implement
+No Firebase Storage is used. The Google Drive API is enabled on the existing
+project; no billing account or paid quota increase was added. Standard Drive
+API use is currently free within Google’s limits; future quota/pricing changes
+need reassessment ([official limits](https://developers.google.com/workspace/drive/api/guides/limits)). Native Apple and PWA clients do not yet implement
 this new Android checkpoint protocol.
 
 ## Storage and access
