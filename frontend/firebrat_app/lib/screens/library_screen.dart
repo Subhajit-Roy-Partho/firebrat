@@ -13,6 +13,7 @@ import '../state/library_providers.dart';
 import '../state/library_layout_provider.dart';
 import '../state/on_device_conversion_providers.dart';
 import '../state/theme_providers.dart';
+import '../state/reader_providers.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/book_card.dart';
 import 'chapter_reader_screen.dart';
@@ -295,6 +296,9 @@ class LibraryScreen extends ConsumerWidget {
         unawaited(AnalyticsService.instance.logBookOpened(sectionCount: book.sectionCount));
       }
       if (!context.mounted) return;
+      // Re-open from the persisted account-specific checkpoint, rather than
+      // reusing a cached controller belonging to another book/account session.
+      ref.invalidate(readerControllerProvider(book.bookId));
       Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => (manifest != null && manifest.isChapters)
               ? ChapterReaderScreen(bookId: book.bookId)
@@ -513,11 +517,12 @@ class LibraryScreen extends ConsumerWidget {
         return;
       }
       if (!await DriveSyncService.instance.isEnabled()) return;
-      await DriveSyncService.instance.uploadBook(bookId: bookId, zipPath: zipPath);
+      final driveId = await DriveSyncService.instance.uploadBook(bookId: bookId, zipPath: zipPath);
       await FirestoreSyncService.instance.upsertBook(
         bookId: bookId,
         title: bookId,
         source: 'drive',
+        driveFileId: driveId,
       );
     } catch (_) {}
   }

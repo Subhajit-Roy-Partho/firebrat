@@ -343,6 +343,7 @@ class _ConversionSettingsScreenState
           title: bookId,
           source: 'drive',
           sha256: f.sha256,
+          driveFileId: f.id,
         );
         pulled++;
       }

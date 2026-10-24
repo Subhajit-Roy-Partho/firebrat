@@ -30,6 +30,7 @@ class PlaybackController {
   Stream<Duration> get positionStream => _player.positionStream;
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
   Duration? get duration => _player.duration;
+  Duration get position => _player.position;
 
   StreamSubscription<Duration>? _posSub;
   StreamSubscription<PlayerState>? _stateSub;

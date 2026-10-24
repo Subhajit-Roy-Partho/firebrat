@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:crypto/crypto.dart';
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/manifest.dart';
 import '../models/segment.dart';
 import '../models/visual_item.dart';
+import '../models/reading_checkpoint.dart';
+import '../services/reading_progress_store.dart';
 import '../services/audio_handler.dart';
 import '../services/library_repository.dart';
 import '../services/playback_controller.dart';
@@ -101,6 +104,13 @@ class ReaderController extends Notifier<ReaderState?> {
   late PlaybackController player;
   StreamSubscription? _activeSub;
   StreamSubscription? _completeSub;
+  StreamSubscription? _progressSub;
+  StreamSubscription? _playStateSub;
+  ReadingProgressStore? _progressStore;
+  ReadingCheckpoint? _lastCheckpoint;
+  DateTime? _lastLocalSave;
+  String _signature = '';
+  String? _currentAudioPath;
   String get _bookId => bookId;
 
   @override
@@ -109,6 +119,12 @@ class ReaderController extends Notifier<ReaderState?> {
     ref.onDispose(() {
       _activeSub?.cancel();
       _completeSub?.cancel();
+      _progressSub?.cancel();
+      _playStateSub?.cancel();
+      final checkpoint = _lastCheckpoint;
+      if (checkpoint != null) {
+        unawaited(_progressStore?.save(checkpoint, force: true));
+      }
       player.dispose();
     });
     _init(bookId);
@@ -130,8 +146,27 @@ class ReaderController extends Notifier<ReaderState?> {
       return;
     }
     ref.read(readerErrorProvider(bookId).notifier).set(null);
-    state = ReaderState(manifest: manifest, sectionIndex: 0, activeSegment: null, loadingSection: true);
-    await _loadSection(0);
+    _signature = sha256.convert(utf8.encode(jsonEncode([
+      for (final s in manifest.sections) [s.sectionId, s.durationMs],
+    ]))).toString();
+    _progressStore = ref.read(firestoreSyncServiceProvider).progressStore(bookId);
+    final restored = await _progressStore!.restore(_signature);
+    if (!ref.mounted) return;
+    final restoredIndex = restored == null ? -1 :
+        manifest.sections.indexWhere((s) => s.sectionId == restored.sectionId);
+    final index = restoredIndex < 0 ? 0 : restoredIndex;
+    _lastCheckpoint = restoredIndex < 0 ? null : restored;
+    state = ReaderState(manifest: manifest, sectionIndex: index, activeSegment: null, loadingSection: true);
+    await _loadSection(index);
+    if (!ref.mounted) return;
+    if (restored != null && restoredIndex >= 0) {
+      final maximum = player.duration?.inMilliseconds ?? manifest.sections[index].durationMs;
+      await player.seek(Duration(milliseconds: restored.positionMs.clamp(0, maximum)));
+    }
+    _progressSub = player.positionStream.listen((_) => unawaited(_saveCheckpoint()));
+    _playStateSub = player.playerStateStream.listen((s) {
+      if (!s.playing) unawaited(_saveCheckpoint(force: true));
+    });
 
     _activeSub = player.activeSegmentStream.listen((seg) {
       if (state == null) return;
@@ -171,6 +206,7 @@ class ReaderController extends Notifier<ReaderState?> {
             : null,
       ),
     );
+    _currentAudioPath = audioPath;
     final settings = ref.read(readerSettingsProvider);
     await player.setSpeed(settings.playbackSpeed);
     state = state?.copyWith(loadingSection: false, assetPaths: assetPaths, currentVisualId: initialVisualId);
@@ -230,6 +266,7 @@ class ReaderController extends Notifier<ReaderState?> {
     final s = state;
     if (s == null || index < 0 || index >= s.manifest.sections.length) return;
     final wasPlaying = player.isPlaying;
+    await _saveCheckpoint(force: true);
     await _loadSection(index);
     if (wasPlaying) await player.play();
   }
@@ -238,6 +275,7 @@ class ReaderController extends Notifier<ReaderState?> {
   Future<void> previousSection() => goToSection((state?.sectionIndex ?? 0) - 1);
 
   Future<void> _onSectionComplete() async {
+    await _saveCheckpoint(force: true);
     final settings = ref.read(readerSettingsProvider);
     final s = state;
     if (s == null) return;
@@ -253,6 +291,32 @@ class ReaderController extends Notifier<ReaderState?> {
       await nextSection();
       await player.play();
     }
+  }
+
+  Future<void> _saveCheckpoint({bool force = false}) async {
+    final s = state;
+    if (s == null || s.loadingSection || _progressStore == null ||
+        ref.read(audioHandlerProvider).mediaItem.valueOrNull?.id != _currentAudioPath) {
+      return;
+    }
+    final now = DateTime.now();
+    if (!force && _lastLocalSave != null &&
+        now.difference(_lastLocalSave!) < const Duration(seconds: 5)) {
+      return;
+    }
+    final position = player.position.inMilliseconds;
+    if (_lastCheckpoint?.sectionId == s.section.sectionId &&
+        _lastCheckpoint?.positionMs == position) {
+      if (force) await _progressStore!.save(_lastCheckpoint!, force: true);
+      return;
+    }
+    _lastLocalSave = now;
+    final previous = _lastCheckpoint?.updatedAtMs ?? 0;
+    _lastCheckpoint = ReadingCheckpoint(sectionId: s.section.sectionId,
+      positionMs: position, updatedAtMs: now.millisecondsSinceEpoch > previous
+          ? now.millisecondsSinceEpoch : previous + 1, signature: _signature);
+    try { await _progressStore!.save(_lastCheckpoint!, force: force); }
+    catch (_) { /* A checkpoint failure must not interrupt narration. */ }
   }
 }
 

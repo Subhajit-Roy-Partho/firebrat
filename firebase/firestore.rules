@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    function validBookId(id) {
+      return id.size() <= 200 && id.matches('[a-z0-9][a-z0-9._-]*');
+    }
+    function shortText(d, key, maximum) {
+      return !(key in d) || d[key] == null || (d[key] is string && d[key].size() <= maximum);
+    }
+    function nonnegative(d, key, maximum) {
+      return !(key in d) || (d[key] is int && d[key] >= 0 && d[key] <= maximum);
+    }
+    match /users/{uid}/library/{bookId} {
+      allow read, delete: if owner(uid);
+      allow create, update: if owner(uid) && validBookId(bookId)
+        && request.resource.data.keys().hasOnly(['title', 'source', 'sha256',
+          'driveFileId', 'sizeBytes', 'sectionCount', 'totalDurationMs',
+          'updatedAt', 'lastOpenedAt'])
+        && shortText(request.resource.data, 'title', 500)
+        && shortText(request.resource.data, 'source', 30)
+        && shortText(request.resource.data, 'sha256', 64)
+        && shortText(request.resource.data, 'driveFileId', 200)
+        && nonnegative(request.resource.data, 'sizeBytes', 100000000000)
+        && nonnegative(request.resource.data, 'sectionCount', 1000000)
+        && nonnegative(request.resource.data, 'totalDurationMs', 100000000000)
+        && (!('updatedAt' in request.resource.data) ||
+          (request.resource.data.updatedAt is timestamp && request.resource.data.updatedAt <= request.time))
+        && (!('lastOpenedAt' in request.resource.data) ||
+          (request.resource.data.lastOpenedAt is timestamp && request.resource.data.lastOpenedAt <= request.time));
+    }
+    match /users/{uid}/progress/{bookId} {
+      allow read, delete: if owner(uid);
+      allow create, update: if owner(uid) && validBookId(bookId)
+        && request.resource.data.keys().hasAll(['sectionId', 'positionMs', 'updatedAtMs', 'signature', 'serverUpdatedAt'])
+        && request.resource.data.keys().hasOnly(['sectionId', 'positionMs', 'updatedAtMs', 'signature', 'serverUpdatedAt'])
+        && request.resource.data.sectionId is string && request.resource.data.sectionId.size() <= 200
+        && request.resource.data.signature is string && request.resource.data.signature.matches('[a-f0-9]{64}')
+        && request.resource.data.positionMs is int && request.resource.data.positionMs >= 0
+        && request.resource.data.positionMs <= 86400000
+        && request.resource.data.updatedAtMs is int && request.resource.data.updatedAtMs > 0
+        && request.resource.data.updatedAtMs <= request.time.toMillis() + 300000
+        && request.resource.data.serverUpdatedAt is timestamp
+        && request.resource.data.serverUpdatedAt <= request.time;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/conversion_settings_screen.dart';
 import '../screens/conversions_screen.dart';
 import '../screens/information_screen.dart';
+import '../screens/sync_screen.dart';
 import '../services/auth_service.dart';
 import '../state/on_device_conversion_providers.dart';
 import '../state/guest_access_provider.dart';
@@ -98,6 +99,15 @@ class AppDrawer extends ConsumerWidget {
             },
           ),
           const Divider(),
+          ListTile(
+            leading: const Icon(Icons.sync_rounded),
+            title: const Text('Sync & backup'),
+            subtitle: const Text('Reading position in Firebase; books in your Drive'),
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SyncScreen()));
+            },
+          ),
           if (email != null)
             ListTile(
               leading: const Icon(Icons.logout_rounded),

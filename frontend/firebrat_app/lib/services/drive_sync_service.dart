@@ -18,8 +18,8 @@ import 'auth_service.dart';
 /// - One `Firebrat/` folder; one zip per bookId (`<bookId>.zip`); integrity
 ///   via Drive's `sha256Checksum` compared against the server checksum
 ///   (same value `DownloadManager` verifies — single source of truth).
-/// - Uploads use resumable sessions chunked at 8MB so a dropped relay
-///   resumes instead of restarting; downloads resume via Range the same way.
+/// - Uploads stream from disk; interrupted uploads can be retried. Downloads
+///   retain a partial file and request the remaining byte range.
 class DriveSyncService {
   DriveSyncService._();
   static final DriveSyncService instance = DriveSyncService._();
@@ -39,10 +39,16 @@ class DriveSyncService {
   /// Throws (with a human message) when sign-in is required first.
   Future<GoogleSignInAccount> ensureAccess() async {
     final auth = AuthService.instance;
+    if (auth.currentUser == null) {
+      throw StateError('Sign in with Google before using your Drive.');
+    }
     var account = auth.currentGoogleUser;
     account ??= await auth.signInSilentlyOrInteractiveDrive();
     if (account == null) {
       throw StateError('Sign in with Google first (Account tab).');
+    }
+    if (auth.currentUser?.email?.toLowerCase() != account.email.toLowerCase()) {
+      throw StateError('Use the same Google account for Firebrat and Drive. Sign out and sign in with Google.');
     }
     return account;
   }
@@ -58,7 +64,8 @@ class DriveSyncService {
 
   Future<String> _folderId(drive.DriveApi api) async {
     final prefs = await SharedPreferences.getInstance();
-    final cached = prefs.getString(_folderKey);
+    final key = '$_folderKey.${AuthService.instance.currentUser?.uid}';
+    final cached = prefs.getString(key);
     if (cached != null) {
       try {
         await api.files.get(cached, $fields: 'id');
@@ -70,14 +77,14 @@ class DriveSyncService {
       $fields: 'files(id)',
     );
     if (found.files?.isNotEmpty ?? false) {
-      await prefs.setString(_folderKey, found.files!.first.id!);
+      await prefs.setString(key, found.files!.first.id!);
       return found.files!.first.id!;
     }
     final created = await api.files.create(
       drive.File(name: _folderName, mimeType: 'application/vnd.google-apps.folder'),
       $fields: 'id',
     );
-    await prefs.setString(_folderKey, created.id!);
+    await prefs.setString(key, created.id!);
     return created.id!;
   }
 
@@ -108,7 +115,7 @@ class DriveSyncService {
     return out;
   }
 
-  /// Upload [zipPath] as `<bookId>.zip` (resumable, 8MB chunks).
+  /// Stream [zipPath] as `<bookId>.zip`, replacing an existing app backup.
   /// Reports cumulative bytes; total is the local file size.
   Future<String> uploadBook({
     required String bookId,
@@ -119,7 +126,13 @@ class DriveSyncService {
     final folder = await _folderId(api);
     final file = File(zipPath);
     final total = await file.length();
-    final meta = drive.File(name: '$bookId.zip', parents: [folder]);
+    final name = '$bookId.zip';
+    final escapedName = name.replaceAll("'", "\\'");
+    final existing = await api.files.list(
+      q: "'$folder' in parents and name='$escapedName' and trashed=false",
+      $fields: 'files(id)', pageSize: 1);
+    final existingId = existing.files?.firstOrNull?.id;
+    final meta = drive.File(name: name, parents: existingId == null ? [folder] : null);
     final stream = file.openRead();
     var sent = 0;
     final counting = stream.map((chunk) {
@@ -127,11 +140,9 @@ class DriveSyncService {
       onProgress?.call(sent, total);
       return chunk;
     });
-    final created = await api.files.create(
-      meta,
-      uploadMedia: drive.Media(counting, total),
-      $fields: 'id',
-    );
+    final created = existingId == null
+        ? await api.files.create(meta, uploadMedia: drive.Media(counting, total), $fields: 'id')
+        : await api.files.update(meta, existingId, uploadMedia: drive.Media(counting, total), $fields: 'id');
     return created.id!;
   }
 
@@ -166,6 +177,9 @@ class DriveSyncService {
         sink.add(chunk);
         received += chunk.length;
         onProgress?.call(received, total);
+      }
+      if (total != null && received != total) {
+        throw const FormatException('Drive download size mismatch. Retry the backup download.');
       }
       await sink.flush();
       await sink.close();

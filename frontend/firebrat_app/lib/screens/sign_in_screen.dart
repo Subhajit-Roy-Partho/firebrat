@@ -101,7 +101,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text('Read, import and convert on this device without an account. '
-                      'Sign in later for server conversion and account sync.'),
+                      'Sign in later for server conversion, cross-device sync and Google Drive backup.'),
                   const SizedBox(height: 24),
                   Text(
                     _registerMode ? 'Create your account' : 'Welcome back',

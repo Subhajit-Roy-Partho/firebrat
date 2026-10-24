@@ -101,6 +101,7 @@ class AuthService {
       _auth.createUserWithEmailAndPassword(email: email.trim(), password: password);
 
   Future<void> signOut() async {
+    _lastAccount = null;
     try {
       await _google.signOut();
     } catch (_) {}

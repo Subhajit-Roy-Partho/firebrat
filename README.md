@@ -530,3 +530,67 @@ Measured desktop startup and cached offline CPU speech results are recorded in t
 See the [Android conversion guide](docs/ANDROID_CONVERSION_GUIDE.md) for offline models, desktop/server conversion and [bug reporting](https://github.com/Subhajit-Roy-Partho/firebrat/issues/new?template=bug_report.yml).
 
 Play Store preparation: [release and signing guide](docs/PLAY_STORE_RELEASE.md). This branch retains Google and all current Android features.
+
+## Continue as guest (Android)
+
+Choose **Continue as guest** on the sign-in screen. The choice is remembered
+on this device and creates no Firebase Authentication account. Offline reading,
+package import, on-device conversion (after model/voice setup), and public server
+shelf downloads are available without login. Offline remains the default mode.
+Use Menu → Sign in for authenticated server conversion; Drive
+requires Google authorization. Guests are not allowed to poll authenticated
+server jobs or upload conversion inputs through the app.
+
+Guest mode does not disable the SDK analytics/identifiers disclosed in the
+[privacy policy](https://subhajit-roy-partho.github.io/firebrat/privacy/).
+Signing out or choosing guest does not delete an existing account. See the
+[account/data deletion page](https://subhajit-roy-partho.github.io/firebrat/delete-account/).
+
+### Cross-device library and reading progress
+
+Android Menu → **Sync & backup** lets a signed-in user sync small library records
+and reading checkpoints. Firebase Firestore stores book IDs/titles, source,
+optional backup hash/Drive file ID/size, section count/duration and timestamps;
+progress contains a section ID, audio position, conversion signature and times.
+It never stores book text, images, PDFs or audio. Guests keep progress locally.
+This checkpoint protocol currently supports Android narration; PDF-only chapter
+page positions and the native Apple/PWA clients are not yet integrated.
+
+1. Sign in with the same Google account on both devices.
+2. On the original device, open **Sync & backup → Sync metadata**. Use **Back up
+   to my Drive** for each book you want to transfer; approve the app-specific
+   Drive permission when requested. ZIPs are streamed to your `Firebrat` folder;
+   backing up the same book replaces its app backup.
+3. On the other device, open **Sync & backup → Sync metadata → Restore from my
+   Drive**. The backup hash is checked before extraction. Existing complete
+   local books are preserved. Books with no Drive backup must first be backed up
+   on their original device, imported manually, or downloaded from your server.
+4. Open the restored audiobook. The newest compatible saved checkpoint determines
+   its section and audio position. Playback does not start automatically.
+
+Local progress is saved roughly every five seconds and on pause/section changes.
+Cloud saves are normally at most every two minutes; explicit pause/section
+changes have a 15-second minimum. **Sync metadata** also retries durable pending
+checkpoints after reconnecting. Offline/network/quota failures leave local books
+and progress usable. Disable future cloud writes in the Sync screen. Signing
+out isolates the next account's checkpoints; it does not delete existing data.
+Concurrent devices use the latest checkpoint timestamp, assuming synchronized
+clocks, rather than always taking the furthest page. Different conversion
+signatures are ignored to avoid seeking into unrelated sections.
+
+The project uses **Spark**, one Standard Firestore database in `nam5`, private
+owner-only rules in [firebase/firestore.rules](firebase/firestore.rules), and no
+Firebase Storage, paid functions, backups or billing upgrade. Firebase free
+quotas are project-wide (currently 1 GiB stored, 50,000 document reads/day and
+20,000 writes/day); they are not unlimited per-user allowances. The client limits
+cloud library fetches to 200 entries and sync attempts to 500 writes per
+account/device/day. Transactions can consume additional reads/retries. Spark
+quota exhaustion pauses cloud sync; it does not automatically buy capacity.
+See [Firebase quotas](https://firebase.google.com/docs/firestore/quotas).
+Drive storage uses each user's own quota. Larger libraries and multi-device
+loads may require tighter limits; no paid upgrade is automatic.
+
+Email-only Firebase accounts can sync metadata/progress, but Drive backups
+require matching Google sign-in. Restore uses the same app-specific Drive files
+across devices. Account/data deletion requests cover both library and progress
+records; local deletion does not delete Drive backups or cloud records.

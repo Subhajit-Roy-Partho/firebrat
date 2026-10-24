@@ -34,7 +34,7 @@ process, not instant self-service deletion. The owner must monitor that inbox.
    lacks email access, verify ownership through another appropriate channel.
 2. Find the Firebase Authentication UID in project `firebrat-8c597`. Do not
    confuse the Google account with the Firebrat Firebase account.
-3. Remove the user's `users/{uid}/library` documents in Firestore and any
+3. Remove the user's `users/{uid}/library` and `users/{uid}/progress` documents in Firestore and any
    account document that exists. Removing the parent alone does not remove
    its subcollections. Then delete the Firebase Authentication user.
 4. For hosted files, locate the specified book/job IDs and remove the upload,
