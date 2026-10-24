@@ -139,7 +139,7 @@ class DownloadManager {
     try {
       // Streaming extract — entries are written as they are read, so peak
       // memory stays flat instead of spiking to ~2x the zip size.
-      extractFileToDisk(zipPath, staging.path);
+      await extractFileToDisk(zipPath, staging.path);
       if (!await File('${staging.path}/manifest.json').exists()) {
         throw StateError('Package at ${staging.path} is missing manifest.json');
       }

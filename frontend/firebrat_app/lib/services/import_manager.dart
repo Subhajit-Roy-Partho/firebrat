@@ -63,7 +63,7 @@ class ImportManager {
       } else if (name.endsWith('.zip')) {
         // Zip entries stream from the open file via extractFileToDisk —
         // flat memory regardless of package size.
-        extractFileToDisk(archiveFile.path, staging.path);
+        await extractFileToDisk(archiveFile.path, staging.path);
       } else {
         throw const FormatException('Unrecognized archive type — expected .tar.gz, .tgz, or .zip');
       }
