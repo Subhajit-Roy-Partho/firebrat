@@ -185,3 +185,28 @@ and TLS verification also returned 200, avoiding reliance on the Mac's private
 Tailscale DNS route. The service does not require reviewers to install Tailscale.
 Only the public-domain sample shelf is exposed. Existing authenticated mutation
 restrictions remain in place. No paid hosting or billing was enabled.
+
+## Play release handoff (23 October 2026, 17:52 Arizona)
+
+Internal release **1.6.3+26** is published and shown as available to internal
+testers (not reviewed). Signed workflow 40044478806 succeeded, and all 28
+64-bit libraries in the AAB passed the native-alignment checker. No public
+production rollout occurred. Existing internal tester enrollment is unchanged.
+
+Data safety is saved; App content now shows only the foreground-service
+permission declaration outstanding. That form requires public demonstration
+video URLs for DATA_SYNC (network downloads and local conversion) and
+MEDIA_PLAYBACK. Do not substitute an unrelated URL or claim it is complete.
+A private raw playback recording includes the owner's home wallpaper and is
+**not approved for public release**; make a clean demonstration or redact it
+before publishing any review evidence. The phone locked after installation of
+the final notification correction; final verification and the demonstration
+are waiting for unlock. The original stay-awake value 0 was restored, and
+Wi-Fi/mobile data were confirmed enabled with airplane mode off.
+
+Play's app-signing SHA-1 is
+`4C:7F:E7:C0:B5:53:D0:8E:49:A7:4B:AD:D8:34:A9:2D:85:23:53:DE`.
+Registration in Firebase is pending the specific owner approval requested in
+chat. This differs from the already registered debug certificate. Preserve the
+reviewer account and the owner's library; never uninstall or clear app data to
+switch signing channels without a verified backup and explicit user direction.
