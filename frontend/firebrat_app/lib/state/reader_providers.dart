@@ -239,9 +239,12 @@ class ReaderController extends Notifier<ReaderState?> {
 
   Future<void> _onSectionComplete() async {
     final settings = ref.read(readerSettingsProvider);
-    if (!settings.autoplayEnabled) return;
     final s = state;
-    if (s == null || s.sectionIndex >= s.manifest.sections.length - 1) return;
+    if (s == null) return;
+    if (!settings.autoplayEnabled || s.sectionIndex >= s.manifest.sections.length - 1) {
+      await player.pause();
+      return;
+    }
     if (settings.autoplayDelaySeconds > 0) {
       await Future.delayed(Duration(seconds: settings.autoplayDelaySeconds));
     }

@@ -79,7 +79,7 @@ class ModelDownloadNotifier extends Notifier<Map<String, ModelDownloadState>> {
   }
 
   Future<String> _run(OnDeviceLlmModel model) async {
-    final dir = await modelsDir();
+    final dir = '${await modelsDir()}/llm';
     final token = CancelToken();
     _tokens[model.id] = token;
     final keepAlive = await DownloadKeepAlive.acquire('model ${model.id}');

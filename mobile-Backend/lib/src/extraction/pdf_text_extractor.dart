@@ -31,9 +31,17 @@ class MobilePdfTextExtractor {
         // Positioned text objects often omit literal space characters. The
         // word boxes retain those boundaries even when extractText joins words.
         final lines = extractor.extractTextLines(startPageIndex: i, endPageIndex: i);
-        final text = lines.map((line) => line.wordCollection.isEmpty
-            ? line.text
-            : line.wordCollection.map((word) => word.text).join(' ')).join('\n');
+        final text = lines.map((line) {
+          final words = line.wordCollection;
+          // Some PDFs expose one "word" per glyph, while line.text correctly
+          // retains actual word boundaries. Joining those glyphs adds spaces
+          // inside every word and greatly enlarges the model prompt.
+          final glyphWords = words.where((word) => word.text.trim().runes.length == 1).length;
+          final useLine = words.isEmpty || (words.length >= 8 &&
+              glyphWords / words.length > 0.7 &&
+              RegExp(r'\S\s+\S').hasMatch(line.text));
+          return useLine ? line.text : words.map((word) => word.text).join(' ');
+        }).join('\n');
         final cleaned = _normalizeWhitespace(text);
         pages.add(RawPage(pageIdx: i, text: cleaned));
         if (cleaned.length < minCharsPerPage) ocrCandidates.add(i);
@@ -45,7 +53,7 @@ class MobilePdfTextExtractor {
   }
 
   static String _normalizeWhitespace(String s) =>
-      s.replaceAll('\r\n', '\n').replaceAll('\r', '\n').replaceAll(RegExp(r'[ \t]+'), ' ').replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
+      s.replaceAll('\u00a0', ' ').replaceAll('\r\n', '\n').replaceAll('\r', '\n').replaceAll(RegExp(r'[ \t]+'), ' ').replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
 }
 
 class ExtractionResult {

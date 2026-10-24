@@ -40,7 +40,14 @@ class FirebratAudioHandler extends BaseAudioHandler with SeekHandler {
   void setMediaItem(MediaItem item) => mediaItem.add(item);
 
   @override
-  Future<void> play() => player.play();
+  Future<void> play() async {
+    if (player.processingState == ProcessingState.completed) {
+      await player.seek(Duration.zero);
+    }
+    // play() completes only when playback stops; don't block an action caller
+    // for the entire narration.
+    unawaited(player.play());
+  }
 
   @override
   Future<void> pause() => player.pause();

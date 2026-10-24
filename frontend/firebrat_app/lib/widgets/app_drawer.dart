@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/conversion_settings_screen.dart';
 import '../screens/conversions_screen.dart';
+import '../screens/information_screen.dart';
 import '../services/auth_service.dart';
 import '../state/on_device_conversion_providers.dart';
 
@@ -12,7 +13,7 @@ import '../state/on_device_conversion_providers.dart';
 /// pins win32 ^6 for device_info_plus — unresolvable without forking one.
 const _appVersion = String.fromEnvironment(
   'FIREBRAT_APP_VERSION',
-  defaultValue: '1.5.10+21',
+  defaultValue: '1.6.3+26',
 );
 
 /// Left drawer: who is signed in, where to go, and the way out.
@@ -116,6 +117,16 @@ class AppDrawer extends ConsumerWidget {
               },
             ),
           const Divider(),
+          ListTile(
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: const Text('Privacy & support'),
+            subtitle: const Text('Account deletion, help and bug reports'),
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const InformationScreen()));
+            },
+          ),
           AboutListTile(
             icon: const Icon(Icons.info_outline_rounded),
             applicationName: 'Firebrat',

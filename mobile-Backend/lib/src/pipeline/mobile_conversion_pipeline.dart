@@ -5,6 +5,7 @@ import '../compilation/cloud_compiler.dart';
 import '../compilation/compilation_router.dart';
 import '../compilation/model_catalog.dart';
 import '../compilation/on_device_compiler.dart';
+import '../compilation/prose_fidelity.dart';
 import '../extraction/pdf_text_extractor.dart';
 import '../extraction/page_visuals.dart';
 import '../extraction/ocr_fallback.dart';
@@ -142,7 +143,7 @@ class MobileConversionPipeline {
         : chunkLocalPages(extraction.pages);
     _report('compiling', '0/${chunks.length} chunks', 0.0);
 
-    final List<CompiledSection> compiledSections;
+    List<CompiledSection> compiledSections;
     if (isNovel) {
       // A novel is read verbatim. Educational paraphrasing destroys dialogue
       // attribution and is neither required nor safe for narrative fiction.
@@ -175,6 +176,17 @@ class MobileConversionPipeline {
 
     }
 
+    if (!isNovel && !settings.allowCloudFallback) {
+      final fidelity = preserveOrdinaryProse(compiledSections, extraction.pages);
+      compiledSections = fidelity.sections;
+      await File('$bookDir/conversion_quality.json').writeAsString(jsonEncode({
+        'source_wording_preserved_pages': fidelity.sourceFallbackPages,
+        'mathematical_rewrites_require_review': true,
+      }));
+      if (fidelity.sourceFallbackPages.isNotEmpty) {
+        _report('compiling', 'preserved original wording on ${fidelity.sourceFallbackPages.length} pages', 1.0);
+      }
+    }
     _report('synthesizing', '0/${compiledSections.length} sections', 0.0);
     final NarrationEngine tts;
     final String narratorEngineName;

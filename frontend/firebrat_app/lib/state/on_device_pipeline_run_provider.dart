@@ -50,15 +50,18 @@ Future<String> runOnDeviceConversion(WidgetRef ref, List<String> pdfPaths,
   if (pdfPaths.isEmpty) {
     throw ArgumentError('runOnDeviceConversion needs at least one PDF');
   }
-  final settings = ref.read(conversionModeProvider);
+  // The conversion outlives its screen. Do not retain its WidgetRef in a
+  // completion callback: navigating back would prevent the library refresh.
+  final container = ProviderScope.containerOf(ref.context, listen: false);
+  final settings = container.read(conversionModeProvider);
   if (!settings.isOnDeviceConfigured) {
     throw StateError('On-device LLM url/api key/model are not configured — see Conversion settings.');
   }
-  final notifier = ref.read(onDeviceRunProvider.notifier);
+  final notifier = container.read(onDeviceRunProvider.notifier);
   notifier.set(const OnDeviceRunState(stage: 'starting', detail: 'preparing'));
 
   await BackgroundConversionRunner.requestPermissions();
-  final booksDir = await ref.read(downloadManagerProvider).booksDir();
+  final booksDir = await container.read(downloadManagerProvider).booksDir();
 
   final completer = Completer<String>();
   late final void Function(Object data) listener;
@@ -73,7 +76,8 @@ Future<String> runOnDeviceConversion(WidgetRef ref, List<String> pdfPaths,
     }
     if (data['done'] == true) {
       notifier.set(const OnDeviceRunState(stage: 'done', detail: 'complete', fraction: 1.0, done: true));
-      invalidateLibrary(ref);
+      container.invalidate(localBooksProvider);
+      container.invalidate(catalogProvider);
       BackgroundConversionRunner.removeProgressListener(listener);
       if (!completer.isCompleted) completer.complete(data['bookId'] as String);
       return;

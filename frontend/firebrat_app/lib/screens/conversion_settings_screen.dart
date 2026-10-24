@@ -465,7 +465,7 @@ class _LocalModelPickerState extends ConsumerState<_LocalModelPicker> {
   }
 
   Future<void> _refreshDownloaded() async {
-    final dir = await ModelDownloadNotifier.modelsDir();
+    final dir = '${await ModelDownloadNotifier.modelsDir()}/llm';
     final result = <String, bool>{};
     for (final m in kOnDeviceLlmCatalog) {
       final f = File('$dir/${m.fileName}');
