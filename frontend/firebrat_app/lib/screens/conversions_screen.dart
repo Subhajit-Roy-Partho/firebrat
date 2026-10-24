@@ -6,6 +6,8 @@ import '../state/conversions_providers.dart';
 import '../state/library_providers.dart';
 import '../state/on_device_conversion_providers.dart';
 import '../state/on_device_pipeline_run_provider.dart';
+import '../state/guest_access_provider.dart';
+import '../services/auth_service.dart';
 import 'conversion_settings_screen.dart';
 
 /// Upload a PDF (or a ZIP of PDFs, merged server-side) for conversion,
@@ -25,6 +27,8 @@ class ConversionsScreen extends ConsumerWidget {
     final busy = uploadProgress != null || (onDeviceRun != null && !onDeviceRun.done);
     final isOnDevice = conversionMode.mode == ConversionModePref.onDevice;
     final isOffline = conversionMode.mode == ConversionModePref.offline;
+    final needsServerSignIn = !isOffline && !isOnDevice &&
+        AuthService.instance.currentUser == null;
 
     return Scaffold(
       appBar: AppBar(
@@ -56,11 +60,28 @@ class ConversionsScreen extends ConsumerWidget {
                   ))
                 : isOnDevice
                 ? const _OnDeviceJobsPlaceholder()
+                : needsServerSignIn
+                ? Center(child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      const Text('Server conversion requires sign-in. Guest mode can read, '
+                          'import, download public server books and convert on this device.',
+                          textAlign: TextAlign.center),
+                      const SizedBox(height: 16),
+                      FilledButton(onPressed: () {
+                        ref.read(guestAccessProvider.notifier).setGuest(false);
+                        Navigator.of(context).popUntil((route) => route.isFirst);
+                      }, child: const Text('Sign in for server conversion')),
+                      TextButton(onPressed: () {
+                        ref.read(conversionModeProvider.notifier).setMode(ConversionModePref.onDevice);
+                      }, child: const Text('Use on-device conversion')),
+                    ]),
+                  ))
                 : const _ServerJobsList(),
           ),
         ],
       ),
-      floatingActionButton: isOffline ? null : busy
+      floatingActionButton: isOffline || needsServerSignIn ? null : busy
           ? FloatingActionButton.extended(
               onPressed: null,
               icon: SizedBox(

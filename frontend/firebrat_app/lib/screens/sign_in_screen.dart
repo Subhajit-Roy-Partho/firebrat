@@ -5,7 +5,8 @@ import '../services/auth_service.dart';
 /// Sign in or create an account with Google or email. Google authentication
 /// creates a Firebase account on the first successful sign-in.
 class SignInScreen extends StatefulWidget {
-  const SignInScreen({super.key});
+  final VoidCallback onContinueAsGuest;
+  const SignInScreen({super.key, required this.onContinueAsGuest});
 
   @override
   State<SignInScreen> createState() => _SignInScreenState();
@@ -92,6 +93,15 @@ class _SignInScreenState extends State<SignInScreen> {
                     'Technical books as narrated audiobooks — figures and formulas kept in view.',
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
+                  const SizedBox(height: 24),
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : widget.onContinueAsGuest,
+                    icon: const Icon(Icons.person_outline),
+                    label: const Text('Continue as guest'),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('Read, import and convert on this device without an account. '
+                      'Sign in later for server conversion and account sync.'),
                   const SizedBox(height: 24),
                   Text(
                     _registerMode ? 'Create your account' : 'Welcome back',

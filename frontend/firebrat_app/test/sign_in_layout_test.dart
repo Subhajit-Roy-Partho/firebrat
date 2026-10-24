@@ -13,7 +13,7 @@ void main() {
         data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(1.8)),
         child: child!,
       ),
-      home: const SignInScreen(),
+      home: SignInScreen(onContinueAsGuest: () {}),
     ));
     expect(tester.takeException(), isNull);
     final register = find.text('New here? Create an account');

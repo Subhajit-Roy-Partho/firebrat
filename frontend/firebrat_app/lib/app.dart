@@ -7,6 +7,7 @@ import 'screens/library_screen.dart';
 import 'screens/sign_in_screen.dart';
 import 'state/theme_providers.dart';
 import 'state/on_device_conversion_providers.dart';
+import 'state/guest_access_provider.dart';
 import 'theme/app_theme.dart';
 
 class FirebratApp extends ConsumerWidget {
@@ -29,14 +30,14 @@ class FirebratApp extends ConsumerWidget {
   }
 }
 
-/// Signed-out users land on SignInScreen; the stream flips to the library
-/// the moment Firebase reports a user. No route pushing — the gate rebuilds.
+/// Local modes and explicit guests can use the library without an account.
 class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (ref.watch(conversionModeProvider).mode != ConversionModePref.cloud) {
+    if (ref.watch(guestAccessProvider) ||
+        ref.watch(conversionModeProvider).mode != ConversionModePref.cloud) {
       return const LibraryScreen();
     }
     return StreamBuilder<User?>(
@@ -48,7 +49,13 @@ class AuthGate extends ConsumerWidget {
           );
         }
         if (snapshot.hasData) return const LibraryScreen();
-        return const SignInScreen();
+        return SignInScreen(onContinueAsGuest: () {
+          final settings = ref.read(conversionModeProvider);
+          if (settings.cloudServerUrl.isEmpty) {
+            ref.read(conversionModeProvider.notifier).setMode(ConversionModePref.offline);
+          }
+          ref.read(guestAccessProvider.notifier).setGuest(true);
+        });
       },
     );
   }

@@ -5,6 +5,7 @@ import '../screens/conversions_screen.dart';
 import '../screens/information_screen.dart';
 import '../services/auth_service.dart';
 import '../state/on_device_conversion_providers.dart';
+import '../state/guest_access_provider.dart';
 
 /// Bumped with `version:` in frontend/firebrat_app/pubspec.yaml on every
 /// release (and passed as --dart-define=FIREBRAT_APP_VERSION=... by the
@@ -45,13 +46,13 @@ class AppDrawer extends ConsumerWidget {
                 CircleAvatar(child: Text(initial)),
                 const SizedBox(height: 8),
                 Text(
-                  email ?? 'Not signed in',
+                  email ?? 'Guest mode',
                   style: Theme.of(context).textTheme.titleSmall,
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   email == null
-                      ? 'Reads work offline; sign in to convert on the server.'
+                      ? 'Read, import and convert locally without an account.'
                       : 'Signed in',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
@@ -113,6 +114,7 @@ class AppDrawer extends ConsumerWidget {
               title: const Text('Sign in'),
               onTap: () {
                 Navigator.of(context).pop();
+                ref.read(guestAccessProvider.notifier).setGuest(false);
                 ref.read(conversionModeProvider.notifier).setMode(ConversionModePref.cloud);
               },
             ),
