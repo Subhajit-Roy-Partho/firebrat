@@ -4,18 +4,18 @@
 ///
 /// Cloud server rule (what bit the user on 2026-09-17: entering the
 /// Tailscale IP with no `http://` prefix produced an unreachable client):
-/// prepend `http://` when no scheme is present, and append `:8000` when
-/// no explicit port is present. An explicitly entered scheme or port is
-/// never overridden.
+/// Bare addresses get `http://` and port 8000. URLs with an explicit scheme
+/// keep its standard port, so HTTPS reverse proxies and Funnel use port 443.
 String normalizeServerUrl(String raw, {int defaultPort = 8000}) {
   var url = raw.trim();
   if (url.isEmpty) return url;
-  if (!RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*://').hasMatch(url)) {
+  final hasScheme = RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*://').hasMatch(url);
+  if (!hasScheme) {
     url = 'http://$url';
   }
   final uri = Uri.tryParse(url);
   if (uri == null) return url;
-  if (!uri.hasPort) {
+  if (!hasScheme && !uri.hasPort) {
     return uri.replace(port: defaultPort).toString();
   }
   return uri.toString();

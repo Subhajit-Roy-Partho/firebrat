@@ -13,7 +13,7 @@ import '../state/on_device_conversion_providers.dart';
 /// pins win32 ^6 for device_info_plus — unresolvable without forking one.
 const _appVersion = String.fromEnvironment(
   'FIREBRAT_APP_VERSION',
-  defaultValue: '1.6.3+26',
+  defaultValue: '1.6.4+27',
 );
 
 /// Left drawer: who is signed in, where to go, and the way out.
