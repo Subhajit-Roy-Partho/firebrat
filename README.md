@@ -182,6 +182,32 @@ Beyond the reader itself, the app has:
 
 ## Offline Android benchmarks and correctness
 
+### Illustrated review sample verification (23 October 2026)
+
+A three-page public-domain *The Tale of Peter Rabbit* excerpt was converted on
+Pixel 9a with cached Qwen3 1.7B Q4_K_M, GPU layers 99, and local Kokoro Bella.
+The initial fully offline run took about 6m31s, but a PDF glyph-spacing defect
+caused omissions. After fixing extraction, a fresh run took 5m16s and produced
+three page-linked pictures; correctness still failed because Qwen changed
+“Your father” to “Her father” and summarized another page. These times are
+single debug-build observations, not averages or energy measurements.
+
+Version 1.6.3 now checks ordinary, single-page prose against source wording and
+uses the original text when the model rewrites it. Replaying the cached run
+verified exact dialogue and pronouns on all three pages, with source fallback
+on pages 2 and 3. This replay is **not** a fresh inference speed benchmark.
+Its three Kokoro WAV tracks total 35.64 seconds at 24 kHz, with nonzero signal
+and zero clipped samples. All three figure references point to the correct
+original page image. This Android path preserves page layouts rather than
+claiming server-style isolated figure crops. Mathematical rewrites, ambiguous
+multi-page alignment, scanned OCR and longer books still need separate review.
+
+The GPU server's authenticated upload of the same excerpt completed in about
+2 minutes with Qwen3 4B and local Chatterbox: three sections, three extracted
+figures, 27.84 seconds of narration, valid asset/timing references and no
+pipeline review flags. This is not a controlled CPU/GPU comparison. See
+[review server testing](docs/REVIEW_SERVER_TESTING.md) for conditions and limits.
+
 <!-- DEVICE_BENCHMARK_START -->
 Measured on a **Pixel 9a, Android 17, approximately 7.4 GiB RAM**, on 2026-10-20.
 These are debug-app device measurements, not desktop throughput estimates.

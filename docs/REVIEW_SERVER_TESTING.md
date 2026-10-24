@@ -112,14 +112,32 @@ The full lightweight backend suite passed **57 tests**; the subsequent optional
 push-credential handling change passed **11 authentication tests**. Missing
 push credentials now return a clean no-op before attempting to send.
 
-Android is connected and authorized, but continued to report a secure lock
-screen after the owner's confirmation. The source PDF and initial server
-package are in its Downloads folder. Do not claim that Android local conversion,
-Android import, audible playback, or live image transitions passed in this run.
-These require the owner to unlock the phone. The owner deferred Android testing while using the phone. No further phone
-actions should run until the owner resumes that test. Funnel now proxies the
-loopback API through the public HTTPS address below.
+## Android follow-up (23 October 2026)
 
+The owner reconnected and unlocked the Pixel 9a. Its original 1.2 GB textbook
+was preserved. Real-device checks passed for the three library layouts,
+source-PDF opening/slider navigation, a single reader drawer button,
+section autoplay and the correct changing original-page illustration.
+Kokoro produced non-silent narration on the device; a subjective listening
+assessment is not inferred from audio metrics.
+
+The first fully offline sample run took approximately 6m31s. A fixed-extraction
+fresh run took 5m16s, but source comparison exposed a changed pronoun and a
+summary. Version 1.6.3's ordinary-prose fidelity guard corrected those pages
+using source text. A cached replay recorded fallback pages [1, 2] (zero-based),
+three sections, three correct picture references and 35.64 seconds of 24 kHz
+Kokoro audio. RMS values were 2734/2906/2630 with zero clipped samples. The replay
+ran with connectivity restored by the owner, so it is not labeled a new
+network-disabled or fresh-inference benchmark. Initial offline verification
+remains separate evidence.
+
+End-of-book reader controls return to Play and replay works. An additional
+system-notification state discrepancy was fixed and requires final physical
+verification. Analyzer and 37 frontend tests passed; 51 mobile-backend tests
+passed. The signed release workflow is run 40044478806. Device installation
+preserves application data. Final Play-signed Google login, on-phone server
+round trip and foreground-service demonstrations remain checklist items until
+explicitly verified; do not equate passing unit tests with those live checks.
 
 ## Public HTTPS through Tailscale Funnel
 
