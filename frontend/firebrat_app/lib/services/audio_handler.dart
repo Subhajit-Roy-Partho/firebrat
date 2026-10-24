@@ -23,6 +23,11 @@ class FirebratAudioHandler extends BaseAudioHandler with SeekHandler {
 
   FirebratAudioHandler() {
     player.playbackEventStream.map(_transformEvent).pipe(playbackState);
+    // A pause after completion can change playing without a new playback
+    // event. Keep the system notification in sync with the reader controls.
+    player.playerStateStream.listen((_) {
+      playbackState.add(_transformEvent(player.playbackEvent));
+    });
     _initAudioSession();
   }
 
