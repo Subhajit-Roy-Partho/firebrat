@@ -18,7 +18,15 @@ class OcrFallback {
     if (pageIndices.isEmpty) return const [];
     await Directory(tempDir).create(recursive: true);
     final results = <RawPage>[];
+    // Recognised text is kept per page, so a paused or interrupted conversion
+    // does not read the scanned pages again when it resumes.
+    final key = await _sourceKey(pdfPath);
     for (final pageIdx in pageIndices) {
+      final cached = File('$tempDir/ocr_${key}_$pageIdx.txt');
+      if (await cached.exists()) {
+        results.add(RawPage(pageIdx: pageIdx, text: await cached.readAsString()));
+        continue;
+      }
       final tempPath = '$tempDir/ocr_page_$pageIdx.png';
       await const MethodChannel('firebrat/local_pdf').invokeMethod<String>('renderPage', {
         'path': pdfPath, 'page': pageIdx, 'output': tempPath,
@@ -28,13 +36,26 @@ class OcrFallback {
         // A cover, frontispiece or blank page legitimately has no text. Keep it as an
         // empty page instead of failing the whole book; the pipeline reports how many
         // pages had no readable text, and still refuses a document with none at all.
-        results.add(RawPage(pageIdx: pageIdx, text: recognized.text.trim()));
+        final text = recognized.text.trim();
+        final staged = File('${cached.path}.tmp');
+        await staged.writeAsString(text);
+        await staged.rename(cached.path);
+        results.add(RawPage(pageIdx: pageIdx, text: text));
       } finally {
         final file = File(tempPath);
         if (await file.exists()) await file.delete();
       }
     }
     return results;
+  }
+
+  /// Identifies one source file (its path and size) in the cache file names.
+  static Future<String> _sourceKey(String pdfPath) async {
+    var h = 0x811c9dc5;
+    for (final unit in '$pdfPath:${await File(pdfPath).length()}'.codeUnits) {
+      h = ((h ^ unit) * 0x01000193) & 0xffffffff;
+    }
+    return h.toRadixString(16);
   }
 
   void dispose() => _recognizer.close();

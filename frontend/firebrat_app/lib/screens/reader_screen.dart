@@ -170,6 +170,7 @@ class ReaderScreen extends ConsumerWidget {
   void _showFontSizeSheet(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
+      useSafeArea: true,
       builder: (ctx) => Consumer(
         builder: (ctx, ref, _) {
           final settings = ref.watch(readerSettingsProvider);

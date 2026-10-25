@@ -87,7 +87,12 @@ const _pages = <_TourPage>[
       _TourItem(
         Icons.playlist_add_rounded,
         'Queue several books',
-        'Pick many files at once, or keep adding while one converts. They run one after another; Stop ends the current one and the queue carries on.',
+        'Pick many files at once, or keep adding while one converts. They run one after another. Pause keeps your progress so you can resume later, even after closing or updating the app; Stop ends the current one and the queue carries on.',
+      ),
+      _TourItem(
+        Icons.headphones_rounded,
+        'Listen while it converts',
+        'A book that is still converting appears in your library with an hourglass. Open it to listen to the sections that are ready; playback carries on by itself as more finish.',
       ),
       _TourItem(
         Icons.battery_charging_full_rounded,

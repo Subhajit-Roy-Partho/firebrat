@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/analytics_service.dart';
 import '../services/auth_service.dart';
@@ -9,6 +10,7 @@ import 'screens/tour_screen.dart';
 import 'state/theme_providers.dart';
 import 'state/tour_providers.dart';
 import 'state/on_device_conversion_providers.dart';
+import 'state/on_device_queue_provider.dart';
 import 'state/guest_access_provider.dart';
 import 'theme/app_theme.dart';
 
@@ -18,12 +20,30 @@ class FirebratApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
+    // Start the conversion queue with the app, so a book that was converting
+    // when the app was updated or closed carries on without opening Conversions.
+    ref.read(onDeviceQueueProvider);
     return MaterialApp(
       title: 'Firebrat',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,
+      // Transparent system bars with icons that stay readable in light and dark.
+      builder: (context, child) {
+        final dark = Theme.of(context).brightness == Brightness.dark;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            systemNavigationBarColor: Colors.transparent,
+            systemNavigationBarDividerColor: Colors.transparent,
+            systemNavigationBarContrastEnforced: false,
+            statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+            systemNavigationBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       // Automatic screen-view tracking (screen names only, no content).
       navigatorObservers: ref.watch(conversionModeProvider).mode != ConversionModePref.cloud
           ? const [] : AnalyticsService.observerOrNull(),

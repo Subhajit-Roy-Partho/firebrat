@@ -443,6 +443,9 @@ class MobileConversionPipeline {
         await File('$bookDir/$name').delete();
       } catch (_) {}
     }
+    try {
+      await Directory('$bookDir/ocr').delete(recursive: true); // cached scan text
+    } catch (_) {}
 
     _report('done', '${manifestSections.length} sections, ${manifestFormulas.length} formulas', 1.0);
     return bookId;
