@@ -1,0 +1,29 @@
+Free your eyes. Let the story speak.
+
+Turn your own PDFs into narrated listening. Take a novel on a walk, or follow a technical chapter with its pictures beside the words. Firebrat brings the page and the voice together, so you choose how to spend time with your books.
+
+PRESS PLAY. STAY IN THE STORY.
+Listen to downloaded books offline. Follow the spoken sentence as it highlights, change speed, move between sections and keep listening in the background. Every book gets its own cover on a smooth, modern shelf, and the cover appears on your lock screen and notification while you listen. Open the original PDF page whenever you want a closer look.
+
+TWO MODES FOR TWO KINDS OF BOOKS
+• Novel / characters: the prose is kept word for word, dialogue is split by speaker, and each named character gets their own voice. Beyond male and female, set an age (child, young, adult, elder) and a temperament (calm, cheerful, stern, gruff, gentle, energetic, mysterious) and the voice changes to match. Turn on web research and Firebrat looks the book up on Wikipedia and has your LLM describe each character for you; only the book title and character names are sent, never the book's text.
+• Illustrated / technical: figures, tables and formulas stay on screen and highlighted exactly while they are being discussed.
+
+PRIVATE BY DEFAULT, FASTER IF YOU CHOOSE
+• Private and offline: convert on your phone with a local model and a neural voice. After the one-time downloads, no account, server or key is needed and nothing leaves your device.
+• Faster with a free LLM: paste a free key from services such as OpenRouter, Groq or Google AI Studio, tap Load models to see what is available, test it, and convert far faster with no local model download. Free providers may log prompts, so keep confidential books on the on-device model.
+• Your own server: run the companion Firebrat server, upload a PDF and download the finished book.
+• Already converted: import a Firebrat ZIP or tar.gz and start listening.
+
+Model downloads, memory needs, speed and quality vary by device and PDF. Cloud options send the relevant content to the provider you configure. Check narration, facts and character casting against the source.
+
+YOUR BOOKS. YOUR WAY.
+Continue as guest for reading, importing and conversion; no account is needed. Pick list, small-card or large-card views, light or dark mode, and add a profile photo. A built-in guide, available any time from the menu, explains every mode, which on-device model suits your phone, free LLM setup and Drive sync.
+
+Optional Google Drive backup stores finished books in your own Drive; Firebrat can only see files it created. Reading position can sync with the same Google account on another Android device. Local reading keeps working if sync is unavailable.
+
+Setup guide, downloads and support:
+https://subhajit-roy-partho.github.io/firebrat/documentation/guide.html
+royduck@duck.com
+
+Bring books you have permission to use. Firebrat does not include a catalogue of copyrighted books.

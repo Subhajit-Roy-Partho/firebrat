@@ -1,10 +1,10 @@
 # Play Store release branch
 
-`codex/play-store` retains all Android features: account-free offline reading, on-device conversion and OCR, local LLM and Kokoro/system voices, illustrated and novel modes, server conversion, Firebase/Google sign-in, cloud sync and notifications. It includes the source-PDF slider and duplicate drawer fixes. This is a preparation branch, not a claim of Play approval.
+The Android app on `master` retains all features: account-free offline reading, on-device conversion and OCR, local LLM and Kokoro/system voices, illustrated and novel modes, server conversion, Firebase/Google sign-in, cloud sync and notifications. It includes the source-PDF slider and duplicate drawer fixes. This is not a claim of Play approval.
 
 ## Build and signing
 
-Run the **Play Store bundle** workflow from this branch. It analyzes and tests the app, builds a signed AAB and retains it as a workflow artifact. It never publishes to Play automatically. Repository secrets required: `ANDROID_KEYSTORE_BASE64`, `KEY_STORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`, `GOOGLE_SERVICES_JSON`. These are the existing Android release secrets. Missing signing inputs fail the store build; it cannot silently use a debug certificate.
+Run the **Play Store bundle** workflow from `master`. It analyzes and tests the app, builds a signed AAB and retains it as a workflow artifact. It never publishes to Play automatically. Repository secrets required: `ANDROID_KEYSTORE_BASE64`, `KEY_STORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`, `GOOGLE_SERVICES_JSON`. These are the existing Android release secrets. Missing signing inputs fail the store build; it cannot silently use a debug certificate.
 
 For a local store bundle, provide `frontend/firebrat_app/android/key.properties` and its upload keystore, then run from the Flutter app directory:
 
