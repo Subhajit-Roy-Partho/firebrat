@@ -5,6 +5,7 @@ import 'package:firebrat_app/screens/sign_in_screen.dart';
 import 'package:firebrat_app/state/conversions_providers.dart';
 import 'package:firebrat_app/state/guest_access_provider.dart';
 import 'package:firebrat_app/state/library_providers.dart';
+import 'package:firebrat_app/state/tour_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,6 +51,7 @@ void main() {
   testWidgets('saved guest can open server library without Firebase login', (tester) async {
     SharedPreferences.setMockInitialValues({
       'conversion.mode': 'cloud', GuestAccessNotifier.preferenceKey: true,
+      TourStore.preferenceKey: true,
     });
     await tester.pumpWidget(ProviderScope(overrides: [
       catalogProvider.overrideWith((ref) async => const <BookSummary>[]),

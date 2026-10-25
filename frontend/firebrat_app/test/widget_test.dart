@@ -8,11 +8,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:firebrat_app/app.dart';
 import 'package:firebrat_app/models/book.dart';
 import 'package:firebrat_app/state/library_providers.dart';
+import 'package:firebrat_app/state/tour_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   testWidgets('FirebratApp opens the offline library without requiring sign-in', (WidgetTester tester) async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({TourStore.preferenceKey: true});
     await tester.pumpWidget(ProviderScope(
       overrides: [
         catalogProvider.overrideWith((ref) async => const <BookSummary>[]),

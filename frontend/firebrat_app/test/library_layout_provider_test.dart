@@ -5,12 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:firebrat_app/app.dart';
 import 'package:firebrat_app/models/book.dart';
 import 'package:firebrat_app/state/library_providers.dart';
+import 'package:firebrat_app/state/tour_providers.dart';
 import 'package:firebrat_app/widgets/book_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   testWidgets('library menu switches between all three layouts', (tester) async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({TourStore.preferenceKey: true});
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);

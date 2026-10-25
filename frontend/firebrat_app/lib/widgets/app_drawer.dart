@@ -4,6 +4,7 @@ import '../screens/conversion_settings_screen.dart';
 import '../screens/conversions_screen.dart';
 import '../screens/information_screen.dart';
 import '../screens/sync_screen.dart';
+import '../screens/tour_screen.dart';
 import '../services/auth_service.dart';
 import '../state/on_device_conversion_providers.dart';
 import '../state/guest_access_provider.dart';
@@ -129,6 +130,16 @@ class AppDrawer extends ConsumerWidget {
               },
             ),
           const Divider(),
+          ListTile(
+            leading: const Icon(Icons.explore_outlined),
+            title: const Text('App guide'),
+            subtitle: const Text('Quick tour of where things are'),
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const TourScreen()));
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.privacy_tip_outlined),
             title: const Text('Privacy & support'),

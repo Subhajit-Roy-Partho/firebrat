@@ -5,7 +5,9 @@ import '../services/analytics_service.dart';
 import '../services/auth_service.dart';
 import 'screens/library_screen.dart';
 import 'screens/sign_in_screen.dart';
+import 'screens/tour_screen.dart';
 import 'state/theme_providers.dart';
+import 'state/tour_providers.dart';
 import 'state/on_device_conversion_providers.dart';
 import 'state/guest_access_provider.dart';
 import 'theme/app_theme.dart';
@@ -38,7 +40,7 @@ class AuthGate extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (ref.watch(guestAccessProvider) ||
         ref.watch(conversionModeProvider).mode != ConversionModePref.cloud) {
-      return const LibraryScreen();
+      return const _Home();
     }
     return StreamBuilder<User?>(
       stream: AuthService.instance.authStateChanges(),
@@ -48,7 +50,7 @@ class AuthGate extends ConsumerWidget {
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        if (snapshot.hasData) return const LibraryScreen();
+        if (snapshot.hasData) return const _Home();
         return SignInScreen(onContinueAsGuest: () {
           final settings = ref.read(conversionModeProvider);
           if (settings.cloudServerUrl.isEmpty) {
@@ -59,4 +61,31 @@ class AuthGate extends ConsumerWidget {
       },
     );
   }
+}
+
+/// Library plus the one-time first-run guide: opens over the library the
+/// first time it is shown, never again once seen or skipped.
+class _Home extends StatefulWidget {
+  const _Home();
+
+  @override
+  State<_Home> createState() => _HomeState();
+}
+
+class _HomeState extends State<_Home> {
+  @override
+  void initState() {
+    super.initState();
+    _maybeShowTour();
+  }
+
+  Future<void> _maybeShowTour() async {
+    if (await TourStore.hasSeen() || !mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(fullscreenDialog: true, builder: (_) => const TourScreen()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => const LibraryScreen();
 }
