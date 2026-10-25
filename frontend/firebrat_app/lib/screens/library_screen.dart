@@ -8,6 +8,7 @@ import '../services/analytics_service.dart';
 import '../services/download_manager.dart';
 import '../services/drive_sync_service.dart';
 import '../services/firestore_sync_service.dart';
+import '../services/integrity_service.dart';
 import '../services/notification_service.dart';
 import '../state/library_providers.dart';
 import '../state/library_layout_provider.dart';
@@ -510,6 +511,12 @@ class LibraryScreen extends ConsumerWidget {
   /// deletes it), copy it to the user's Drive so other devices can pull
   /// it. Only when storage is set to Drive and sync is enabled — and
   /// failures never fail the download.
+  ///
+  /// Integrity policy here is fail-OPEN for local use (the download that
+  /// just landed is untouched) and offline-queued for the remote flush:
+  /// a retryable mint failure skips this best-effort copy so the next
+  /// backup flush retries it, instead of burning Drive quota on a doomed
+  /// request.
   Future<void> _backupZipToDrive(WidgetRef ref, String bookId, String zipPath) async {
     try {
       final settings = ref.read(conversionModeProvider);
@@ -517,6 +524,21 @@ class LibraryScreen extends ConsumerWidget {
         return;
       }
       if (!await DriveSyncService.instance.isEnabled()) return;
+      final integrity = ref.read(integrityServiceProvider);
+      final mint = await integrity.mintForRemote(
+        requestHash: IntegrityService.requestHashForString(
+          'drive-flush:$bookId:${DateTime.now().millisecondsSinceEpoch}',
+        ),
+      );
+      // Local stays usable no matter what (fail-open local).
+      assert(integrity.checkLocal(mint));
+      if (!mint.ok && integrity.shouldQueueOffline(mint)) {
+        // Transient/offline — leave the Drive copy for the next flush.
+        // The offline-queued state is surfaced by the Sync screen; this
+        // silent hook must never fail the download that just succeeded.
+        debugPrint('Drive backup deferred (offline-queued): ${mint.errorCode}');
+        return;
+      }
       final driveId = await DriveSyncService.instance.uploadBook(bookId: bookId, zipPath: zipPath);
       await FirestoreSyncService.instance.upsertBook(
         bookId: bookId,

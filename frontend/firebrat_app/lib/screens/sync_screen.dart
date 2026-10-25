@@ -4,6 +4,7 @@ import '../models/book.dart';
 import '../services/auth_service.dart';
 import '../services/book_sync_coordinator.dart';
 import '../services/firestore_sync_service.dart';
+import '../services/integrity_service.dart';
 import '../state/library_providers.dart';
 
 class SyncScreen extends ConsumerStatefulWidget {
@@ -75,9 +76,15 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       }
     } catch (e) {
       if (mounted) {
+        // Fail-open local: books and progress on this device are untouched.
+        // A retryable integrity mint surfaces as the offline-queued string
+        // so users know the backup flush will retry when online.
+        final msg = '$e';
+        final queued = msg.contains('queued');
         setState(
-          () => _message =
-              'Sync could not finish: $e. Your local books remain available.',
+          () => _message = queued
+              ? '${IntegrityService.offlineQueuedMessage} Your local books remain available.'
+              : 'Sync could not finish: $e. Your local books remain available.',
         );
       }
     } finally {

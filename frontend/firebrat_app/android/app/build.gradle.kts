@@ -77,4 +77,6 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+    // Play Integrity stub (lib-1): token mint only, no enforcement yet.
+    implementation("com.google.android.play:integrity:1.6.0")
 }

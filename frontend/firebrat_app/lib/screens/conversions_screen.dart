@@ -8,6 +8,7 @@ import '../state/on_device_conversion_providers.dart';
 import '../state/on_device_pipeline_run_provider.dart';
 import '../state/guest_access_provider.dart';
 import '../services/auth_service.dart';
+import '../services/integrity_service.dart';
 import 'conversion_settings_screen.dart';
 
 /// Upload a PDF (or a ZIP of PDFs, merged server-side) for conversion,
@@ -143,9 +144,45 @@ class ConversionsScreen extends ConsumerWidget {
     final progressNotifier = ref.read(uploadProgressProvider.notifier);
     progressNotifier.set(0.0);
     try {
+      // Remote conversion submit is fail-CLOSED on Play Integrity: mint a
+      // token bound to this upload and deny the submit when attestation
+      // fails. Retryable (offline/transient) failures surface the
+      // offline-queued string instead of a hard error; local library use
+      // stays fail-open throughout. Off-Android (MISSING_PLUGIN) proceeds
+      // unsigned as a dev fallback until the server enforces verification.
+      final integrity = ref.read(integrityServiceProvider);
+      final fileName = path.split('/').last;
+      final mint = await integrity.mintForRemote(
+        requestHash: IntegrityService.requestHashForString(
+          'upload:$fileName:${DateTime.now().millisecondsSinceEpoch}',
+        ),
+      );
+      if (!mint.ok) {
+        if (integrity.shouldQueueOffline(mint) &&
+            mint.errorCode != 'MISSING_PLUGIN') {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  content: Text(IntegrityService.offlineQueuedMessage)),
+            );
+          }
+          return;
+        }
+        if (mint.errorCode != 'MISSING_PLUGIN' &&
+            !integrity.checkRemote(mint)) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                  content: Text(IntegrityService.userMessageFor(mint))),
+            );
+          }
+          return;
+        }
+      }
       final api = ref.read(apiClientProvider);
       final job = await api.uploadBook(path,
         contentMode: ref.read(conversionModeProvider).contentMode,
+        integrityToken: mint.token,
         onProgress: progressNotifier.set);
       // Follow this job's FCM topic so the server's done/failed push finds
       // the device even with this screen closed.

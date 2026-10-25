@@ -66,10 +66,16 @@ class ApiClient {
   /// Uploads a PDF — or a .zip of PDFs, which the server merges in
   /// archive order — for conversion, reporting 0.0-1.0 upload progress.
   /// Returns the freshly-created job (state usually "queued").
+  ///
+  /// [integrityToken] is the Play Integrity token minted for this upload
+  /// (see `IntegrityService.mintForRemote`). It is attached best-effort as
+  /// `X-Firebrat-Integrity`; the server ignores it until verification
+  /// lands, so unsigned uploads keep working off-Android today.
   Future<ConversionJob> uploadBook(
     String filePath, {
     String? title,
     String contentMode = 'illustrated',
+    String? integrityToken,
     void Function(double progress)? onProgress,
   }) async {
     final form = FormData.fromMap({
@@ -80,6 +86,12 @@ class ApiClient {
     final resp = await _dio.post(
       '/books/upload',
       data: form,
+      options: Options(
+        headers: {
+          if (integrityToken != null && integrityToken.isNotEmpty)
+            'X-Firebrat-Integrity': integrityToken,
+        },
+      ),
       onSendProgress: (sent, total) {
         if (total > 0 && onProgress != null) onProgress(sent / total);
       },

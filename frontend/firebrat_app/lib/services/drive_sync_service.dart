@@ -37,20 +37,48 @@ class DriveSyncService {
 
   /// Signed-in account with Drive scope, escalating consent if needed.
   /// Throws (with a human message) when sign-in is required first.
+  ///
+  /// Fail-open local: throwing leaves books and progress on this device
+  /// untouched — every caller surfaces the message and keeps local
+  /// reading available.
   Future<GoogleSignInAccount> ensureAccess() async {
     final auth = AuthService.instance;
-    if (auth.currentUser == null) {
+    final firebaseEmail = AuthService.normalizeEmail(auth.currentUser?.email);
+    if (auth.currentUser == null || firebaseEmail == null) {
       throw StateError('Sign in with Google before using your Drive.');
     }
     var account = auth.currentGoogleUser;
-    account ??= await auth.signInSilentlyOrInteractiveDrive();
+    if (account == null ||
+        !AuthService.emailsMatch(account.email, firebaseEmail)) {
+      // Stale cache or silent restore for the wrong device account (common
+      // with many Google accounts on one phone): re-resolve, signing the
+      // wrong Google session out first so the chooser can appear.
+      account = await auth.resolveGoogleAccountForDrive(
+        expectedEmail: firebaseEmail,
+      );
+    }
     if (account == null) {
       throw StateError('Sign in with Google first (Account tab).');
     }
-    if (auth.currentUser?.email?.toLowerCase() != account.email.toLowerCase()) {
-      throw StateError('Use the same Google account for Firebrat and Drive. Sign out and sign in with Google.');
+    if (!AuthService.emailsMatch(account.email, firebaseEmail)) {
+      throw StateError(mismatchMessage(
+        firebaseEmail: firebaseEmail,
+        googleEmail: account.email,
+      ));
     }
     return account;
+  }
+
+  /// Actionable mismatch text naming both sides so the user knows which
+  /// account to pick. Pure (no platform channels) for unit testing.
+  static String mismatchMessage({
+    required String firebaseEmail,
+    required String googleEmail,
+  }) {
+    final want = AuthService.normalizeEmail(firebaseEmail) ?? firebaseEmail;
+    final got = AuthService.normalizeEmail(googleEmail) ?? googleEmail;
+    return 'Drive is signed in as $got but Firebrat is signed in as $want. '
+        'Pick $want in the Google account chooser, or sign out and sign in with Google again.';
   }
 
   Future<drive.DriveApi> _api() async {

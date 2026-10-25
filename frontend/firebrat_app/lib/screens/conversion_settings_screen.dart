@@ -6,6 +6,7 @@ import '../models/book.dart';
 import '../services/analytics_service.dart';
 import '../services/drive_sync_service.dart';
 import '../services/firestore_sync_service.dart';
+import 'sync_screen.dart';
 import '../state/library_providers.dart';
 import '../state/model_download_providers.dart';
 import '../state/on_device_conversion_providers.dart';
@@ -101,7 +102,7 @@ class _ConversionSettingsScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Drive setup failed: $e')),
+          SnackBar(content: Text('Drive setup failed: ${_displayError(e)}')),
         );
       }
     } finally {
@@ -356,7 +357,7 @@ class _ConversionSettingsScreenState
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Drive sync failed: $e')),
+          SnackBar(content: Text('Drive sync failed: ${_displayError(e)}')),
         );
       }
     } finally {
@@ -385,6 +386,11 @@ class _SectionTitle extends StatelessWidget {
     return Text(text, style: Theme.of(context).textTheme.titleMedium);
   }
 }
+
+/// StateError already carries a human message (`Bad state: ...` adds
+/// noise in a snackbar); anything else falls back to its toString.
+String _displayError(Object e) =>
+    e is StateError ? e.message : '$e';
 
 class _DriveStatusRow extends StatelessWidget {
   final bool busy;
@@ -438,6 +444,17 @@ class _DriveStatusRow extends StatelessWidget {
                     onPressed: busy ? null : onSyncNow,
                     child: const Text('Sync now'),
                   ),
+                // Per-book backup lives on Sync & backup; link it from here
+                // so Drive users can reach it without going via the drawer.
+                TextButton(
+                  onPressed: busy
+                      ? null
+                      : () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const SyncScreen()),
+                          ),
+                  child: const Text('Per-book backup'),
+                ),
               ],
             ),
           ],
