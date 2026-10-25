@@ -1,0 +1,35 @@
+name: Play listing
+
+# Publishes the store listing (descriptions + screenshots + feature graphic from
+# assets/play-store/modern-refresh) through the Play Developer API. Needs the same
+# PLAY_SERVICE_ACCOUNT_JSON secret as the release upload, and that service account
+# must be invited in Play Console > Users and permissions with access to this app.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Validate and upload to a draft edit, then discard it (nothing is published)'
+        type: boolean
+        default: true
+
+jobs:
+  listing:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python3 -m pip install --quiet google-auth requests
+      - name: Verify Play service-account access
+        working-directory: frontend/firebrat_app
+        run: python3 tool/check_play_access.py
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+      - name: Update the listing
+        working-directory: frontend/firebrat_app
+        run: python3 tool/play_listing.py ${{ inputs.dry_run && '--dry-run' || '' }}
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}

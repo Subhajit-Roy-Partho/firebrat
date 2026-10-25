@@ -7,6 +7,7 @@ import '../services/analytics_service.dart';
 import '../services/drive_sync_service.dart';
 import '../services/firestore_sync_service.dart';
 import 'sync_screen.dart';
+import 'tour_screen.dart';
 import '../state/library_providers.dart';
 import '../state/model_download_providers.dart';
 import '../state/on_device_conversion_providers.dart';
@@ -62,10 +63,18 @@ class _ConversionSettingsScreenState
     _cloudUrlController = TextEditingController(text: settings.cloudServerUrl);
     _llmUrlController = TextEditingController(text: settings.onDeviceLlmUrl);
     _llmKeyController = TextEditingController(text: settings.onDeviceLlmApiKey);
-    _llmModelController = TextEditingController(text: settings.onDeviceLlmModel);
-    _serverLlmUrlController = TextEditingController(text: settings.serverLlmUrl);
-    _serverLlmKeyController = TextEditingController(text: settings.serverLlmApiKey);
-    _serverLlmModelController = TextEditingController(text: settings.serverLlmModel);
+    _llmModelController = TextEditingController(
+      text: settings.onDeviceLlmModel,
+    );
+    _serverLlmUrlController = TextEditingController(
+      text: settings.serverLlmUrl,
+    );
+    _serverLlmKeyController = TextEditingController(
+      text: settings.serverLlmApiKey,
+    );
+    _serverLlmModelController = TextEditingController(
+      text: settings.serverLlmModel,
+    );
     // Check the already-saved server, if any, the moment this screen opens
     // — the user shouldn't have to hit Save just to see whether it's reachable.
     if (settings.mode == ConversionModePref.cloud &&
@@ -76,7 +85,9 @@ class _ConversionSettingsScreenState
   }
 
   Future<void> _refreshDriveStatus() async {
-    if (ref.read(conversionModeProvider).mode != ConversionModePref.cloud) return;
+    if (ref.read(conversionModeProvider).mode != ConversionModePref.cloud) {
+      return;
+    }
     final enabled = await DriveSyncService.instance.isEnabled();
     String status;
     if (!enabled) {
@@ -84,7 +95,8 @@ class _ConversionSettingsScreenState
     } else {
       try {
         final books = await DriveSyncService.instance.listBooks();
-        status = 'Drive sync is on — ${books.length} book file(s) in your Firebrat folder.';
+        status =
+            'Drive sync is on — ${books.length} book file(s) in your Firebrat folder.';
       } catch (e) {
         status = 'Drive needs attention: $e';
       }
@@ -107,7 +119,9 @@ class _ConversionSettingsScreenState
         await DriveSyncService.instance.setEnabled(false);
         await AnalyticsService.instance.logDriveSync(action: 'disabled');
       }
-      await ref.read(conversionModeProvider.notifier).setStorageBackend(on ? 'drive' : 'server');
+      await ref
+          .read(conversionModeProvider.notifier)
+          .setStorageBackend(on ? 'drive' : 'server');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -128,24 +142,44 @@ class _ConversionSettingsScreenState
     final isCloud = settings.mode == ConversionModePref.cloud;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Conversion settings')),
+      appBar: AppBar(
+        title: const Text('Conversion settings'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.explore_outlined),
+            tooltip: 'App guide',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const TourScreen()),
+            ),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           _SectionTitle('1 · How do you want to use Firebrat?'),
           const _HelpText(
-              'Offline reads and plays imported books with no server or account. '
-              'Cloud server converts with datacenter GPUs (fast, needs the server online). '
-              'On this device converts with your phone (private, slower, needs the models below).'),
+            'Offline reads and plays imported books with no server or account. '
+            'Cloud server converts with datacenter GPUs (fast, needs the server online). '
+            'On this device converts with your phone (private, slower, needs the models below).',
+          ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
               for (final option in const [
-                (ConversionModePref.offline, 'Offline', Icons.offline_pin_outlined),
+                (
+                  ConversionModePref.offline,
+                  'Offline',
+                  Icons.offline_pin_outlined,
+                ),
                 (ConversionModePref.cloud, 'Server', Icons.cloud_outlined),
-                (ConversionModePref.onDevice, 'On-device', Icons.phone_android_outlined),
+                (
+                  ConversionModePref.onDevice,
+                  'On-device',
+                  Icons.phone_android_outlined,
+                ),
               ])
                 ChoiceChip(
                   avatar: Icon(option.$3, size: 18),
@@ -158,19 +192,34 @@ class _ConversionSettingsScreenState
           const SizedBox(height: 24),
           if (settings.mode != ConversionModePref.offline) ...[
             _SectionTitle('2 · Book type'),
-            Wrap(spacing: 8, runSpacing: 8, children: [
-              ChoiceChip(label: const Text('Illustrated / technical'), selected: settings.contentMode == 'illustrated', onSelected: (_) => notifier.setContentMode('illustrated')),
-              ChoiceChip(label: const Text('Novel / characters'), selected: settings.contentMode == 'novel', onSelected: (_) => notifier.setContentMode('novel')),
-            ]),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('Illustrated / technical'),
+                  selected: settings.contentMode == 'illustrated',
+                  onSelected: (_) => notifier.setContentMode('illustrated'),
+                ),
+                ChoiceChip(
+                  label: const Text('Novel / characters'),
+                  selected: settings.contentMode == 'novel',
+                  onSelected: (_) => notifier.setContentMode('novel'),
+                ),
+              ],
+            ),
             if (settings.contentMode == 'novel')
-              const _HelpText('Scans the whole book for explicitly named speakers, keeps the original prose, and assigns consistent character speaking styles. Uncertain speakers use the narrator. English named speech tags are supported; character aliases and pronouns are not inferred.'),
+              const _HelpText(
+                'Scans the whole book for explicitly named speakers, keeps the original prose, and assigns consistent character speaking styles. Uncertain speakers use the narrator. English named speech tags are supported; character aliases and pronouns are not inferred.',
+              ),
             const SizedBox(height: 16),
           ],
           if (isCloud) ...[
             _SectionTitle('3 · Get finished books from where?'),
             const _HelpText(
-                'Custom server reads the shelf at the URL below. Google Drive keeps your books '
-                'in your own Drive (your quota, works across devices) — downloads back up there automatically.'),
+              'Custom server reads the shelf at the URL below. Google Drive keeps your books '
+              'in your own Drive (your quota, works across devices) — downloads back up there automatically.',
+            ),
             const SizedBox(height: 8),
             RadioGroup<String>(
               groupValue: settings.storageBackend,
@@ -185,12 +234,16 @@ class _ConversionSettingsScreenState
                 children: [
                   RadioListTile<String>(
                     title: const Text('Custom Firebrat server'),
-                    subtitle: const Text('Shelf + downloads from the URL below.'),
+                    subtitle: const Text(
+                      'Shelf + downloads from the URL below.',
+                    ),
                     value: 'server',
                   ),
                   RadioListTile<String>(
                     title: const Text('My Google Drive'),
-                    subtitle: const Text('Books back up to your Drive; new devices pull them.'),
+                    subtitle: const Text(
+                      'Books back up to your Drive; new devices pull them.',
+                    ),
                     value: 'drive',
                   ),
                 ],
@@ -209,7 +262,8 @@ class _ConversionSettingsScreenState
               controller: _cloudUrlController,
               decoration: const InputDecoration(
                 labelText: 'Server URL',
-                helperText: 'Bare IPs work — http:// and :8000 are added for you.',
+                helperText:
+                    'Bare IPs work — http:// and :8000 are added for you.',
                 hintText: 'http://100.87.251.5:8000',
                 border: OutlineInputBorder(),
               ),
@@ -218,8 +272,9 @@ class _ConversionSettingsScreenState
             const SizedBox(height: 16),
             _SectionTitle('Server conversion engine'),
             const _HelpText(
-                'Native GPU converts with datacenter GPUs only. LLM helper '
-                'matches the server default: hard passages go to a cloud model.'),
+              'Native GPU converts with datacenter GPUs only. LLM helper '
+              'matches the server default: hard passages go to a cloud model.',
+            ),
             const SizedBox(height: 8),
             _ServerProviderPicker(notifier: notifier, settings: settings),
             if (settings.serverProvider != 'native') ...[
@@ -228,7 +283,8 @@ class _ConversionSettingsScreenState
                 controller: _serverLlmUrlController,
                 decoration: const InputDecoration(
                   labelText: 'Cloud LLM URL (optional override)',
-                  helperText: 'Leave empty to use the server default. https:// is added for you if missing.',
+                  helperText:
+                      'Leave empty to use the server default. https:// is added for you if missing.',
                   hintText: 'https://nano-gpt.com/api/v1',
                   border: OutlineInputBorder(),
                 ),
@@ -239,7 +295,8 @@ class _ConversionSettingsScreenState
                 controller: _serverLlmKeyController,
                 decoration: const InputDecoration(
                   labelText: 'API key (optional)',
-                  helperText: 'Stored only on this phone, sent only with your own uploads.',
+                  helperText:
+                      'Stored only on this phone, sent only with your own uploads.',
                   border: OutlineInputBorder(),
                 ),
                 obscureText: true,
@@ -249,72 +306,114 @@ class _ConversionSettingsScreenState
                 modelController: _serverLlmModelController,
                 serverUrlController: _cloudUrlController,
               ),
+              const SizedBox(height: 12),
+              _EndpointTools(
+                urlController: _serverLlmUrlController,
+                keyController: _serverLlmKeyController,
+                modelController: _serverLlmModelController,
+              ),
             ],
           ] else if (settings.mode == ConversionModePref.onDevice) ...[
             _SectionTitle('Fully local conversion'),
-            const _HelpText('All passages are processed on this phone. Download the model and an offline voice once; no account, API key, or server is required after setup. Original page visuals preserve pictures and table layout alongside narration; precise figure cropping is not yet supported.'),
+            const _HelpText(
+              'All passages are processed on this phone. Download the model and an offline voice once; no account, API key, or server is required after setup. Original page visuals preserve pictures and table layout alongside narration; precise figure cropping is not yet supported.',
+            ),
             SwitchListTile(
               title: const Text('Allow cloud helper'),
-              subtitle: const Text('Optional: send difficult passages to your configured provider. Off keeps all conversion local.'),
+              subtitle: const Text(
+                'Optional: send difficult passages to your configured provider. Off keeps all conversion local.',
+              ),
               value: settings.allowCloudFallback,
               onChanged: notifier.setAllowCloudFallback,
             ),
             if (settings.allowCloudFallback) ...[
-            _SectionTitle('Cloud helper for hard chunks'),
-            const _HelpText(
-                'Easy chunks run on the local model below. Chunks with equations, figures, or tables '
-                'still need one cloud LLM call each — any OpenAI-compatible endpoint (nano-gpt, OpenAI, …).'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _llmUrlController,
-              decoration: const InputDecoration(
-                labelText: 'LLM URL',
-                helperText: 'https:// is added for you if missing.',
-                hintText: 'https://nano-gpt.com/api/v1',
-                border: OutlineInputBorder(),
+              SwitchListTile(
+                title: const Text('Use the cloud LLM for every passage'),
+                subtitle: const Text(
+                  'Faster, and no local model download. The text of the book is sent to your provider, so leave this off for private books.',
+                ),
+                value: settings.cloudForAll,
+                onChanged: notifier.setCloudForAll,
               ),
-              keyboardType: TextInputType.url,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _llmKeyController,
-              decoration: const InputDecoration(
-                labelText: 'API key',
-                helperText: 'Stored only on this phone, sent only to the URL above.',
-                border: OutlineInputBorder(),
+              _SectionTitle(
+                settings.cloudForAll
+                    ? 'Cloud LLM'
+                    : 'Cloud helper for hard chunks',
               ),
-              obscureText: true,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _llmModelController,
-              decoration: const InputDecoration(
-                labelText: 'Model name',
-                helperText: 'Must be a thinking-capable model for math-heavy chunks.',
-                hintText: 'deepseek/deepseek-v4-pro:thinking',
-                border: OutlineInputBorder(),
+              _HelpText(
+                settings.cloudForAll
+                    ? 'Every passage goes to this provider, and no local model is downloaded. Any OpenAI-compatible '
+                          'endpoint works, including free keys from OpenRouter (https://openrouter.ai/api/v1), Groq or Google AI Studio.'
+                    : 'Easy chunks run on the local model below. Chunks with equations, figures, or tables '
+                          'still need one cloud LLM call each — any OpenAI-compatible endpoint (nano-gpt, OpenAI, …).',
               ),
-            ),
-            const SizedBox(height: 24),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _llmUrlController,
+                decoration: const InputDecoration(
+                  labelText: 'LLM URL',
+                  helperText: 'https:// is added for you if missing.',
+                  hintText: 'https://nano-gpt.com/api/v1',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.url,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _llmKeyController,
+                decoration: const InputDecoration(
+                  labelText: 'API key',
+                  helperText:
+                      'Stored only on this phone, sent only to the URL above.',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _llmModelController,
+                decoration: const InputDecoration(
+                  labelText: 'Model name',
+                  helperText:
+                      'Must be a thinking-capable model for math-heavy chunks.',
+                  hintText: 'deepseek/deepseek-v4-pro:thinking',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _EndpointTools(
+                urlController: _llmUrlController,
+                keyController: _llmKeyController,
+                modelController: _llmModelController,
+              ),
+              const SizedBox(height: 24),
             ],
-            _SectionTitle('3 · Local LLM (fully offline)'),
-            const _HelpText(
+            if (!(settings.allowCloudFallback && settings.cloudForAll)) ...[
+              _SectionTitle('3 · Local LLM (fully offline)'),
+              const _HelpText(
                 'Weights download straight from Hugging Face. Leaving this screen never stops a download — '
-                'it resumes on its own, even after the app restarts.'),
-            const SizedBox(height: 8),
-            _LocalModelPicker(notifier: notifier, settings: settings),
+                'it resumes on its own, even after the app restarts.',
+              ),
+              const SizedBox(height: 8),
+              _LocalModelPicker(notifier: notifier, settings: settings),
+            ],
           ],
           if (settings.mode == ConversionModePref.offline)
-            const _HelpText('Import a .tar.gz or .zip book from your library. '
-                'Reading and playback use files on this phone. Switch modes when you want to convert new books or use a server.'),
+            const _HelpText(
+              'Import a .tar.gz or .zip book from your library. '
+              'Reading and playback use files on this phone. Switch modes when you want to convert new books or use a server.',
+            ),
           if (settings.mode != ConversionModePref.offline) ...[
-          const SizedBox(height: 24),
-          _SectionTitle(isCloud ? '3 · Narrator voice' : '4 · Narrator voice'),
-          const _HelpText(
+            const SizedBox(height: 24),
+            _SectionTitle(
+              isCloud ? '3 · Narrator voice' : '4 · Narrator voice',
+            ),
+            const _HelpText(
               'Who reads the book. System voice is instant; Kokoro is an on-device neural voice '
-              '(voice data downloads on first use, ~300 MB). Server books keep the voice they were converted with.'),
-          const SizedBox(height: 8),
-          _VoicePicker(notifier: notifier, settings: settings),
+              '(voice data downloads on first use, ~300 MB). Server books keep the voice they were converted with.',
+            ),
+            const SizedBox(height: 8),
+            _VoicePicker(notifier: notifier, settings: settings),
           ],
           const SizedBox(height: 24),
           FilledButton(
@@ -367,7 +466,9 @@ class _ConversionSettingsScreenState
       );
     }
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saved')));
     }
   }
 
@@ -405,7 +506,13 @@ class _ConversionSettingsScreenState
       await AnalyticsService.instance.logDriveSync(action: 'sync_now');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(pulled == 0 ? 'Drive is in sync — nothing new.' : 'Pulled $pulled book(s) from Drive.')),
+          SnackBar(
+            content: Text(
+              pulled == 0
+                  ? 'Drive is in sync — nothing new.'
+                  : 'Pulled $pulled book(s) from Drive.',
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -443,8 +550,7 @@ class _SectionTitle extends StatelessWidget {
 
 /// StateError already carries a human message (`Bad state: ...` adds
 /// noise in a snackbar); anything else falls back to its toString.
-String _displayError(Object e) =>
-    e is StateError ? e.message : '$e';
+String _displayError(Object e) => e is StateError ? e.message : '$e';
 
 class _DriveStatusRow extends StatelessWidget {
   final bool busy;
@@ -481,10 +587,11 @@ class _DriveStatusRow extends StatelessWidget {
                 ),
               ],
             ),
-            if (busy) const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: LinearProgressIndicator(),
-            ),
+            if (busy)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: LinearProgressIndicator(),
+              ),
             const SizedBox(height: 4),
             Wrap(
               spacing: 8,
@@ -504,9 +611,8 @@ class _DriveStatusRow extends StatelessWidget {
                   onPressed: busy
                       ? null
                       : () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                                builder: (_) => const SyncScreen()),
-                          ),
+                          MaterialPageRoute(builder: (_) => const SyncScreen()),
+                        ),
                   child: const Text('Per-book backup'),
                 ),
               ],
@@ -527,8 +633,16 @@ class _ServerProviderPicker extends StatelessWidget {
   Widget build(BuildContext context) {
     return SegmentedButton<String>(
       segments: const [
-        ButtonSegment(value: 'llm', label: Text('LLM helper'), icon: Icon(Icons.auto_awesome_outlined)),
-        ButtonSegment(value: 'native', label: Text('Native GPU'), icon: Icon(Icons.memory_outlined)),
+        ButtonSegment(
+          value: 'llm',
+          label: Text('LLM helper'),
+          icon: Icon(Icons.auto_awesome_outlined),
+        ),
+        ButtonSegment(
+          value: 'native',
+          label: Text('Native GPU'),
+          icon: Icon(Icons.memory_outlined),
+        ),
       ],
       selected: {settings.serverProvider == 'native' ? 'native' : 'llm'},
       showSelectedIcon: false,
@@ -544,7 +658,10 @@ class _ServerProviderPicker extends StatelessWidget {
 class _ServerModelPicker extends ConsumerWidget {
   final TextEditingController modelController;
   final TextEditingController serverUrlController;
-  const _ServerModelPicker({required this.modelController, required this.serverUrlController});
+  const _ServerModelPicker({
+    required this.modelController,
+    required this.serverUrlController,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -560,14 +677,22 @@ class _ServerModelPicker extends ConsumerWidget {
       field = DropdownButtonFormField<String>(
         key: ValueKey('server-model-${models.join('|')}'),
         isExpanded: true,
-        initialValue: current.isNotEmpty && items.contains(current) ? current : null,
+        initialValue: current.isNotEmpty && items.contains(current)
+            ? current
+            : null,
         decoration: const InputDecoration(
           labelText: 'Model',
           helperText: 'Used for hard passages when the LLM helper is on.',
           helperMaxLines: 5,
           border: OutlineInputBorder(),
         ),
-        items: [for (final m in items) DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis))],
+        items: [
+          for (final m in items)
+            DropdownMenuItem(
+              value: m,
+              child: Text(m, overflow: TextOverflow.ellipsis),
+            ),
+        ],
         onChanged: (v) {
           if (v != null) modelController.text = v;
         },
@@ -577,7 +702,8 @@ class _ServerModelPicker extends ConsumerWidget {
         controller: modelController,
         decoration: const InputDecoration(
           labelText: 'Model name (optional)',
-          helperText: 'Empty uses the server default. Must be a thinking-capable model for math-heavy books.',
+          helperText:
+              'Empty uses the server default. Must be a thinking-capable model for math-heavy books.',
           hintText: 'deepseek/deepseek-v4-pro:thinking',
           border: OutlineInputBorder(),
         ),
@@ -595,14 +721,21 @@ class _ServerModelPicker extends ConsumerWidget {
               child: Text(
                 serverState.modelsLoading
                     ? 'Loading models…'
-                    : (serverState.modelsError ?? (models.isEmpty ? 'Models not loaded yet.' : '${models.length} model${models.length == 1 ? '' : 's'} from the server.')),
+                    : (serverState.modelsError ??
+                          (models.isEmpty
+                              ? 'Models not loaded yet.'
+                              : '${models.length} model${models.length == 1 ? '' : 's'} from the server.')),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
             TextButton.icon(
               onPressed: serverState.modelsLoading
                   ? null
-                  : () => ref.read(serverBooksProvider.notifier).refreshModels(baseUrlOverride: serverUrlController.text),
+                  : () => ref
+                        .read(serverBooksProvider.notifier)
+                        .refreshModels(
+                          baseUrlOverride: serverUrlController.text,
+                        ),
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text('Load models'),
             ),
@@ -636,13 +769,16 @@ class _LocalModelPickerState extends ConsumerState<_LocalModelPicker> {
     final result = <String, bool>{};
     for (final m in kOnDeviceLlmCatalog) {
       final f = File('$dir/${m.fileName}');
-      result[m.id] = await f.exists() &&
-          ((await f.length()) - m.approxSizeBytes).abs() < m.approxSizeBytes * 0.02;
+      result[m.id] =
+          await f.exists() &&
+          ((await f.length()) - m.approxSizeBytes).abs() <
+              m.approxSizeBytes * 0.02;
     }
     if (mounted) setState(() => _downloaded.addAll(result));
   }
 
-  static String _gb(int bytes) => '${(bytes / 1073741824).toStringAsFixed(1)} GB';
+  static String _gb(int bytes) =>
+      '${(bytes / 1073741824).toStringAsFixed(1)} GB';
 
   @override
   Widget build(BuildContext context) {
@@ -659,7 +795,8 @@ class _LocalModelPickerState extends ConsumerState<_LocalModelPicker> {
           initialValue: selected.id,
           decoration: const InputDecoration(
             labelText: 'Model',
-            helperText: 'Smaller = less RAM, weaker math. Bigger = slower download, better narration.',
+            helperText:
+                'Smaller = less RAM, weaker math. Bigger = slower download, better narration.',
             helperMaxLines: 5,
             border: OutlineInputBorder(),
           ),
@@ -678,7 +815,10 @@ class _LocalModelPickerState extends ConsumerState<_LocalModelPicker> {
           },
         ),
         const SizedBox(height: 4),
-        Text(selected.description, style: Theme.of(context).textTheme.bodySmall),
+        Text(
+          selected.description,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
         const SizedBox(height: 8),
         if (dl != null && dl.downloading) ...[
           if (dl.fraction != null)
@@ -687,10 +827,16 @@ class _LocalModelPickerState extends ConsumerState<_LocalModelPicker> {
             const LinearProgressIndicator(),
           Row(
             children: [
-              Expanded(child: Text(dl.label, style: Theme.of(context).textTheme.bodySmall)),
+              Expanded(
+                child: Text(
+                  dl.label,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
               TextButton.icon(
-                onPressed: () =>
-                    ref.read(modelDownloadProvider.notifier).pauseDownload(selected.id),
+                onPressed: () => ref
+                    .read(modelDownloadProvider.notifier)
+                    .pauseDownload(selected.id),
                 icon: const Icon(Icons.pause_rounded, size: 18),
                 label: const Text('Pause'),
               ),
@@ -704,8 +850,9 @@ class _LocalModelPickerState extends ConsumerState<_LocalModelPicker> {
                     .read(modelDownloadProvider.notifier)
                     .startDownload(selected);
                 await _refreshDownloaded();
-                await AnalyticsService.instance
-                    .logModelDownloaded(modelId: selected.id);
+                await AnalyticsService.instance.logModelDownloaded(
+                  modelId: selected.id,
+                );
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -714,12 +861,16 @@ class _LocalModelPickerState extends ConsumerState<_LocalModelPicker> {
                 }
               }
             },
-            icon: Icon(dl != null && dl.receivedBytes > 0
-                ? Icons.play_arrow_rounded
-                : Icons.download_rounded),
-            label: Text(dl != null && dl.receivedBytes > 0
-                ? 'Resume ${dl.label}'
-                : 'Download ${_gb(selected.approxSizeBytes)}'),
+            icon: Icon(
+              dl != null && dl.receivedBytes > 0
+                  ? Icons.play_arrow_rounded
+                  : Icons.download_rounded,
+            ),
+            label: Text(
+              dl != null && dl.receivedBytes > 0
+                  ? 'Resume ${dl.label}'
+                  : 'Download ${_gb(selected.approxSizeBytes)}',
+            ),
           ),
         ] else ...[
           const Chip(
@@ -728,7 +879,10 @@ class _LocalModelPickerState extends ConsumerState<_LocalModelPicker> {
           ),
         ],
         const SizedBox(height: 12),
-        Text('Device acceleration', style: Theme.of(context).textTheme.titleSmall),
+        Text(
+          'Device acceleration',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
         const Text(
           'Transformer layers offloaded to the GPU. 99 requests all layers and uses more memory; '
           '0 uses CPU. Use CPU if conversion stalls or Android closes the app.',
@@ -748,9 +902,11 @@ class _LocalModelPickerState extends ConsumerState<_LocalModelPicker> {
             ),
             SizedBox(
               width: 44,
-              child: Text('${settings.onDeviceGpuLayers}',
-                  textAlign: TextAlign.end,
-                  style: Theme.of(context).textTheme.titleMedium),
+              child: Text(
+                '${settings.onDeviceGpuLayers}',
+                textAlign: TextAlign.end,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
             ),
           ],
         ),
@@ -777,12 +933,16 @@ class _VoicePicker extends StatelessWidget {
             children: [
               RadioListTile<String>(
                 title: const Text('System voice'),
-                subtitle: const Text('Uses an installed offline English voice. Download one in Android speech settings if needed.'),
+                subtitle: const Text(
+                  'Uses an installed offline English voice. Download one in Android speech settings if needed.',
+                ),
                 value: 'stockTts',
               ),
               RadioListTile<String>(
                 title: const Text('Kokoro (on-device neural)'),
-                subtitle: const Text('Natural neural voice, fully offline. Voice data (~110 MB) downloads on first use.'),
+                subtitle: const Text(
+                  'Natural neural voice, fully offline. Voice data (~110 MB) downloads on first use.',
+                ),
                 value: 'kokoroOnnx',
               ),
             ],
@@ -790,18 +950,25 @@ class _VoicePicker extends StatelessWidget {
         ),
         if (settings.isKokoroVoice) ...[
           DropdownButtonFormField<String>(
-          isExpanded: true,
+            isExpanded: true,
             initialValue: kKokoroVoices.contains(settings.kokoroVoice)
                 ? settings.kokoroVoice
                 : kKokoroVoices.first,
             decoration: const InputDecoration(
               labelText: 'Kokoro voice',
-              helperText: 'Narrator: four female presets and two male presets. Novel characters use the choices below.',
+              helperText:
+                  'Narrator: four female presets and two male presets. Novel characters use the choices below.',
               helperMaxLines: 5,
               border: OutlineInputBorder(),
             ),
             items: [
-              for (final v in kKokoroVoices) DropdownMenuItem(value: v, child: Text('$v · ${kKokoroMaleVoices.contains(v) ? 'Male' : 'Female'}')),
+              for (final v in kKokoroVoices)
+                DropdownMenuItem(
+                  value: v,
+                  child: Text(
+                    '$v · ${kKokoroMaleVoices.contains(v) ? 'Male' : 'Female'}',
+                  ),
+                ),
             ],
             onChanged: (v) {
               if (v != null) notifier.setKokoroVoice(v);
@@ -809,31 +976,60 @@ class _VoicePicker extends StatelessWidget {
           ),
           if (settings.contentMode == 'novel') ...[
             const SizedBox(height: 12),
-            const _HelpText('Automatic casting uses he/she evidence in the book, never names alone. Conflicting or missing evidence keeps the narrator. Override any named character below; voice casting does not establish a person’s gender.'),
+            const _HelpText(
+              'Automatic casting uses he/she evidence in the book, never names alone. Conflicting or missing evidence keeps the narrator. Override any named character below; voice casting does not establish a person’s gender.',
+            ),
+            SwitchListTile(
+              title: const Text('Research characters online'),
+              subtitle: Text(
+                settings.mode == ConversionModePref.cloud
+                    ? 'The server looks the book up on Wikipedia and asks its LLM for each character\'s age and temperament, so characters sound different. Only the title and character names are sent, never the book\'s text.'
+                    : settings.allowCloudFallback
+                    ? 'Looks the book up on Wikipedia and asks your cloud LLM for each character\'s age and temperament, so characters sound different (speed, pitch and voice). Only the title and character names are sent, never the book\'s text.'
+                    : 'Needs the cloud helper: turn it on in the On-device section and add your LLM URL, key and model.',
+              ),
+              value:
+                  (settings.mode == ConversionModePref.cloud ||
+                      settings.allowCloudFallback) &&
+                  settings.researchCharacters,
+              onChanged:
+                  (settings.mode == ConversionModePref.cloud ||
+                      settings.allowCloudFallback)
+                  ? notifier.setResearchCharacters
+                  : null,
+            ),
             for (final male in [true, false]) ...[
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 isExpanded: true,
-                key: ValueKey(male ? 'male-character-voice' : 'female-character-voice'),
+                key: ValueKey(
+                  male ? 'male-character-voice' : 'female-character-voice',
+                ),
                 initialValue: male ? settings.maleVoice : settings.femaleVoice,
-                decoration: InputDecoration(labelText: male ? 'Male character voice' : 'Female character voice', border: const OutlineInputBorder()),
-                items: [for (final v in male ? kKokoroMaleVoices : kKokoroFemaleVoices)
-                  DropdownMenuItem(value: v, child: Text(v))],
-                onChanged: (v) => notifier.setCharacterVoiceDefaults(male: male ? v : null, female: male ? null : v),
+                decoration: InputDecoration(
+                  labelText: male
+                      ? 'Male character voice'
+                      : 'Female character voice',
+                  border: const OutlineInputBorder(),
+                ),
+                items: [
+                  for (final v
+                      in male ? kKokoroMaleVoices : kKokoroFemaleVoices)
+                    DropdownMenuItem(value: v, child: Text(v)),
+                ],
+                onChanged: (v) => notifier.setCharacterVoiceDefaults(
+                  male: male ? v : null,
+                  female: male ? null : v,
+                ),
               ),
             ],
             const SizedBox(height: 12),
-            TextFormField(
-              key: const ValueKey('character-voice-overrides'),
-              initialValue: settings.characterVoices.entries.map((e) => '${e.key}=${e.value}').join('\n'),
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Character voice overrides', hintText: 'Alice=Sarah\nBob=Michael', helperText: 'One exact character name=voice per line. Available: Default, Bella, Nicole, Sarah, Adam, Michael.', helperMaxLines: 5, border: OutlineInputBorder()),
-              autovalidateMode: AutovalidateMode.onUserInteraction,
-              validator: (value) => _parseVoiceOverrides(value ?? '') == null ? 'Use Name=Voice with an available preset.' : null,
-              onChanged: (value) {
-                final overrides = _parseVoiceOverrides(value);
-                if (overrides != null) notifier.setCharacterVoiceDefaults(overrides: overrides);
-              },
+            _OverridesField(
+              initialText: settings.characterVoices.entries
+                  .map((e) => '${e.key}=${e.value}')
+                  .join('\n'),
+              onValid: (overrides) =>
+                  notifier.setCharacterVoiceDefaults(overrides: overrides),
             ),
           ],
         ],
@@ -842,12 +1038,25 @@ class _VoicePicker extends StatelessWidget {
   }
 }
 
-Map<String, String>? _parseVoiceOverrides(String value) {
+@visibleForTesting
+Map<String, String>? parseVoiceOverrides(String value) {
   final result = <String, String>{};
-  for (final line in value.split('\n').where((line) => line.trim().isNotEmpty)) {
+  for (final line
+      in value.split('\n').where((line) => line.trim().isNotEmpty)) {
     final parts = line.split('=');
-    if (parts.length != 2 || parts[0].trim().isEmpty || !kKokoroVoices.contains(parts[1].trim())) return null;
-    result[parts[0].trim()] = parts[1].trim();
+    if (parts.length != 2 || parts[0].trim().isEmpty) return null;
+    // The value is an optional voice preset plus optional trait words.
+    final words = parts[1]
+        .split(RegExp(r'[,\s]+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
+    final voices = words.where((w) => kKokoroVoices.contains(w)).toList();
+    final unknown = words.where(
+      (w) =>
+          !kKokoroVoices.contains(w) && CharacterTraits.parseWords([w]) == null,
+    );
+    if (words.isEmpty || voices.length > 1 || unknown.isNotEmpty) return null;
+    result[parts[0].trim()] = words.join(', ');
   }
   return result;
 }
@@ -865,16 +1074,26 @@ class _ServerBooksSection extends ConsumerWidget {
       children: [
         Row(
           children: [
-            Expanded(child: Text('Server library', style: Theme.of(context).textTheme.titleMedium)),
+            Expanded(
+              child: Text(
+                'Server library',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
               tooltip: 'Re-check connection',
-              onPressed: state.checking ? null : () => ref.read(serverBooksProvider.notifier).check(),
+              onPressed: state.checking
+                  ? null
+                  : () => ref.read(serverBooksProvider.notifier).check(),
             ),
           ],
         ),
         if (state.checking)
-          const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Center(child: CircularProgressIndicator()))
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(child: CircularProgressIndicator()),
+          )
         else if (state.connected == null)
           const Text('Not checked yet.')
         else if (state.connected == false)
@@ -882,19 +1101,35 @@ class _ServerBooksSection extends ConsumerWidget {
             children: [
               Icon(Icons.error_outline_rounded, color: scheme.error, size: 18),
               const SizedBox(width: 8),
-              Expanded(child: Text(state.error ?? 'Could not reach this server.', style: TextStyle(color: scheme.error))),
+              Expanded(
+                child: Text(
+                  state.error ?? 'Could not reach this server.',
+                  style: TextStyle(color: scheme.error),
+                ),
+              ),
             ],
           )
         else ...[
           Row(
             children: [
-              const Icon(Icons.check_circle_rounded, color: Colors.green, size: 18),
+              const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.green,
+                size: 18,
+              ),
               const SizedBox(width: 8),
-              Expanded(child: Text('Connected — ${state.books.length} book${state.books.length == 1 ? '' : 's'} on the server')),
+              Expanded(
+                child: Text(
+                  'Connected — ${state.books.length} book${state.books.length == 1 ? '' : 's'} on the server',
+                ),
+              ),
             ],
           ),
           if (state.error != null)
-            Padding(padding: const EdgeInsets.only(top: 4), child: Text(state.error!, style: TextStyle(color: scheme.error))),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(state.error!, style: TextStyle(color: scheme.error)),
+            ),
           const SizedBox(height: 8),
           for (final book in state.books) _ServerBookTile(book: book),
         ],
@@ -909,7 +1144,9 @@ class _ServerBookTile extends ConsumerWidget {
 
   String _formatSize(int bytes) {
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(0)} MB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(0)} MB';
+    }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 
@@ -919,7 +1156,9 @@ class _ServerBookTile extends ConsumerWidget {
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
         title: Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Text('${book.sectionCount} sections · ${_formatSize(book.sizeBytes)}'),
+        subtitle: Text(
+          '${book.sectionCount} sections · ${_formatSize(book.sizeBytes)}',
+        ),
         trailing: IconButton(
           icon: const Icon(Icons.delete_outline_rounded),
           tooltip: 'Delete from server',
@@ -934,12 +1173,19 @@ class _ServerBookTile extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete from server?'),
-        content: Text('"${book.title}" will be permanently removed from the server to free up space. This cannot be undone.'),
+        content: Text(
+          '"${book.title}" will be permanently removed from the server to free up space. This cannot be undone.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
             child: const Text('Delete'),
           ),
         ],
@@ -949,12 +1195,225 @@ class _ServerBookTile extends ConsumerWidget {
     try {
       await ref.read(serverBooksProvider.notifier).deleteBook(book.bookId);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Deleted "${book.title}" from the server')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Deleted "${book.title}" from the server')),
+        );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
       }
     }
+  }
+}
+
+/// "Load models" and "Test connection" for an OpenAI-compatible endpoint
+/// (OpenRouter, Groq, Gemini's OpenAI layer, ...). Works on whatever is typed
+/// in the three fields, so it can be used before saving.
+class _EndpointTools extends StatefulWidget {
+  final TextEditingController urlController;
+  final TextEditingController keyController;
+  final TextEditingController modelController;
+  const _EndpointTools({
+    required this.urlController,
+    required this.keyController,
+    required this.modelController,
+  });
+
+  @override
+  State<_EndpointTools> createState() => _EndpointToolsState();
+}
+
+class _EndpointToolsState extends State<_EndpointTools> {
+  List<String> _models = const [];
+  bool _busy = false;
+  String? _message;
+  bool _ok = false;
+
+  LlmEndpoint get _endpoint => LlmEndpoint(
+    baseUrl: widget.urlController.text,
+    apiKey: widget.keyController.text,
+  );
+
+  Future<void> _run(Future<String> Function() action) async {
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      final msg = await action();
+      if (mounted) {
+        setState(() {
+          _ok = true;
+          _message = msg;
+        });
+      }
+    } on LlmEndpointException catch (e) {
+      if (mounted) {
+        setState(() {
+          _ok = false;
+          _message = e.message;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _ok = false;
+          _message = 'Something went wrong: $e';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _loadModels() => _run(() async {
+    final found = await _endpoint.listModels();
+    if (mounted) setState(() => _models = found);
+    final free = found.where((m) => m.endsWith(':free')).length;
+    return 'Found ${found.length} models${free > 0 ? ' ($free free)' : ''}. Pick one below.';
+  });
+
+  Future<void> _test() => _run(() async {
+    var model = widget.modelController.text.trim();
+    if (model.isEmpty) {
+      throw LlmEndpointException(
+        'Choose or type a model name first (tap Load models).',
+      );
+    }
+    return _endpoint.test(model: model);
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _busy ? null : _loadModels,
+              icon: const Icon(Icons.list_alt_rounded, size: 18),
+              label: const Text('Load models'),
+            ),
+            OutlinedButton.icon(
+              onPressed: _busy ? null : _test,
+              icon: const Icon(Icons.network_check_rounded, size: 18),
+              label: const Text('Test connection'),
+            ),
+            if (_busy)
+              const Padding(
+                padding: EdgeInsets.all(8),
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+          ],
+        ),
+        if (_models.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          DropdownMenu<String>(
+            expandedInsets: EdgeInsets.zero,
+            enableFilter: true,
+            requestFocusOnTap: true,
+            label: const Text('Pick a model (type to search)'),
+            dropdownMenuEntries: [
+              for (final m in _models) DropdownMenuEntry(value: m, label: m),
+            ],
+            onSelected: (m) {
+              if (m != null) widget.modelController.text = m;
+            },
+          ),
+        ],
+        if (_message != null) ...[
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                _ok ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                size: 18,
+                color: _ok ? Colors.green : scheme.error,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _message!,
+                  style: TextStyle(
+                    color: _ok ? scheme.onSurface : scheme.error,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Free-text "Name=Voice / traits" lines. The error is computed from the text
+/// currently in the box on every build, never remembered from an earlier
+/// keystroke, so it can't go stale while typing on a real keyboard. Only
+/// valid text is saved; invalid text keeps the last good saved value.
+class _OverridesField extends StatefulWidget {
+  final String initialText;
+  final void Function(Map<String, String> overrides) onValid;
+  const _OverridesField({required this.initialText, required this.onValid});
+
+  @override
+  State<_OverridesField> createState() => _OverridesFieldState();
+}
+
+class _OverridesFieldState extends State<_OverridesField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialText,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: _controller,
+      builder: (context, value, _) {
+        final invalid = parseVoiceOverrides(value.text) == null;
+        return TextField(
+          key: const ValueKey('character-voice-overrides'),
+          controller: _controller,
+          maxLines: 4,
+          minLines: 3,
+          keyboardType: TextInputType.multiline,
+          decoration: InputDecoration(
+            labelText: 'Character voice overrides',
+            hintText:
+                'Alice=Sarah\nBob=Michael, elder, gruff\nTom=child cheerful',
+            helperText:
+                'One character per line: Name=Voice, Name=traits, or both. Names match the speaker in the book without regard to case, and "Hatter" also matches "Mad Hatter". Voices: Default, Bella, Nicole, Sarah, Adam, Michael. Traits: child, young, adult, elder; calm, cheerful, stern, gruff, gentle, energetic, mysterious; male, female.',
+            helperMaxLines: 10,
+            errorText: invalid
+                ? 'Use Name=Voice and/or traits, e.g. Bob=Michael, elder, gruff. Not saved yet.'
+                : null,
+            errorMaxLines: 3,
+            border: const OutlineInputBorder(),
+          ),
+          onChanged: (text) {
+            final overrides = parseVoiceOverrides(text);
+            if (overrides != null) widget.onValid(overrides);
+          },
+        );
+      },
+    );
   }
 }

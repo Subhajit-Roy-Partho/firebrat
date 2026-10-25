@@ -52,12 +52,17 @@ class PlaybackBar extends StatelessWidget {
     final curMs = position.inMilliseconds.clamp(0, maxMs.toInt()).toDouble();
 
     return Material(
-      elevation: 8,
-      color: scheme.surfaceContainer,
+      elevation: 12,
+      shadowColor: scheme.primary.withValues(alpha: .35),
+      color: scheme.surfaceContainerHigh,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -83,8 +88,20 @@ class PlaybackBar extends StatelessWidget {
                       IconButton(icon: const Icon(Icons.skip_previous_rounded), onPressed: onPrevSegment, tooltip: 'Previous segment'),
                       IconButton(icon: const Icon(Icons.stop_rounded), onPressed: onStop, tooltip: 'Stop'),
                       IconButton.filled(
-                        icon: Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
-                        iconSize: 32,
+                        icon: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 180),
+                          transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
+                          child: Icon(
+                            isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                            key: ValueKey(isPlaying),
+                          ),
+                        ),
+                        iconSize: 38,
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(60, 60),
+                          elevation: 3,
+                          shadowColor: scheme.primary,
+                        ),
                         onPressed: onPlayPause,
                         tooltip: isPlaying ? 'Pause' : 'Play',
                       ),

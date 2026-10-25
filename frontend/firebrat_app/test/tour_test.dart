@@ -1,5 +1,6 @@
 import 'package:firebrat_app/app.dart';
 import 'package:firebrat_app/models/book.dart';
+import 'package:firebrat_app/screens/conversion_settings_screen.dart';
 import 'package:firebrat_app/screens/tour_screen.dart';
 import 'package:firebrat_app/state/library_providers.dart';
 import 'package:firebrat_app/state/tour_providers.dart';
@@ -23,7 +24,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Welcome to Firebrat'), findsOneWidget);
 
-    for (var i = 0; i < 7; i++) {
+    for (var i = 0; i < 9; i++) {
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
     }
@@ -74,10 +75,19 @@ void main() {
       ),
       home: const TourScreen(),
     ));
-    for (var i = 0; i < 7; i++) {
+    for (var i = 0; i < 9; i++) {
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('guide is also reachable from Conversion settings', (tester) async {
+    SharedPreferences.setMockInitialValues({TourStore.preferenceKey: true});
+    await tester.pumpWidget(const ProviderScope(child: MaterialApp(home: ConversionSettingsScreen())));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('App guide'));
+    await tester.pumpAndSettle();
+    expect(find.text('Welcome to Firebrat'), findsOneWidget);
   });
 }

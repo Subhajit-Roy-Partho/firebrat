@@ -17,9 +17,11 @@ import '../state/theme_providers.dart';
 import '../state/reader_providers.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/book_card.dart';
+import '../widgets/book_cover.dart';
 import 'chapter_reader_screen.dart';
 import 'conversions_screen.dart';
 import 'reader_screen.dart';
+import 'tour_screen.dart';
 
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
@@ -177,56 +179,53 @@ class LibraryScreen extends ConsumerWidget {
                   child: CustomScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     slivers: [
+                      SliverToBoxAdapter(
+                        child: _ShelfHeader(books: allEntries, downloaded: localBooks.length),
+                      ),
                       SliverPadding(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
                         sliver: layout == LibraryLayout.list
                             ? SliverList.builder(
                                 itemCount: allEntries.length,
-                                itemBuilder: (context, i) => _buildBook(
-                                  context,
-                                  ref,
-                                  allEntries[i],
-                                  local,
-                                  progress,
-                                  layout,
+                                itemBuilder: (context, i) => _Reveal(
+                                  index: i,
+                                  child: _buildBook(context, ref, allEntries[i],
+                                      local, progress, layout),
                                 ),
                               )
-                            : SliverGrid(
-                                gridDelegate:
-                                    SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount:
-                                          ((MediaQuery.sizeOf(context).width -
-                                                      32) /
-                                                  (layout ==
-                                                          LibraryLayout
-                                                              .smallCards
-                                                      ? 164
-                                                      : 254))
-                                              .floor()
-                                              .clamp(1, 6),
-                                      mainAxisExtent:
-                                          (layout == LibraryLayout.smallCards
-                                              ? 290
-                                              : 320) +
-                                          (MediaQuery.textScalerOf(
-                                                    context,
-                                                  ).scale(190) -
-                                                  190)
-                                              .clamp(0, double.infinity),
-                                      crossAxisSpacing: 10,
-                                      mainAxisSpacing: 10,
+                            : SliverLayoutBuilder(
+                                builder: (context, constraints) {
+                                  const spacing = 14.0;
+                                  final target =
+                                      layout == LibraryLayout.smallCards ? 100.0 : 160.0;
+                                  final cols = ((constraints.crossAxisExtent + spacing) /
+                                          (target + spacing))
+                                      .floor()
+                                      .clamp(1, 8);
+                                  final itemW = (constraints.crossAxisExtent -
+                                          spacing * (cols - 1)) /
+                                      cols;
+                                  final textScale =
+                                      MediaQuery.textScalerOf(context);
+                                  return SliverGrid(
+                                    gridDelegate:
+                                        SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: cols,
+                                      mainAxisExtent: itemW * 1.5 +
+                                          textScale.scale(86),
+                                      crossAxisSpacing: spacing,
+                                      mainAxisSpacing: 14,
                                     ),
-                                delegate: SliverChildBuilderDelegate(
-                                  (context, i) => _buildBook(
-                                    context,
-                                    ref,
-                                    allEntries[i],
-                                    local,
-                                    progress,
-                                    layout,
-                                  ),
-                                  childCount: allEntries.length,
-                                ),
+                                    delegate: SliverChildBuilderDelegate(
+                                      (context, i) => _Reveal(
+                                        index: i,
+                                        child: _buildBook(context, ref,
+                                            allEntries[i], local, progress, layout),
+                                      ),
+                                      childCount: allEntries.length,
+                                    ),
+                                  );
+                                },
                               ),
                       ),
                     ],
@@ -594,8 +593,8 @@ class _EmptyLibrary extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.menu_book_outlined, size: 56),
-            const SizedBox(height: 16),
+            const _EmptyArt(),
+            const SizedBox(height: 20),
             Text(
               !isCloud
                   ? 'Your offline library is ready. Import a book file to start reading and listening.'
@@ -610,6 +609,14 @@ class _EmptyLibrary extends StatelessWidget {
               onPressed: importing ? null : onImport,
               icon: const Icon(Icons.file_open_rounded),
               label: const Text('Import a book file'),
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const TourScreen()),
+              ),
+              icon: const Icon(Icons.explore_outlined),
+              label: const Text('Take the app tour'),
             ),
             if (isCloud && !serverReachable) ...[
               const SizedBox(height: 8),
@@ -642,6 +649,116 @@ class _ErrorView extends StatelessWidget {
             FilledButton(onPressed: onRetry, child: const Text('Retry')),
           ],
         ),
+      ),
+    );
+  }
+}
+
+
+/// Fade + rise entrance, staggered by position, so the shelf settles in
+/// instead of popping. Lazy grids animate each cover as it scrolls in.
+class _Reveal extends StatelessWidget {
+  final int index;
+  final Widget child;
+  const _Reveal({required this.index, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final delay = (index % 9) * 45;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 380 + delay),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(offset: Offset(0, (1 - t) * 18), child: child),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Greeting strip above the shelf: how much there is to listen to.
+class _ShelfHeader extends StatelessWidget {
+  final List<BookSummary> books;
+  final int downloaded;
+  const _ShelfHeader({required this.books, required this.downloaded});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final totalMin =
+        books.fold<int>(0, (a, b) => a + b.totalDurationMs) ~/ 60000;
+    final hours = totalMin ~/ 60;
+    final n = books.length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Your library',
+                    style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 2),
+                Text(
+                  '$n ${n == 1 ? 'book' : 'books'}'
+                  '${hours > 0 ? ' · ${hours}h to listen' : ''}'
+                  '${downloaded < n ? ' · $downloaded on this device' : ''}',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.headphones_rounded, color: scheme.primary, size: 28),
+        ],
+      ),
+    );
+  }
+}
+
+/// Three stacked sample covers with a headphone badge.
+class _EmptyArt extends StatelessWidget {
+  const _EmptyArt();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    Widget book(String id, String t, double angle, Offset off) => Transform.translate(
+          offset: off,
+          child: Transform.rotate(
+            angle: angle,
+            child: SizedBox(
+              width: 88,
+              height: 132,
+              child: BookCover(bookId: id, title: t, radius: 8),
+            ),
+          ),
+        );
+    return SizedBox(
+      width: 220,
+      height: 170,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          book('empty-a', 'Your first book', -.18, const Offset(-52, 6)),
+          book('empty-c', 'Listen anywhere', .16, const Offset(52, 8)),
+          book('empty-b', 'Firebrat', 0, const Offset(0, -6)),
+          Positioned(
+            bottom: 0,
+            right: 28,
+            child: CircleAvatar(
+              radius: 20,
+              backgroundColor: scheme.primary,
+              child: Icon(Icons.headphones_rounded, color: scheme.onPrimary, size: 22),
+            ),
+          ),
+        ],
       ),
     );
   }

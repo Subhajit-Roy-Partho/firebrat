@@ -20,6 +20,8 @@ class ConversionModeSettings {
   final String storageBackend;
   final String contentMode;
   final bool allowCloudFallback;
+  final bool cloudForAll;
+  final bool researchCharacters;
   final String onDeviceLlmUrl;
   final String onDeviceLlmApiKey;
   final String onDeviceLlmModel;
@@ -52,6 +54,8 @@ class ConversionModeSettings {
     this.storageBackend = 'server',
     this.contentMode = 'illustrated',
     this.allowCloudFallback = false,
+    this.cloudForAll = false,
+    this.researchCharacters = false,
     this.onDeviceLlmUrl = '',
     this.onDeviceLlmApiKey = '',
     this.onDeviceLlmModel = '',
@@ -74,6 +78,8 @@ class ConversionModeSettings {
     String? storageBackend,
     String? contentMode,
     bool? allowCloudFallback,
+    bool? cloudForAll,
+    bool? researchCharacters,
     String? onDeviceLlmUrl,
     String? onDeviceLlmApiKey,
     String? onDeviceLlmModel,
@@ -93,6 +99,8 @@ class ConversionModeSettings {
         storageBackend: storageBackend ?? this.storageBackend,
         contentMode: contentMode ?? this.contentMode,
         allowCloudFallback: allowCloudFallback ?? this.allowCloudFallback,
+        cloudForAll: cloudForAll ?? this.cloudForAll,
+        researchCharacters: researchCharacters ?? this.researchCharacters,
         onDeviceLlmUrl: onDeviceLlmUrl ?? this.onDeviceLlmUrl,
         onDeviceLlmApiKey: onDeviceLlmApiKey ?? this.onDeviceLlmApiKey,
         onDeviceLlmModel: onDeviceLlmModel ?? this.onDeviceLlmModel,
@@ -148,6 +156,8 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
       storageBackend: prefs.getString(_kStorage) ?? 'server',
       contentMode: prefs.getString('conversion.contentMode') ?? 'illustrated',
       allowCloudFallback: prefs.getBool('conversion.allowCloudFallback') ?? false,
+      cloudForAll: prefs.getBool('conversion.cloudForAll') ?? false,
+      researchCharacters: prefs.getBool('conversion.researchCharacters') ?? false,
       onDeviceLlmUrl: prefs.getString(_kLlmUrl) ?? '',
       onDeviceLlmApiKey: prefs.getString(_kLlmKey) ?? '',
       onDeviceLlmModel: prefs.getString(_kLlmModel) ?? '',
@@ -174,6 +184,16 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
   Future<void> setAllowCloudFallback(bool enabled) async {
     state = state.copyWith(allowCloudFallback: enabled);
     await (await SharedPreferences.getInstance()).setBool('conversion.allowCloudFallback', enabled);
+  }
+
+  Future<void> setResearchCharacters(bool enabled) async {
+    state = state.copyWith(researchCharacters: enabled);
+    await (await SharedPreferences.getInstance()).setBool('conversion.researchCharacters', enabled);
+  }
+
+  Future<void> setCloudForAll(bool enabled) async {
+    state = state.copyWith(cloudForAll: enabled);
+    await (await SharedPreferences.getInstance()).setBool('conversion.cloudForAll', enabled);
   }
 
   Future<void> setMode(ConversionModePref mode) async {

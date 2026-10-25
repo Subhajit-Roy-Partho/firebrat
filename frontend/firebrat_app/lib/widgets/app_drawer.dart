@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/conversion_settings_screen.dart';
@@ -7,6 +8,7 @@ import '../screens/sync_screen.dart';
 import '../screens/tour_screen.dart';
 import '../services/auth_service.dart';
 import '../state/on_device_conversion_providers.dart';
+import '../state/avatar_provider.dart';
 import '../state/guest_access_provider.dart';
 
 /// Bumped with `version:` in frontend/firebrat_app/pubspec.yaml on every
@@ -16,7 +18,7 @@ import '../state/guest_access_provider.dart';
 /// pins win32 ^6 for device_info_plus — unresolvable without forking one.
 const _appVersion = String.fromEnvironment(
   'FIREBRAT_APP_VERSION',
-  defaultValue: '1.6.4+27',
+  defaultValue: '1.7.0+29',
 );
 
 /// Left drawer: who is signed in, where to go, and the way out.
@@ -39,13 +41,20 @@ class AppDrawer extends ConsumerWidget {
         children: [
           DrawerHeader(
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Theme.of(context).colorScheme.primaryContainer,
+                  Theme.of(context).colorScheme.tertiaryContainer,
+                ],
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                CircleAvatar(child: Text(initial)),
+                _ProfileAvatar(initial: initial),
                 const SizedBox(height: 8),
                 Text(
                   email ?? 'Guest mode',
@@ -164,6 +173,100 @@ class AppDrawer extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+/// Profile photo in the drawer header. Tap to choose or remove it; the small
+/// camera badge says it is editable. Works signed in or as a guest.
+class _ProfileAvatar extends ConsumerWidget {
+  final String initial;
+  const _ProfileAvatar({required this.initial});
+
+  Future<void> _pick(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final files = await FilePicker.pickFiles(type: FileType.image);
+      if (files.isEmpty) return;
+      final file = files.single;
+      final bytes = await file.readAsBytes();
+      await ref.read(avatarProvider.notifier).setFromBytes(bytes);
+    } on FormatException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(content: Text('Could not set that photo.')));
+    }
+  }
+
+  Future<void> _sheet(BuildContext context, WidgetRef ref, bool hasPhoto) {
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: Text(hasPhoto ? 'Choose a different photo' : 'Choose a photo'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _pick(context, ref);
+              },
+            ),
+            if (hasPhoto)
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded),
+                title: const Text('Remove photo'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  ref.read(avatarProvider.notifier).remove();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final photo = ref.watch(avatarProvider).value;
+    return Semantics(
+      button: true,
+      label: 'Profile photo. Double tap to change.',
+      child: GestureDetector(
+        onTap: () => _sheet(context, ref, photo != null),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            CircleAvatar(
+              radius: 30,
+              backgroundColor: scheme.primary,
+              foregroundColor: scheme.onPrimary,
+              backgroundImage: photo == null ? null : FileImage(photo),
+              child: photo == null
+                  ? Text(initial, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700))
+                  : null,
+            ),
+            Positioned(
+              right: -2,
+              bottom: -2,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: scheme.surface,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: scheme.outlineVariant),
+                ),
+                child: Icon(Icons.photo_camera_rounded, size: 14, color: scheme.onSurface),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

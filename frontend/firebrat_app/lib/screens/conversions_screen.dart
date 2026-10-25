@@ -1,6 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart' show CharacterTraits;
 import '../models/job.dart';
 import '../state/conversions_providers.dart';
 import '../state/library_providers.dart';
@@ -167,6 +168,8 @@ class ConversionsScreen extends ConsumerWidget {
         provider: mode.mode == ConversionModePref.cloud ? mode.serverProvider : null,
         model: mode.mode == ConversionModePref.cloud ? mode.serverLlmModel : null,
         integrityToken: mint.token,
+        researchCharacters: mode.mode == ConversionModePref.cloud && mode.researchCharacters,
+        characterTraits: _traitLines(mode.characterVoices),
         onProgress: progressNotifier.set);
       // Follow this job's FCM topic so the server's done/failed push finds
       // the device even with this screen closed.
@@ -503,4 +506,20 @@ class _ErrorView extends StatelessWidget {
       ),
     );
   }
+}
+
+
+/// "Name=elder gruff" lines for the server, from the voice-override entries.
+/// Voice preset names mean nothing to the server's reference-clip voices, so
+/// only the trait words (age, temperament, gender) are sent.
+String _traitLines(Map<String, String> overrides) {
+  final lines = <String>[];
+  overrides.forEach((name, value) {
+    final words = value
+        .split(RegExp(r'[,\s]+'))
+        .where((w) => w.isNotEmpty && CharacterTraits.parseWords([w]) != null)
+        .toList();
+    if (words.isNotEmpty) lines.add('$name=${words.join(' ')}');
+  });
+  return lines.join('\n');
 }

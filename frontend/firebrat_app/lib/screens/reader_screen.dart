@@ -8,6 +8,7 @@ import '../state/settings_providers.dart';
 import '../theme/app_theme.dart';
 import 'focus_mode_screen.dart';
 import 'source_pdf_screen.dart';
+import '../widgets/book_cover.dart';
 import '../widgets/section_index_drawer.dart';
 import '../widgets/section_nav_bar.dart';
 import '../widgets/segment_highlighter.dart';
@@ -59,7 +60,25 @@ class ReaderScreen extends ConsumerWidget {
     return Scaffold(
       drawer: SectionIndexDrawer(bookId: bookId),
       appBar: AppBar(
-        title: Text(state.manifest.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        title: Row(
+          children: [
+            SizedBox(
+              width: 28,
+              height: 42,
+              child: BookCover(
+                bookId: bookId,
+                title: state.manifest.title,
+                coverPath: ref.watch(bookCoverProvider(bookId)).value,
+                radius: 4,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(state.manifest.title,
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.fullscreen_rounded),

@@ -1,0 +1,7 @@
+Firebrat 1.7.0
+- Beautiful new library: every book gets its own cover art, with smooth animations
+- Lock-screen and notification artwork for every book, including novels
+- Profile photo in the menu
+- Built-in guide to every mode, now with free cloud LLM and Google Drive sync help
+- Option to use a free cloud LLM (such as OpenRouter) instead of the on-device model
+- New playback bar and refreshed look in light and dark mode

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:audio_service/audio_service.dart' show MediaItem;
+import '../services/cover_art_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/manifest.dart';
 import '../models/segment.dart';
@@ -111,6 +112,7 @@ class ReaderController extends Notifier<ReaderState?> {
   DateTime? _lastLocalSave;
   String _signature = '';
   String? _currentAudioPath;
+  Uri? _coverUri;
   String get _bookId => bookId;
 
   @override
@@ -157,6 +159,9 @@ class ReaderController extends Notifier<ReaderState?> {
     final index = restoredIndex < 0 ? 0 : restoredIndex;
     _lastCheckpoint = restoredIndex < 0 ? null : restored;
     state = ReaderState(manifest: manifest, sectionIndex: index, activeSegment: null, loadingSection: true);
+    _coverUri = await CoverArtService(ref.read(downloadManagerProvider)).coverUri(
+        bookId: bookId, title: manifest.title, author: manifest.author);
+    if (!ref.mounted) return;
     await _loadSection(index);
     if (!ref.mounted) return;
     if (restored != null && restoredIndex >= 0) {
@@ -200,10 +205,13 @@ class ReaderController extends Notifier<ReaderState?> {
       MediaItem(
         id: audioPath,
         album: s.manifest.title,
+        artist: s.manifest.author.isEmpty ? null : s.manifest.author,
         title: section.title,
+        // A figure when the section opens on one, otherwise the book cover,
+        // so text-only books (novels) still get artwork on the lock screen.
         artUri: initialVisualId != null && assetPaths[initialVisualId] != null
             ? Uri.file(assetPaths[initialVisualId]!)
-            : null,
+            : _coverUri,
       ),
     );
     _currentAudioPath = audioPath;
@@ -254,12 +262,14 @@ class ReaderController extends Notifier<ReaderState?> {
 
   void _syncLockScreenArt() {
     final s = state;
-    final visual = s?.currentVisual;
-    if (s == null || visual == null) return;
+    if (s == null) return;
+    final visual = s.currentVisual;
     final handler = ref.read(audioHandlerProvider);
     final current = handler.mediaItem.valueOrNull;
-    if (current == null || current.artUri == Uri.file(visual.imagePath)) return;
-    handler.setMediaItem(current.copyWith(artUri: Uri.file(visual.imagePath)));
+    if (current == null) return;
+    final wanted = visual != null ? Uri.file(visual.imagePath) : _coverUri;
+    if (wanted == null || current.artUri == wanted) return;
+    handler.setMediaItem(current.copyWith(artUri: wanted));
   }
 
   Future<void> goToSection(int index) async {

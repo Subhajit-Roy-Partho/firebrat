@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import '../models/book.dart';
 import '../models/job.dart';
@@ -141,6 +142,30 @@ class ApiClient {
   }
 
   /// Permanently deletes a book from the server to free space. Irreversible.
+  /// Profile avatar (signed-in users). Server stores one image per account.
+  Future<void> putAvatar(Uint8List png) async {
+    await _dio.put('/me/avatar',
+        data: FormData.fromMap({
+          'file': MultipartFile.fromBytes(png, filename: 'avatar.png'),
+        }));
+  }
+
+  /// The account's avatar bytes, or null when none is set / not reachable.
+  Future<Uint8List?> getAvatar() async {
+    try {
+      final resp = await _dio.get<List<int>>('/me/avatar',
+          options: Options(responseType: ResponseType.bytes));
+      final data = resp.data;
+      return data == null ? null : Uint8List.fromList(data);
+    } on DioException {
+      return null;
+    }
+  }
+
+  Future<void> deleteAvatar() async {
+    await _dio.delete('/me/avatar');
+  }
+
   Future<void> deleteBook(String bookId) async {
     await _dio.delete('/books/$bookId');
   }
@@ -160,12 +185,18 @@ class ApiClient {
     String? provider,
     String? model,
     String? integrityToken,
+    bool researchCharacters = false,
+    String characterTraits = '',
     void Function(double progress)? onProgress,
   }) async {
     final form = FormData.fromMap({
       'file': await MultipartFile.fromFile(filePath, filename: filePath.split('/').last),
       if (title != null && title.isNotEmpty) 'title': title,
       'content_mode': contentMode,
+      // Novel casting (ignored by the server for other modes): web research
+      // on the book's characters, and per-character "Name=elder gruff" lines.
+      if (contentMode == 'novel' && researchCharacters) 'research_characters': 'true',
+      if (contentMode == 'novel' && characterTraits.trim().isNotEmpty) 'character_traits': characterTraits.trim(),
       if (provider != null && provider.trim().isNotEmpty) 'provider': provider.trim(),
       if (model != null && model.trim().isNotEmpty) 'model': model.trim(),
     });

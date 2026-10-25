@@ -11,6 +11,12 @@ on:
         default: 'apk'
         type: choice
         options: [apk, appbundle, both]
+      play_status:
+        description: 'Play upload status for appbundle/both. draft = review it in Play Console first; completed = send to review right away; none = skip the upload'
+        required: false
+        default: 'draft'
+        type: choice
+        options: [draft, completed, none]
 
 jobs:
   build:
@@ -119,15 +125,29 @@ jobs:
           path: frontend/firebrat_app/build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: warn
 
-      - name: Upload to Play Console (closed testing, draft)
-        if: inputs.flavor == 'appbundle' || inputs.flavor == 'both'
+      # Fail with a readable reason BEFORE the upload action, whose own error
+      # for a missing Play Console grant is just "The caller does not have
+      # permission". See tool/check_play_access.py for the fix steps.
+      - name: Verify Play service-account access
+        if: (inputs.flavor == 'appbundle' || inputs.flavor == 'both') && inputs.play_status != 'none'
+        working-directory: frontend/firebrat_app
+        run: |
+          python3 -m pip install --quiet google-auth requests
+          python3 tool/check_play_access.py
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+
+      - name: Upload to Play Console (closed testing)
+        if: (inputs.flavor == 'appbundle' || inputs.flavor == 'both') && inputs.play_status != 'none'
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.firebrat.firebrat_app
           releaseFiles: frontend/firebrat_app/build/app/outputs/bundle/release/app-release.aab
           tracks: alpha
-          status: draft
+          status: ${{ inputs.play_status }}
+          whatsNewDirectory: frontend/firebrat_app/distribution/whatsnew
+          changesNotSentForReview: false
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
