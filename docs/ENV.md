@@ -42,8 +42,10 @@ HF_HOME=/scratch/sroy85/.cache/huggingface
 | `FIREBRAT_PORT` | `8000` | Uvicorn port. |
 | `FIREBRAT_UPLOAD_DIR` | `backend/uploads` | Temp PDFs from `POST /books/upload`. |
 | `FIREBRAT_JOBS_DB` | `backend/jobs.sqlite3` | SQLite for job queue. |
-| `FIREBRAT_MAX_CONCURRENT_JOBS` | `1` | Must stay 1 on 6GB cgroup; raise only with headroom (each job holds GBs of RAM + GPU). Web UI shows the worker count. |
+| `FIREBRAT_MAX_CONCURRENT_JOBS` | `1` | How many books convert at the same time; further uploads wait in the queue (1-16, invalid values fall back to 1 with a log warning). Keep 1 on a 6GB cgroup; raise only with headroom, since each running job holds several GB of RAM plus GPU memory. Set it in `.env` (see `.env.example`). The web UI and `GET /settings` show the worker count. |
 | `FIREBRAT_MAX_UPLOAD_MB` | `500` | Upload cap. |
+| `FIREBRAT_AVATAR_DIR` | `<uploads dir>/../avatars` | Where profile avatars are stored (`PUT /me/avatar`). |
+| `FIREBRAT_MAX_AVATAR_KB` | `2048` | Largest accepted avatar (16-10240). |
 | `FIREBRAT_LOCAL_LLM_URL` | `http://127.0.0.1:8080/v1` | Where provider=local jobs point (the shim, or Docker local mode). |
 | `FIREBASE_WEB_API_KEY` | _(android key)_ | Browser sign-in override if the default key is restricted. |
 
@@ -68,3 +70,4 @@ flutter analyze  # No issues found
 ```
 
 All 15 backend tests + `flutter analyze` / `flutter test` must pass before pushing (see `TASK.md`).
+

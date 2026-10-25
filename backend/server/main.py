@@ -11,6 +11,7 @@ from server.routes.desktop import router as desktop_router
 from server.routes.health import router as health_router
 from server.routes.books import router as books_router
 from server.routes.jobs import router as jobs_router
+from server.routes.profile import router as profile_router
 from server.routes.settings import router as settings_router
 
 
@@ -35,6 +36,7 @@ app.include_router(health_router, tags=["health"])
 app.include_router(desktop_router, tags=["desktop"])
 app.include_router(books_router, tags=["books"])
 app.include_router(jobs_router, tags=["jobs"])
+app.include_router(profile_router, tags=["profile"])
 app.include_router(settings_router, tags=["settings"])
 
 # Browser control room: dependency-free static UI (upload, jobs, books,

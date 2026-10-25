@@ -131,3 +131,17 @@ Standard FastAPI/Starlette JSON error body on 404s:
 ```json
 {"detail": "book not found"}
 ```
+
+## Profile avatar
+
+All three require sign-in; an avatar is private to its owner.
+
+- `GET /me` returns `{uid, email, has_avatar, avatar_updated_at}`.
+- `PUT /me/avatar` (multipart `file`) stores one PNG, JPEG or WebP, up to `FIREBRAT_MAX_AVATAR_KB` (default 2048). The type is detected from the bytes, not the filename. A new upload replaces the old one.
+- `GET /me/avatar` returns the image (404 when none). `DELETE /me/avatar` removes it (204).
+
+Files live under `FIREBRAT_AVATAR_DIR` (default `<uploads dir>/../avatars`, so `/data/avatars` in Docker), named by a SHA-256 of the uid.
+
+## Novel casting fields on `POST /books/upload`
+
+`research_characters` (bool) and `character_traits` (one `Name=traits` per line) apply to `content_mode=novel` only and are ignored otherwise. See [backend novel conversion](BACKEND_NOVELS.md). Job responses include both.

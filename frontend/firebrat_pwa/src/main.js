@@ -110,7 +110,7 @@ $('google-signin').onclick=()=>{if(!auth)return;signInWithPopup(auth,new GoogleA
 $('signout').onclick=()=>signOut(auth).catch(e=>notice(e.message));$('email-form').onsubmit=async event=>{event.preventDefault();try{await initAuth();const fn=$('create-account').checked?createUserWithEmailAndPassword:signInWithEmailAndPassword;await fn(auth,$('email').value,$('password').value);$('password').value='';$('auth-error').textContent='';}catch(e){$('auth-error').textContent=e.message;}};
 $('upload-form').onsubmit=async event=>{
  event.preventDefault();const file=$('upload-file').files[0];if(!file)return;const status=$('upload-status');$('upload-button').disabled=true;
- try{await initAuth();if(!auth.currentUser)throw new Error('Sign in from Settings before uploading.');const token=await auth.currentUser.getIdToken();const form=new FormData();form.append('file',file);form.append('title',$('upload-title').value);form.append('content_mode',$('content-mode').value);
+ try{await initAuth();if(!auth.currentUser)throw new Error('Sign in from Settings before uploading.');const token=await auth.currentUser.getIdToken();const form=new FormData();form.append('file',file);form.append('title',$('upload-title').value);form.append('content_mode',$('content-mode').value);if($('content-mode').value==='novel'){if($('research-characters').checked)form.append('research_characters','true');if($('character-traits').value.trim())form.append('character_traits',$('character-traits').value.trim());}
   status.textContent='Uploading…';$('upload-progress').hidden=false;
   const job=await new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.timeout=600000;xhr.ontimeout=()=>reject(new Error('Upload timed out. Check the connection and retry.'));xhr.open('POST',base+'/books/upload');xhr.setRequestHeader('Authorization','Bearer '+token);xhr.upload.onprogress=e=>{if(e.lengthComputable)$('upload-progress').value=e.loaded/e.total;};xhr.onload=()=>{let value;try{value=JSON.parse(xhr.responseText);}catch{}if(xhr.status>=200&&xhr.status<300)resolve(value);else reject(new Error(value?.detail||`Upload failed (${xhr.status}).`));};xhr.onerror=()=>reject(new Error('Upload interrupted. Check the server connection and retry.'));xhr.send(form);});
   status.textContent=`Queued: ${job.title||file.name}. Conversion continues on the server.`;switchTab('jobs');await loadJobs();
@@ -125,3 +125,5 @@ if(navigator.storage?.estimate)navigator.storage.estimate().then(s=>$('storage-s
 loadLibrary();if(sessionStorage.getItem('firebrat.redirect')){switchTab('settings');initAuth().catch(e=>$('auth-error').textContent=e.message);}
 
 document.querySelector('.brand')?.addEventListener('click',event=>{event.preventDefault();switchTab('library');});
+
+;(()=>{const m=document.getElementById('content-mode'),o=document.getElementById('novel-options');if(m&&o){const sync=()=>{o.hidden=m.value!=='novel'};m.addEventListener('change',sync);sync();}})();

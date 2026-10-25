@@ -8,6 +8,7 @@ import tempfile
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
+from firebrat.pipeline import character_traits as character_traits_mod
 from server import auth, config, job_runner, jobs, storage
 from server.pdf_merge import merge_zip_pdfs_to_pdf
 from firebrat.pipeline.status import read_status
@@ -35,6 +36,8 @@ def _job_view(job: dict) -> dict:
         "error": status.get("error") or job["error"],
         "retry_count": job["retry_count"],
         "content_mode": job.get("content_mode") or "illustrated",
+        "research_characters": bool(job.get("research_characters")),
+        "character_traits": job.get("character_traits") or "",
         "provider": job.get("provider") or "nanogpt",
         "model": job.get("model") or "",
         "chunk_pages": job.get("chunk_pages") or 0,
@@ -51,10 +54,23 @@ async def upload_book(
     model: str = Form(""),
     chunk_pages: int = Form(0),
     content_mode: str = Form("illustrated"),
+    research_characters: bool = Form(False),
+    character_traits: str = Form(""),
     _user: dict = Depends(auth.require_user),
 ):
     if content_mode not in ("illustrated", "novel"):
         raise HTTPException(status_code=422, detail="content_mode must be illustrated or novel")
+    # Novel casting options: one "Name=traits" per line (ages/temperaments/
+    # genders only; validated so a typo is a 422, not a silently ignored line).
+    traits_lines = []
+    for line in (character_traits or "").splitlines():
+        if not line.strip():
+            continue
+        name, sep, spec = line.partition("=")
+        _voice, parsed = character_traits_mod.parse_spec(spec)
+        if not sep or not name.strip() or parsed is None:
+            raise HTTPException(status_code=422, detail=f"character_traits line must look like 'Name=elder gruff': {line.strip()[:80]!r}")
+        traits_lines.append(f"{name.strip()}={spec.strip()}")
     lname = (file.filename or "").lower()
     is_pdf = lname.endswith(".pdf")
     is_zip = lname.endswith(".zip")
@@ -139,7 +155,9 @@ async def upload_book(
             eff_chunk = 0
     job_id = jobs.create_job(book_id=book_id, filename=file.filename, title=book_title, pdf_path=dest_path,
                              provider=eff_provider, chunk_pages=eff_chunk, model=eff_model,
-                             content_mode=content_mode)
+                             content_mode=content_mode,
+                             research_characters=bool(research_characters) and content_mode == "novel",
+                             character_traits="\n".join(traits_lines) if content_mode == "novel" else "")
     job_runner.enqueue(job_id)
     return _job_view(jobs.get_job(job_id))
 

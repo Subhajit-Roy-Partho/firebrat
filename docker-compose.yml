@@ -25,6 +25,7 @@ services:
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
       - MODEL_API_KEY=${MODEL_API_KEY:-}
       - FIREBRAT_SPARK_MODEL=${FIREBRAT_SPARK_MODEL:-}
+      - FIREBRAT_MAX_CONCURRENT_JOBS=${FIREBRAT_MAX_CONCURRENT_JOBS:-1}
 
   firebrat-gpu:
     image: subhajitroy/firebrat:gpu
@@ -83,6 +84,7 @@ services:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
       - MODEL_API_KEY=${MODEL_API_KEY:-}
+      - FIREBRAT_MAX_CONCURRENT_JOBS=${FIREBRAT_MAX_CONCURRENT_JOBS:-1}
 
 volumes:
   firebrat-data:

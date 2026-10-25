@@ -96,6 +96,11 @@ def _run_job(job_id: str, extra_args: list[str]) -> None:
     ]
     if job.get("content_mode") == "novel":
         cmd += ["--content-mode", "novel"]
+        if job.get("research_characters"):
+            cmd += ["--research-characters"]
+        for line in (job.get("character_traits") or "").splitlines():
+            if line.strip():
+                cmd += ["--character-trait", line.strip()]
     # Per-job conversion options (see jobs.create_job): a local-provider
     # job points the pipeline at the on-server LLM shim, and a chunk_pages
     # override rides along as FIREBRAT_CHUNK_PAGES for this subprocess

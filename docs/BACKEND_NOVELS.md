@@ -69,3 +69,32 @@ long utterances, empty sources, metadata/no visual callouts, old database
 migration, upload validation and persisted mode reaching the conversion runner.
 Real Chatterbox character voice quality requires a synthesis/listening test on
 the configured server; automated tests do not establish that subjective quality.
+
+## Character traits and web research
+
+Beyond male/female, each character can carry **traits**: an age (`child`, `young`,
+`adult`, `elder`), a temperament (`calm`, `cheerful`, `stern`, `gruff`, `gentle`,
+`energetic`, `mysterious`) and optionally a gender. Traits shape delivery: age and
+temperament shift the pitch (children higher, elders lower; pitch shifts also change
+speed) and set how expressive the voice is (`exaggeration`). The roster records
+`traits` per character and, when research ran, a `character_research` report.
+
+Two sources, strongest first:
+
+1. **Operator or user traits**: `--character-trait "Bob=elder gruff"` on the CLI (repeatable),
+   or the `character_traits` upload field (one `Name=traits` per line; invalid lines are a 422).
+2. **Web research**: `--research-characters` / upload field `research_characters=true`.
+   The server finds the book's Wikipedia article, and the configured LLM
+   (`MODEL_API_KEY`, `NANO_API_URL`; model `FIREBRAT_SPARK_MODEL`) describes each tagged
+   character from it. **Only the book title and character names go to Wikipedia and the
+   LLM; none of the book's text does.** If anything fails (no key, no article, provider
+   error) the conversion continues and the reason is stored in `character_research`.
+
+Researched gender only fills a gender the narration left `unknown`; explicit statements
+in the book always win, and user traits always win over research. The same behaviour
+exists on the phone (on-device mode), see `mobile-Backend`.
+
+```sh
+python backend/convert.py story.pdf --content-mode novel --research-characters \
+  --character-trait "Bob=elder gruff" --character-trait "Alice=child cheerful"
+```

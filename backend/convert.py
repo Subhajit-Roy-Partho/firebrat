@@ -48,6 +48,13 @@ def parse_args():
     p.add_argument("--title", default=None, help="Override book title")
     p.add_argument("--content-mode", choices=("illustrated", "novel"), default="illustrated",
                    help="Novel preserves extracted prose and assigns stable character styles")
+    p.add_argument("--research-characters", action="store_true",
+                   help="Novel mode: look the book up on Wikipedia and have the LLM describe each "
+                        "character's age/temperament (sends only the title and character names)")
+    p.add_argument("--character-trait", action="append", default=[], metavar="NAME=TRAITS",
+                   help="Novel mode: set traits for one character, e.g. 'Bob=elder gruff' "
+                        "(ages: child young adult elder; temperaments: calm cheerful stern gruff "
+                        "gentle energetic mysterious; male/female). Repeatable.")
     p.add_argument("--pages", type=int, default=None,
                    help="Only process N pages starting at --start-page (for testing)")
     p.add_argument("--start-page", type=int, default=0,
@@ -187,7 +194,15 @@ def main():
         try:
             if args.content_mode == "novel":
                 from firebrat.pipeline.novel import run_novel_compilation
-                cstats = run_novel_compilation(raw_json, pkg_dir, book_id=book_id)
+                overrides = {}
+                for item in args.character_trait:
+                    name, sep, spec = item.partition("=")
+                    if not sep or not name.strip():
+                        raise ValueError(f"--character-trait must look like NAME=TRAITS, got {item!r}")
+                    overrides[name.strip()] = spec
+                cstats = run_novel_compilation(raw_json, pkg_dir, book_id=book_id, title=title,
+                                               research=args.research_characters,
+                                               trait_overrides=overrides)
             else:
                 from firebrat.pipeline.compile_llm import run_compilation
                 cstats = run_compilation(raw_json, pkg_dir, book_id=book_id, retry_failed=args.retry_failed)

@@ -6,6 +6,8 @@ import json
 import os
 import re
 
+from firebrat.pipeline import character_traits as ct
+
 _QUOTE = re.compile(r'“[^”]+”|"[^"\n]+"')
 _NAME = r'([A-Z][a-z]+(?: [A-Z][a-z]+)?)'
 _VERB = r'(?:said|asked|replied|whispered|shouted|answered|cried|murmured)'
@@ -42,7 +44,34 @@ def infer_voice_gender(name, pages):
     return (next(iter(values)) if len(values) == 1 else 'unknown'), evidence
 
 
-def compile_novel(raw: dict) -> dict:
+def apply_traits(roster, researched, user_traits):
+    """Layer user traits over researched ones, then derive each character's delivery.
+
+    Researched gender only fills an `unknown` voice gender (explicit narrator
+    statements in the book always win). Age/temperament shift pitch and
+    expressiveness; pitch shifts also change speed, as documented for the
+    existing styles.
+    """
+    for character in roster:
+        traits = ct.merge(ct.lookup(character['name'], user_traits)[1] or ct.unknown(),
+                          researched.get(character['name'], ct.unknown()))
+        character['traits'] = traits
+        style = character['voice_style']
+        if character['voice_gender'] == 'unknown' and traits['gender'] != 'unknown':
+            character['voice_gender'] = style['voice_gender'] = traits['gender']
+            magnitude = abs(style['pitch_semitones'])
+            style['pitch_semitones'] = -magnitude if traits['gender'] == 'male' else magnitude
+            character['voice_gender_evidence'].append(
+                {'page': None, 'gender': traits['gender'],
+                 'basis': 'user' if traits['source'] == 'user' else 'web_research'})
+        if ct.has_style(traits):
+            semitones, exaggeration = ct.style_adjustments(traits)
+            style['pitch_semitones'] = max(-6, min(6, style['pitch_semitones'] + semitones))
+            if exaggeration is not None:
+                style['exaggeration'] = exaggeration
+
+
+def compile_novel(raw: dict, researched=None, user_traits=None) -> dict:
     pages = sorted(raw.get('pages', []), key=lambda p: p['page_idx'])
     evidence = {}
     for page in pages:
@@ -65,6 +94,7 @@ def compile_novel(raw: dict) -> dict:
         if gender != 'unknown':
             magnitude = abs(character['voice_style']['pitch_semitones'])
             character['voice_style']['pitch_semitones'] = -magnitude if gender == 'male' else magnitude
+    apply_traits(roster, researched or {}, user_traits or {})
     by_name = {c['name']: c for c in roster}
     sections = []
     for page in pages:
@@ -106,9 +136,36 @@ def compile_novel(raw: dict) -> dict:
             'character_roster': roster, 'sections': sections, 'formulas': []}
 
 
-def run_novel_compilation(raw_path, output_dir, book_id=None):
+def run_novel_compilation(raw_path, output_dir, book_id=None, title=None,
+                          research=False, trait_overrides=None, model=None):
+    """`trait_overrides`: {character name: spec string} (see character_traits.parse_spec).
+    `research`: look the book up on Wikipedia and let the LLM describe characters."""
     with open(raw_path, encoding='utf-8') as f:
-        compiled = compile_novel(json.load(f))
+        raw = json.load(f)
+    user_traits = {}
+    for name, spec in (trait_overrides or {}).items():
+        _voice, traits = ct.parse_spec(spec)
+        if traits:
+            user_traits[name] = traits
+    researched, report = {}, None
+    if research:
+        from firebrat import config
+        names = [c['name'] for c in compile_novel(raw)['character_roster']]
+        if not config.NANO_API_KEY:
+            report = {'status': 'skipped', 'source': 'Wikipedia',
+                      'reason': 'no LLM key is configured on this server (MODEL_API_KEY)'}
+        else:
+            from firebrat.pipeline.character_research import research_characters
+            researched, report = research_characters(
+                title or raw.get('title') or (book_id or '').replace('-', ' '), names,
+                model or os.environ.get('FIREBRAT_SPARK_MODEL') or 'deepseek/deepseek-v4-flash')
+    compiled = compile_novel(raw, researched=researched, user_traits=user_traits)
+    matched = {ct.lookup(c['name'], user_traits)[0] for c in compiled['character_roster']}
+    unmatched = [name for name in user_traits if name not in matched]
+    if unmatched:
+        compiled['unmatched_character_traits'] = unmatched
+    if report is not None:
+        compiled['character_research'] = report
     if book_id:
         compiled['book_id'] = book_id
     for path in {os.path.join(os.path.dirname(raw_path), 'compiled.json'),

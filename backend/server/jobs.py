@@ -51,7 +51,9 @@ def _connect() -> sqlite3.Connection:
                 "chunk_pages INTEGER NOT NULL DEFAULT 0",
                 "local_model TEXT NOT NULL DEFAULT ''",
                 "model TEXT NOT NULL DEFAULT ''",
-                "content_mode TEXT NOT NULL DEFAULT 'illustrated'"):
+                "content_mode TEXT NOT NULL DEFAULT 'illustrated'",
+                "research_characters INTEGER NOT NULL DEFAULT 0",
+                "character_traits TEXT NOT NULL DEFAULT ''"):
         try:
             conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
         except sqlite3.OperationalError:
@@ -67,7 +69,8 @@ def _now() -> str:
 def create_job(book_id: str, filename: str, title: str, pdf_path: str,
                provider: str = "nanogpt", chunk_pages: int = 0,
                local_model: str = "", model: str = "",
-               content_mode: str = "illustrated") -> str:
+               content_mode: str = "illustrated",
+               research_characters: bool = False, character_traits: str = "") -> str:
     """Queue a conversion. provider: 'nanogpt' (cloud endpoint) or 'local'
     (on-server GPU model via FIREBRAT_LOCAL_LLM_URL). chunk_pages > 0
     overrides FIREBRAT_CHUNK_PAGES for this job only (smaller chunks fit
@@ -84,10 +87,11 @@ def create_job(book_id: str, filename: str, title: str, pdf_path: str,
     conn = _connect()
     try:
         conn.execute(
-            "INSERT INTO jobs (job_id, book_id, filename, title, pdf_path, state, retry_count, created_at, updated_at, provider, chunk_pages, local_model, model, content_mode) "
-            "VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO jobs (job_id, book_id, filename, title, pdf_path, state, retry_count, created_at, updated_at, provider, chunk_pages, local_model, model, content_mode, research_characters, character_traits) "
+            "VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (job_id, book_id, filename, title, pdf_path, now, now,
-             provider, chunk_pages, local_model, model, content_mode),
+             provider, chunk_pages, local_model, model, content_mode,
+             1 if research_characters else 0, character_traits),
         )
         conn.commit()
     finally:
