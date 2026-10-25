@@ -65,6 +65,15 @@ class DownloadManager {
 
   static const int maxAttempts = 3;
 
+  /// Last notification state forwarded to the foreground service. Dio
+  /// stream chunks arrive hundreds of times per second for 300–500MB
+  /// zips; forwarding each one wedges the main thread on binder
+  /// (updateService → PendingIntent.getActivity), so only a changed
+  /// displayed percent or a 500ms heartbeat goes through.
+  int? _lastNotifiedPct;
+  DateTime _lastNotifiedAt =
+      DateTime.fromMillisecondsSinceEpoch(0);
+
   /// bookIds with a live download future. Cleared in `finally`.
   static final Map<String, Future<Directory>> _inFlight = {};
 
@@ -306,9 +315,17 @@ class DownloadManager {
   }
 
   void _updateNotification(String bookId, int received, int total) {
-    final pct = (received / total * 100).toStringAsFixed(0);
+    final pct = (received / total * 100).round();
+    final now = DateTime.now();
+    if (pct == _lastNotifiedPct &&
+        now.difference(_lastNotifiedAt).inMilliseconds < 500) {
+      return;
+    }
+    _lastNotifiedPct = pct;
+    _lastNotifiedAt = now;
+    final pctLabel = (received / total * 100).toStringAsFixed(0);
     DownloadKeepAlive.updateProgress(
-      'Downloading book… $pct%',
+      'Downloading book… $pctLabel%',
       '$bookId · ${DownloadProgress._mb(received)} / ${DownloadProgress._mb(total)} MB',
     );
   }

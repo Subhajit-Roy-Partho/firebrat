@@ -37,6 +37,9 @@ class _ConversionSettingsScreenState
   late final TextEditingController _llmUrlController;
   late final TextEditingController _llmKeyController;
   late final TextEditingController _llmModelController;
+  late final TextEditingController _serverLlmUrlController;
+  late final TextEditingController _serverLlmKeyController;
+  late final TextEditingController _serverLlmModelController;
   bool _initialized = false;
   bool _driveBusy = false;
   String _driveStatus = '';
@@ -47,6 +50,9 @@ class _ConversionSettingsScreenState
     _llmUrlController.dispose();
     _llmKeyController.dispose();
     _llmModelController.dispose();
+    _serverLlmUrlController.dispose();
+    _serverLlmKeyController.dispose();
+    _serverLlmModelController.dispose();
     super.dispose();
   }
 
@@ -57,6 +63,9 @@ class _ConversionSettingsScreenState
     _llmUrlController = TextEditingController(text: settings.onDeviceLlmUrl);
     _llmKeyController = TextEditingController(text: settings.onDeviceLlmApiKey);
     _llmModelController = TextEditingController(text: settings.onDeviceLlmModel);
+    _serverLlmUrlController = TextEditingController(text: settings.serverLlmUrl);
+    _serverLlmKeyController = TextEditingController(text: settings.serverLlmApiKey);
+    _serverLlmModelController = TextEditingController(text: settings.serverLlmModel);
     // Check the already-saved server, if any, the moment this screen opens
     // — the user shouldn't have to hit Save just to see whether it's reachable.
     if (settings.mode == ConversionModePref.cloud &&
@@ -206,6 +215,41 @@ class _ConversionSettingsScreenState
               ),
               keyboardType: TextInputType.url,
             ),
+            const SizedBox(height: 16),
+            _SectionTitle('Server conversion engine'),
+            const _HelpText(
+                'Native GPU converts with datacenter GPUs only. LLM helper '
+                'matches the server default: hard passages go to a cloud model.'),
+            const SizedBox(height: 8),
+            _ServerProviderPicker(notifier: notifier, settings: settings),
+            if (settings.serverProvider != 'native') ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _serverLlmUrlController,
+                decoration: const InputDecoration(
+                  labelText: 'Cloud LLM URL (optional override)',
+                  helperText: 'Leave empty to use the server default. https:// is added for you if missing.',
+                  hintText: 'https://nano-gpt.com/api/v1',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.url,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _serverLlmKeyController,
+                decoration: const InputDecoration(
+                  labelText: 'API key (optional)',
+                  helperText: 'Stored only on this phone, sent only with your own uploads.',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+              ),
+              const SizedBox(height: 12),
+              _ServerModelPicker(
+                modelController: _serverLlmModelController,
+                serverUrlController: _cloudUrlController,
+              ),
+            ],
           ] else if (settings.mode == ConversionModePref.onDevice) ...[
             _SectionTitle('Fully local conversion'),
             const _HelpText('All passages are processed on this phone. Download the model and an offline voice once; no account, API key, or server is required after setup. Original page visuals preserve pictures and table layout alongside narration; precise figure cropping is not yet supported.'),
@@ -298,11 +342,21 @@ class _ConversionSettingsScreenState
       final normalized = normalizeServerUrl(_cloudUrlController.text);
       _cloudUrlController.text = normalized;
       await notifier.setCloudServerUrl(normalized);
+      final serverLlmUrl = _serverLlmUrlController.text.trim().isEmpty
+          ? ''
+          : normalizeLlmUrl(_serverLlmUrlController.text);
+      _serverLlmUrlController.text = serverLlmUrl;
+      await notifier.setServerLlm(
+        url: serverLlmUrl,
+        apiKey: _serverLlmKeyController.text.trim(),
+        model: _serverLlmModelController.text.trim(),
+      );
       // The home screen's catalog only refetches when invalidated — without
       // this, saving a new URL left stale titles (or the retry state) in
       // place until something else happened to refresh it.
       ref.invalidate(catalogProvider);
       await ref.read(serverBooksProvider.notifier).check();
+      await ref.read(serverBooksProvider.notifier).refreshModels();
     } else if (settings.mode == ConversionModePref.onDevice) {
       final normalizedUrl = normalizeLlmUrl(_llmUrlController.text);
       _llmUrlController.text = normalizedUrl;
@@ -460,6 +514,101 @@ class _DriveStatusRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ServerProviderPicker extends StatelessWidget {
+  final ConversionModeNotifier notifier;
+  final ConversionModeSettings settings;
+  const _ServerProviderPicker({required this.notifier, required this.settings});
+
+  @override
+  Widget build(BuildContext context) {
+    return SegmentedButton<String>(
+      segments: const [
+        ButtonSegment(value: 'llm', label: Text('LLM helper'), icon: Icon(Icons.auto_awesome_outlined)),
+        ButtonSegment(value: 'native', label: Text('Native GPU'), icon: Icon(Icons.memory_outlined)),
+      ],
+      selected: {settings.serverProvider == 'native' ? 'native' : 'llm'},
+      showSelectedIcon: false,
+      onSelectionChanged: (picked) => notifier.setServerProvider(picked.first),
+    );
+  }
+}
+
+/// Server model choice: a dropdown once GET /models (or the GET /settings
+/// fallback) answers, otherwise a plain text field so an unreachable or
+/// older server never blocks saving. The refresh button probes whatever is
+/// currently in the Server URL field, saved or not.
+class _ServerModelPicker extends ConsumerWidget {
+  final TextEditingController modelController;
+  final TextEditingController serverUrlController;
+  const _ServerModelPicker({required this.modelController, required this.serverUrlController});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final serverState = ref.watch(serverBooksProvider);
+    final models = serverState.models;
+    final current = modelController.text.trim();
+
+    Widget field;
+    if (models.isNotEmpty) {
+      final items = current.isNotEmpty && !models.contains(current)
+          ? [current, ...models]
+          : models;
+      field = DropdownButtonFormField<String>(
+        key: ValueKey('server-model-${models.join('|')}'),
+        isExpanded: true,
+        initialValue: current.isNotEmpty && items.contains(current) ? current : null,
+        decoration: const InputDecoration(
+          labelText: 'Model',
+          helperText: 'Used for hard passages when the LLM helper is on.',
+          helperMaxLines: 5,
+          border: OutlineInputBorder(),
+        ),
+        items: [for (final m in items) DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis))],
+        onChanged: (v) {
+          if (v != null) modelController.text = v;
+        },
+      );
+    } else {
+      field = TextField(
+        controller: modelController,
+        decoration: const InputDecoration(
+          labelText: 'Model name (optional)',
+          helperText: 'Empty uses the server default. Must be a thinking-capable model for math-heavy books.',
+          hintText: 'deepseek/deepseek-v4-pro:thinking',
+          border: OutlineInputBorder(),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        field,
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                serverState.modelsLoading
+                    ? 'Loading models…'
+                    : (serverState.modelsError ?? (models.isEmpty ? 'Models not loaded yet.' : '${models.length} model${models.length == 1 ? '' : 's'} from the server.')),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: serverState.modelsLoading
+                  ? null
+                  : () => ref.read(serverBooksProvider.notifier).refreshModels(baseUrlOverride: serverUrlController.text),
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Load models'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

@@ -1,0 +1,31 @@
+Free your eyes. Let the story speak.
+
+There is another way into the books you love. Turn your own PDFs into narrated listening, take a story on a walk, or follow a technical chapter with its pictures beside the words. Firebrat brings the page and the voice together—so you can choose how to spend time with your books.
+
+PRESS PLAY. STAY IN THE STORY.
+Listen to downloaded books offline. Follow the spoken passage, change playback speed, move between sections and keep listening in the background. Open the original PDF when you want a closer look. Illustrated and technical books can keep figures and formulas alongside narration.
+
+FIND A VOICE YOU ENJOY
+Use an installed Android speech voice or download Kokoro for local neural narration. Choose male and female English voice presets. Novel mode offers character voice casting and individual overrides, so named speakers can have a consistent sound. Review automatic assignments and adjust them yourself. Server-converted books keep the audio generated on that server.
+
+MAKE YOUR PDF A LISTENING EXPERIENCE
+Choose the conversion path that fits you:
+• On-device: download compatible language and voice models, then convert locally on supported Android hardware. No account or server is required after setup when cloud helpers are off.
+• Your computer: run the companion Firebrat server, upload your PDF and download the finished book to your phone. Use a compatible local model and GPU, or configure a supported LLM API. Server voice generation stays local, even when an API handles the text.
+• Already converted: import a Firebrat ZIP or tar.gz package and start reading or listening.
+
+Server presets include local Qwen options for different hardware. Model downloads, memory needs, speed and output quality vary by device and PDF. Optional cloud helpers and LLM APIs send relevant content to your configured provider. Check generated narration, facts, figures and character casting against the source.
+
+YOUR BOOKS. YOUR WAY.
+Continue as guest for local reading, importing and conversion. Choose list, small-card or large-card library views. Downloaded playback works without an account or internet connection.
+
+Sign in when you want authenticated server conversion or private library and reading-position sync. Firebase stores small metadata records, never book files. Optional backups use your own Google Drive and its available storage; restore with the same Google account on another Android device. Sync quotas are limited, and local reading continues if sync is unavailable. Guest progress stays on this device.
+
+READY TO LISTEN?
+Choose Offline, On-device or Server in Conversion settings. The companion server needs separate setup; downloads and online services need an internet connection.
+
+Setup, server downloads and support:
+https://subhajit-roy-partho.github.io/firebrat/
+royduck@duck.com
+
+Bring books you have permission to use. Firebrat does not include a catalogue of copyrighted books.

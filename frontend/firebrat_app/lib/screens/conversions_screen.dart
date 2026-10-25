@@ -161,8 +161,11 @@ class ConversionsScreen extends ConsumerWidget {
         return;
       }
       final api = ref.read(apiClientProvider);
+      final mode = ref.read(conversionModeProvider);
       final job = await api.uploadBook(path,
-        contentMode: ref.read(conversionModeProvider).contentMode,
+        contentMode: mode.contentMode,
+        provider: mode.mode == ConversionModePref.cloud ? mode.serverProvider : null,
+        model: mode.mode == ConversionModePref.cloud ? mode.serverLlmModel : null,
         integrityToken: mint.token,
         onProgress: progressNotifier.set);
       // Follow this job's FCM topic so the server's done/failed push finds
@@ -334,17 +337,35 @@ class _JobCard extends ConsumerWidget {
             Text(job.filename, style: Theme.of(context).textTheme.bodySmall),
             if (job.isActive) ...[
               const SizedBox(height: 12),
-              LinearProgressIndicator(value: job.progress),
+              LinearProgressIndicator(value: job.progress ?? 0),
               const SizedBox(height: 6),
               Row(
                 children: [
                   Expanded(child: Text(_stageLabel(job), style: Theme.of(context).textTheme.bodySmall)),
-                  TextButton(
-                    onPressed: () => _resume(context, ref),
-                    style: TextButton.styleFrom(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
-                    child: const Text('Looks stuck? Resume', style: TextStyle(fontSize: 12)),
-                  ),
+                  if (job.progress != null)
+                    Text('${(job.progress! * 100).round()}%', style: Theme.of(context).textTheme.bodySmall),
+                  if (job.state == JobState.queued)
+                    TextButton(
+                      onPressed: () => _convertNow(context, ref),
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
+                      child: const Text('Convert this now', style: TextStyle(fontSize: 12)),
+                    ),
                 ],
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () => _confirmCancel(context, ref),
+                  icon: Icon(
+                    job.state == JobState.queued ? Icons.delete_outline_rounded : Icons.stop_circle_outlined,
+                    size: 18,
+                  ),
+                  label: Text(job.state == JobState.queued ? 'Delete' : 'Stop'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: scheme.error,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
               ),
             ],
             if (job.state == JobState.done) ...[
@@ -397,7 +418,7 @@ class _JobCard extends ConsumerWidget {
       'rendering_formulas' => 'Rendering formulas',
       'synthesizing' => 'Recording narration',
       'packaging' => 'Packaging',
-      _ => job.state == JobState.queued ? 'Waiting for a conversion slot' : 'Starting',
+      _ => job.state == JobState.queued ? 'Queued for LLM compilation' : 'Starting',
     };
     return job.detail != null ? '$stage — ${job.detail}' : stage;
   }
@@ -414,17 +435,56 @@ class _JobCard extends ConsumerWidget {
     }
   }
 
-  Future<void> _resume(BuildContext context, WidgetRef ref) async {
+  Future<void> _convertNow(BuildContext context, WidgetRef ref) async {
     try {
-      await ref.read(apiClientProvider).resumeJob(job.jobId);
+      await ref.read(apiClientProvider).convertNow(job.jobId);
       await JobsNotifier.trackJob(job.jobId);
       await ref.read(jobsProvider.notifier).refresh();
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Put back on the queue.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Jumped to the front — converting next.')));
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Resume failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Convert now failed: $e')));
+      }
+    }
+  }
+
+  Future<void> _confirmCancel(BuildContext context, WidgetRef ref) async {
+    final isQueued = job.state == JobState.queued;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isQueued ? 'Delete this conversion?' : 'Stop this conversion?'),
+        content: Text(isQueued
+            ? '"${job.title}" is still waiting in the queue and has not started. Delete it so it never runs?'
+            : '"${job.title}" is converting right now. Stopping discards whatever is done so far.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(isQueued ? 'Delete' : 'Stop'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await ref.read(apiClientProvider).cancelJob(job.jobId);
+      await ref.read(jobsProvider.notifier).refresh();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(isQueued ? 'Removed from the queue.' : 'Conversion stopped.')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(isQueued ? 'Delete failed: $e' : 'Stop failed: $e')),
+        );
       }
     }
   }

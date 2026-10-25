@@ -80,13 +80,30 @@ class BookSyncCoordinator {
       await writeBookBackup(dir, zip);
       final hash = (await sha256.bind(zip.openRead()).first).toString();
       final size = await zip.length();
+      // Drive upload chunks arrive as fast as Dio download chunks; gate
+      // them the same way (changed percent or 500ms heartbeat) so the
+      // binder isn't hammered with updateService calls.
+      int? lastBackupPct;
+      var lastBackupAt =
+          DateTime.fromMillisecondsSinceEpoch(0);
       final id = await DriveSyncService.instance.uploadBook(
         bookId: book.bookId,
         zipPath: zip.path,
-        onProgress: (sent, total) => DownloadKeepAlive.updateProgress(
-          'Backing up to your Drive',
-          '${(sent / total * 100).round()}% · ${book.title}',
-        ),
+        onProgress: (sent, total) {
+          if (total <= 0) return;
+          final pct = (sent / total * 100).round();
+          final now = DateTime.now();
+          if (pct == lastBackupPct &&
+              now.difference(lastBackupAt).inMilliseconds < 500) {
+            return;
+          }
+          lastBackupPct = pct;
+          lastBackupAt = now;
+          DownloadKeepAlive.updateProgress(
+            'Backing up to your Drive',
+            '$pct% · ${book.title}',
+          );
+        },
       );
       await metadata.upsertBook(
         bookId: book.bookId,

@@ -8,7 +8,7 @@ import tempfile
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-from server import auth, config, job_runner, jobs
+from server import auth, config, job_runner, jobs, storage
 from server.pdf_merge import merge_zip_pdfs_to_pdf
 from firebrat.pipeline.status import read_status
 from firebrat.utils.ids import sanitize_book_id
@@ -24,7 +24,7 @@ def _job_view(job: dict) -> dict:
         "book_id": job["book_id"],
         "filename": job["filename"],
         "title": job["title"],
-        "state": job["state"],  # queued | running | done | failed
+        "state": job["state"],  # queued | running | done | failed | cancelled
         "stage": status.get("stage"),
         "detail": status.get("detail"),
         "progress": status.get("progress"),
@@ -36,6 +36,7 @@ def _job_view(job: dict) -> dict:
         "retry_count": job["retry_count"],
         "content_mode": job.get("content_mode") or "illustrated",
         "provider": job.get("provider") or "nanogpt",
+        "model": job.get("model") or "",
         "chunk_pages": job.get("chunk_pages") or 0,
         "created_at": job["created_at"],
         "updated_at": job["updated_at"],
@@ -47,6 +48,7 @@ async def upload_book(
     file: UploadFile = File(...),
     title: str | None = Form(None),
     provider: str = Form(""),
+    model: str = Form(""),
     chunk_pages: int = Form(0),
     content_mode: str = Form("illustrated"),
     _user: dict = Depends(auth.require_user),
@@ -121,6 +123,11 @@ async def upload_book(
     from server.routes.settings import read_settings as _read_settings
     _defaults = _read_settings()
     eff_provider = (provider or _defaults.get("default_provider") or "nanogpt")
+    # Optional cloud-model override for this job only; empty preserves the
+    # FIREBRAT_SPARK/DEEPSEEK_MODEL env defaults. Stripped, length-capped,
+    # never validated against a live list (ids change; a bad id fails
+    # honestly in the pipeline, not here). Ignored for local-provider jobs.
+    eff_model = ((model or "").strip())[:200]
     try:
         eff_chunk = int(chunk_pages or 0)
     except (TypeError, ValueError):
@@ -131,7 +138,8 @@ async def upload_book(
         except (TypeError, ValueError):
             eff_chunk = 0
     job_id = jobs.create_job(book_id=book_id, filename=file.filename, title=book_title, pdf_path=dest_path,
-                             provider=eff_provider, chunk_pages=eff_chunk, content_mode=content_mode)
+                             provider=eff_provider, chunk_pages=eff_chunk, model=eff_model,
+                             content_mode=content_mode)
     job_runner.enqueue(job_id)
     return _job_view(jobs.get_job(job_id))
 
@@ -205,6 +213,74 @@ def resume_job(job_id: str, _user: dict = Depends(auth.require_user)):
     jobs.set_state(job_id, "queued")
     job_runner.enqueue(job_id, extra_args)
     return _job_view(jobs.get_job(job_id))
+
+
+@router.post("/jobs/{job_id}/convert-now")
+def convert_now_job(job_id: str, _user: dict = Depends(auth.require_user)):
+    """Jump a queued job to the front: pause every running conversion (its
+    partial output stays on disk for checkpoint resume) and run this job
+    next. 404 on unknown ids, 409 unless the job is `queued`. Pausing never
+    deletes uploads or packages.
+    """
+    job = jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    if job["state"] != "queued":
+        raise HTTPException(status_code=409, detail=f"job is {job['state']}, only queued jobs can jump the queue")
+    if not os.path.isfile(job["pdf_path"]):
+        raise HTTPException(status_code=410, detail="original upload no longer on disk, cannot convert")
+    job_runner.promote_now(job_id)
+    return _job_view(jobs.get_job(job_id))
+
+
+@router.delete("/jobs/{job_id}")
+def delete_job(job_id: str, remove_files: bool = True, _user: dict = Depends(auth.require_user)):
+    """Cancel a queued/running job, or forget a finished one.
+
+    - `running`: flags the row `cancelled` (terminal) and terminates its
+      convert.py subprocess; the row is KEPT so the client can see the
+      cancelled state. Files are kept too (partial output may aid retry).
+    - `queued` / `done` / `failed` / `cancelled`: deletes the row. A queued
+      job is flagged cancelled first so a worker that already dequeued it
+      skips convert.py instead of running it (a worker that hasn't dequeued
+      it yet finds no row and skips the same way).
+    - `remove_files` (default true): also deletes this job's own upload PDF
+      and its partial/final package directory — never any other job's.
+    - Unknown ids 404, never 500.
+    """
+    job = jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    if job["state"] == "running":
+        jobs.request_cancel(job_id)
+        job_runner.cancel_running(job_id)
+        return _job_view(jobs.get_job(job_id))
+    jobs.request_cancel(job_id)  # no-op unless queued; marks skip-flag
+    deleted = jobs.delete_job(job_id)
+    assert deleted is not None  # fetched above; no concurrent deleter exists
+    removed_files = _remove_job_files(deleted) if remove_files else False
+    return {"job_id": job_id, "deleted": True, "removed_files": removed_files}
+
+
+def _remove_job_files(job: dict) -> bool:
+    """Delete only this job's upload PDF and package dir. Returns True if
+    anything was removed."""
+    removed = False
+    pdf_path = job.get("pdf_path") or ""
+    try:
+        up = os.path.realpath(config.UPLOAD_DIR)
+        pp = os.path.realpath(pdf_path)
+        if pp.startswith(up + os.sep) and os.path.isfile(pp):
+            os.remove(pp)
+            removed = True
+    except OSError:
+        pass
+    try:
+        if storage.delete_book(job["book_id"]):
+            removed = True
+    except OSError:
+        pass
+    return removed
 
 
 @router.get("/jobs/{job_id}/log")

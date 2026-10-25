@@ -81,9 +81,16 @@ def test_novel_upload_round_trips_and_runner_passes_mode(tmp_path, monkeypatch):
     record = response.json()
     assert record['content_mode'] == 'novel'
     calls = []
-    class Result:
-        returncode = 0
-    monkeypatch.setattr(job_runner.subprocess, 'run', lambda cmd, **kw: calls.append(cmd) or Result())
+    def fake_popen(cmd, **kw):
+        calls.append(cmd)
+
+        class _FakeProc:
+            def wait(self):
+                return 0
+
+        return _FakeProc()
+
+    monkeypatch.setattr(job_runner.subprocess, 'Popen', fake_popen)
     job_runner._run_job(record['job_id'], [])
     assert calls[0][calls[0].index('--content-mode') + 1] == 'novel'
     assert routes._job_view(jobs.get_job(record['job_id']))['content_mode'] == 'novel'

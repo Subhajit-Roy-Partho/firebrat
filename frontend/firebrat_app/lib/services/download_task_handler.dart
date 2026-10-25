@@ -87,17 +87,40 @@ class DownloadKeepAlive {
 
   /// Throttled progress text for the shared notification. Callers pass
   /// their own already-throttled progress; this additionally drops
-  /// duplicate percentages so the notification never jitters.
-  static String? _lastText;
+  /// duplicate percentages so the notification never jitters, and caps
+  /// binder traffic to one updateService per 500ms (terminal states
+  /// always go through so a stuck "99%" can never linger).
+  static String? _lastKey;
+  static DateTime _lastSent =
+      DateTime.fromMillisecondsSinceEpoch(0);
   static void updateProgress(String title, String text) {
-    if (text == _lastText) return;
-    _lastText = title + text;
+    final key = '$title\n$text';
+    if (key == _lastKey) return;
+    final now = DateTime.now();
+    if (!_isTerminal(text) &&
+        now.difference(_lastSent).inMilliseconds < 500) {
+      return;
+    }
+    _lastKey = key;
+    _lastSent = now;
     try {
       FlutterForegroundTask.updateService(
         notificationTitle: title,
         notificationText: text,
       );
     } catch (_) {}
+  }
+
+  /// Terminal states must bypass the 500ms throttle so the notification
+  /// never sticks on an in-progress percentage.
+  static bool _isTerminal(String text) {
+    final lower = text.toLowerCase();
+    return lower.contains('100%') ||
+        lower.contains('done') ||
+        lower.contains('complete') ||
+        lower.contains('finished') ||
+        lower.contains('failed') ||
+        lower.contains('error');
   }
 }
 

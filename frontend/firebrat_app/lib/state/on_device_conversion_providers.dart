@@ -23,6 +23,14 @@ class ConversionModeSettings {
   final String onDeviceLlmUrl;
   final String onDeviceLlmApiKey;
   final String onDeviceLlmModel;
+  /// Server-side conversion engine: 'llm' (cloud LLM helper, the server
+  /// default) or 'native' (datacenter GPUs only). Only used in cloud mode.
+  final String serverProvider;
+  /// Optional cloud-LLM override sent with each server upload: endpoint URL,
+  /// API key (stored only on this phone), and model name.
+  final String serverLlmUrl;
+  final String serverLlmApiKey;
+  final String serverLlmModel;
   /// Catalog id of the on-device GGUF model (see mobile_backend_pipeline's
   /// kOnDeviceLlmCatalog), e.g. 'qwen3-4b'. Used for easy chunks; hard
   /// chunks still go to the cloud LLM above.
@@ -47,6 +55,10 @@ class ConversionModeSettings {
     this.onDeviceLlmUrl = '',
     this.onDeviceLlmApiKey = '',
     this.onDeviceLlmModel = '',
+    this.serverProvider = 'llm',
+    this.serverLlmUrl = '',
+    this.serverLlmApiKey = '',
+    this.serverLlmModel = '',
     this.onDeviceLlmModelId = 'qwen3-1.7b',
     this.onDeviceGpuLayers = 0,
     this.voiceEngine = 'stockTts',
@@ -65,6 +77,10 @@ class ConversionModeSettings {
     String? onDeviceLlmUrl,
     String? onDeviceLlmApiKey,
     String? onDeviceLlmModel,
+    String? serverProvider,
+    String? serverLlmUrl,
+    String? serverLlmApiKey,
+    String? serverLlmModel,
     String? onDeviceLlmModelId,
     int? onDeviceGpuLayers,
     String? voiceEngine,
@@ -80,6 +96,10 @@ class ConversionModeSettings {
         onDeviceLlmUrl: onDeviceLlmUrl ?? this.onDeviceLlmUrl,
         onDeviceLlmApiKey: onDeviceLlmApiKey ?? this.onDeviceLlmApiKey,
         onDeviceLlmModel: onDeviceLlmModel ?? this.onDeviceLlmModel,
+        serverProvider: serverProvider ?? this.serverProvider,
+        serverLlmUrl: serverLlmUrl ?? this.serverLlmUrl,
+        serverLlmApiKey: serverLlmApiKey ?? this.serverLlmApiKey,
+        serverLlmModel: serverLlmModel ?? this.serverLlmModel,
         onDeviceLlmModelId: onDeviceLlmModelId ?? this.onDeviceLlmModelId,
         onDeviceGpuLayers: onDeviceGpuLayers ?? this.onDeviceGpuLayers,
         voiceEngine: voiceEngine ?? this.voiceEngine,
@@ -103,6 +123,10 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
   static const _kLlmModel = 'conversion.onDeviceLlmModel';
   static const _kLocalLlmId = 'conversion.onDeviceLlmModelId';
   static const _kGpuLayers = 'conversion.onDeviceGpuLayers';
+  static const _kServerProvider = 'conversion.serverProvider';
+  static const _kServerLlmUrl = 'conversion.serverLlmUrl';
+  static const _kServerLlmKey = 'conversion.serverLlmApiKey';
+  static const _kServerLlmModel = 'conversion.serverLlmModel';
   static const _kVoiceEngine = 'conversion.voiceEngine';
   static const _kKokoroVoice = 'conversion.kokoroVoice';
 
@@ -127,6 +151,10 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
       onDeviceLlmUrl: prefs.getString(_kLlmUrl) ?? '',
       onDeviceLlmApiKey: prefs.getString(_kLlmKey) ?? '',
       onDeviceLlmModel: prefs.getString(_kLlmModel) ?? '',
+      serverProvider: prefs.getString(_kServerProvider) ?? 'llm',
+      serverLlmUrl: prefs.getString(_kServerLlmUrl) ?? '',
+      serverLlmApiKey: prefs.getString(_kServerLlmKey) ?? '',
+      serverLlmModel: prefs.getString(_kServerLlmModel) ?? '',
       onDeviceLlmModelId: prefs.getString(_kLocalLlmId) ?? 'qwen3-1.7b',
       onDeviceGpuLayers: prefs.getInt(_kGpuLayers) ?? 0,
       voiceEngine: prefs.getString(_kVoiceEngine) ?? 'stockTts',
@@ -168,13 +196,31 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
     (await SharedPreferences.getInstance()).setString(_kStorage, backend);
   }
 
-  Future<void> setOnDeviceLlm({required String url, required String apiKey, required String model}) async {
-    final normalizedUrl = normalizeLlmUrl(url);
+  Future<void> setOnDeviceLlm({required String url, required String apiKey, required String model}) async {    final normalizedUrl = normalizeLlmUrl(url);
     state = state.copyWith(onDeviceLlmUrl: normalizedUrl, onDeviceLlmApiKey: apiKey, onDeviceLlmModel: model);
     final prefs = await SharedPreferences.getInstance();
     prefs.setString(_kLlmUrl, normalizedUrl);
     prefs.setString(_kLlmKey, apiKey);
     prefs.setString(_kLlmModel, model);
+  }
+
+  /// 'llm' (cloud LLM helper, matches the server default) or 'native'
+  /// (datacenter GPUs only, no LLM calls).
+  Future<void> setServerProvider(String provider) async {
+    assert(provider == 'llm' || provider == 'native');
+    state = state.copyWith(serverProvider: provider);
+    (await SharedPreferences.getInstance()).setString(_kServerProvider, provider);
+  }
+
+  /// Optional per-upload LLM override for the server: endpoint + key stay
+  /// on this phone and travel only with its own upload requests.
+  Future<void> setServerLlm({required String url, required String apiKey, required String model}) async {
+    final normalizedUrl = url.trim().isEmpty ? '' : normalizeLlmUrl(url);
+    state = state.copyWith(serverLlmUrl: normalizedUrl, serverLlmApiKey: apiKey, serverLlmModel: model);
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setString(_kServerLlmUrl, normalizedUrl);
+    prefs.setString(_kServerLlmKey, apiKey);
+    prefs.setString(_kServerLlmModel, model);
   }
 
   Future<void> setLocalLlmModel(String id) async {

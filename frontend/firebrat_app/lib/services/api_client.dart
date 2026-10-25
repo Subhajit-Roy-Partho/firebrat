@@ -58,6 +58,88 @@ class ApiClient {
         .toList();
   }
 
+  /// Model names the server can currently use for conversion. Probes the
+  /// new GET /models endpoint and falls back to GET /settings so older
+  /// servers (without /models) still yield something useful. Returns an
+  /// empty list when neither endpoint answers — callers then keep a
+  /// free-text field instead of a dropdown.
+  Future<List<String>> getModels() async {
+    try {
+      final resp = await _dio.get('/models');
+      final found = _extractModelNames(resp.data);
+      if (found.isNotEmpty) return found;
+    } catch (_) {}
+    try {
+      final settings = await getSettings();
+      return _extractModelNames(settings);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Raw server settings (provider default, current model, and — on older
+  /// servers — the only hint at which models exist).
+  Future<Map<String, dynamic>> getSettings() async {
+    final resp = await _dio.get('/settings');
+    if (resp.data is Map<String, dynamic>) {
+      return resp.data as Map<String, dynamic>;
+    }
+    return {};
+  }
+
+  /// Accepts the shapes GET /models and GET /settings might use: a bare
+  /// list of names, {models: [...]}, or entries like {id/name/model}.
+  /// Also collects live_models, cloud_models, free_fallbacks, the
+  /// cloud_*_default singletons, and presets/local_presets maps (whose
+  /// values may be strings or {id/name/model} maps).
+  static List<String> _extractModelNames(dynamic data) {
+    if (data is String && data.trim().isNotEmpty) return [data.trim()];
+    final candidates = <dynamic>[];
+    if (data is List) {
+      candidates.addAll(data);
+    } else if (data is Map) {
+      for (final key in const [
+        'models',
+        'model',
+        'live_models',
+        'cloud_models',
+        'free_fallbacks',
+        'cloud_model_default',
+        'cloud_strong_model_default',
+      ]) {
+        final v = data[key];
+        if (v is List) {
+          candidates.addAll(v);
+        } else if (v is String || v is Map) {
+          candidates.add(v);
+        }
+      }
+      for (final key in const ['presets', 'local_presets']) {
+        final p = data[key];
+        if (p is Map) {
+          candidates.addAll(p.values);
+        } else if (p is List) {
+          candidates.addAll(p);
+        }
+      }
+    }
+    final names = <String>[];
+    for (final item in candidates) {
+      if (item is String && item.trim().isNotEmpty) {
+        names.add(item.trim());
+      } else if (item is Map) {
+        for (final key in const ['id', 'name', 'model']) {
+          final v = item[key];
+          if (v is String && v.trim().isNotEmpty) {
+            names.add(v.trim());
+            break;
+          }
+        }
+      }
+    }
+    return names.toSet().toList();
+  }
+
   /// Permanently deletes a book from the server to free space. Irreversible.
   Future<void> deleteBook(String bookId) async {
     await _dio.delete('/books/$bookId');
@@ -75,6 +157,8 @@ class ApiClient {
     String filePath, {
     String? title,
     String contentMode = 'illustrated',
+    String? provider,
+    String? model,
     String? integrityToken,
     void Function(double progress)? onProgress,
   }) async {
@@ -82,6 +166,8 @@ class ApiClient {
       'file': await MultipartFile.fromFile(filePath, filename: filePath.split('/').last),
       if (title != null && title.isNotEmpty) 'title': title,
       'content_mode': contentMode,
+      if (provider != null && provider.trim().isNotEmpty) 'provider': provider.trim(),
+      if (model != null && model.trim().isNotEmpty) 'model': model.trim(),
     });
     final resp = await _dio.post(
       '/books/upload',
@@ -120,6 +206,21 @@ class ApiClient {
   Future<ConversionJob> resumeJob(String jobId) async {
     final resp = await _dio.post('/jobs/$jobId/resume');
     return ConversionJob.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  /// Pauses the running conversion (if any) and jumps [jobId] to the
+  /// front of the server queue. Only queued jobs qualify (server 409s
+  /// otherwise). Partial output of the paused job stays on disk for
+  /// checkpoint resume.
+  Future<ConversionJob> convertNow(String jobId) async {
+    final resp = await _dio.post('/jobs/$jobId/convert-now');
+    return ConversionJob.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  /// Stops a queued or running job and discards it. The server answers
+  /// 200 on success and 404 when the job is already gone.
+  Future<void> cancelJob(String jobId) async {
+    await _dio.delete('/jobs/$jobId');
   }
 
   Future<List<String>> getJobLog(String jobId, {int tailLines = 200}) async {

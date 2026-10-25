@@ -9,6 +9,14 @@ Connections are opened per call rather than once at import time — sqlite is
 cheap for this volume, and it means server.config.JOBS_DB_PATH can be
 monkeypatched (e.g. in tests) any time before a call, not just before this
 module is first imported.
+
+Job states: queued | running | done | failed | cancelled. `cancelled` is
+terminal and set only by request_cancel() (DELETE /jobs/{id}) — never by
+the pipeline itself. The worker checks for it after dequeue and never
+starts convert.py for a cancelled job; a cancelled-then-deleted queued job
+also shows up as "vanished" (no row) which the worker likewise skips.
+Cancelled jobs are never re-enqueued by resume_orphaned_jobs and are not
+retryable/resumable (both endpoints 409 on them, like done).
 """
 import os
 import sqlite3
@@ -24,7 +32,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     filename TEXT NOT NULL,
     title TEXT NOT NULL,
     pdf_path TEXT NOT NULL,
-    state TEXT NOT NULL,        -- queued | running | done | failed
+    state TEXT NOT NULL,        -- queued | running | done | failed | cancelled
     error TEXT,
     retry_count INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
@@ -42,6 +50,7 @@ def _connect() -> sqlite3.Connection:
     for col in ("provider TEXT NOT NULL DEFAULT 'nanogpt'",
                 "chunk_pages INTEGER NOT NULL DEFAULT 0",
                 "local_model TEXT NOT NULL DEFAULT ''",
+                "model TEXT NOT NULL DEFAULT ''",
                 "content_mode TEXT NOT NULL DEFAULT 'illustrated'"):
         try:
             conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
@@ -57,12 +66,15 @@ def _now() -> str:
 
 def create_job(book_id: str, filename: str, title: str, pdf_path: str,
                provider: str = "nanogpt", chunk_pages: int = 0,
-               local_model: str = "", content_mode: str = "illustrated") -> str:
+               local_model: str = "", model: str = "",
+               content_mode: str = "illustrated") -> str:
     """Queue a conversion. provider: 'nanogpt' (cloud endpoint) or 'local'
     (on-server GPU model via FIREBRAT_LOCAL_LLM_URL). chunk_pages > 0
     overrides FIREBRAT_CHUNK_PAGES for this job only (smaller chunks fit
     endpoints that kill long generations). local_model is informational
-    (the loaded server-side model serves all local jobs)."""
+    (the loaded server-side model serves all local jobs). model is a
+    cloud-model override for this job only (both LLM tiers use it);
+    empty preserves the FIREBRAT_SPARK/DEEPSEEK_MODEL env defaults."""
     if content_mode not in ("illustrated", "novel"):
         raise ValueError("content_mode must be illustrated or novel")
     if provider not in ("nanogpt", "local"):
@@ -72,10 +84,10 @@ def create_job(book_id: str, filename: str, title: str, pdf_path: str,
     conn = _connect()
     try:
         conn.execute(
-            "INSERT INTO jobs (job_id, book_id, filename, title, pdf_path, state, retry_count, created_at, updated_at, provider, chunk_pages, local_model, content_mode) "
-            "VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO jobs (job_id, book_id, filename, title, pdf_path, state, retry_count, created_at, updated_at, provider, chunk_pages, local_model, model, content_mode) "
+            "VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?, ?, ?, ?)",
             (job_id, book_id, filename, title, pdf_path, now, now,
-             provider, chunk_pages, local_model, content_mode),
+             provider, chunk_pages, local_model, model, content_mode),
         )
         conn.commit()
     finally:
@@ -134,3 +146,35 @@ def latest_job_for_book(book_id: str) -> dict | None:
     finally:
         conn.close()
     return dict(row) if row else None
+
+
+def request_cancel(job_id: str) -> dict | None:
+    """Flag a queued/running job as cancelled (terminal — see module docstring).
+
+    Returns the updated job, or None if no such row. Terminal jobs
+    (done/failed/cancelled) are returned unchanged — cancelling those is the
+    route's decision (DELETE forgets them instead), never a state change.
+    """
+    job = get_job(job_id)
+    if job is None:
+        return None
+    if job["state"] not in ("queued", "running"):
+        return job
+    set_state(job_id, "cancelled", error="cancelled by user")
+    return get_job(job_id)
+
+
+def delete_job(job_id: str) -> dict | None:
+    """Delete a job's row. Returns the deleted row (so the caller can clean
+    up that job's own upload/output files), or None if no such row. Only
+    ever deletes this one row — other jobs are untouched."""
+    job = get_job(job_id)
+    if job is None:
+        return None
+    conn = _connect()
+    try:
+        conn.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    return job
