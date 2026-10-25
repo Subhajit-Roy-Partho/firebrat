@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get started with Firebrat: free LLM, private offline mode, Drive sync</title>
+<meta name="description" content="How to set up Firebrat: convert privately on your phone, or use a free OpenRouter, Groq or Google AI Studio key for faster conversion, novel character voices, and Google Drive sync.">
+<link rel="icon" href="assets/favicon-64.png" type="image/png">
+<link rel="apple-touch-icon" href="assets/favicon-180.png">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<nav class="site-nav">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <img class="mark" src="assets/favicon-64.png" alt="" aria-hidden="true">
+      Firebrat
+    </a>
+    <ul class="nav-links" id="nav-links">
+      <li><a href="../">Open web app</a></li>
+      <li><a href="index.html">Home</a></li>
+      <li><a href="guide.html" aria-current="page">Get started</a></li>
+      <li><a href="architecture.html">How it works</a></li>
+      <li><a href="about.html">Accessibility mission</a></li>
+      <li><a href="https://github.com/Subhajit-Roy-Partho/firebrat">GitHub</a></li>
+    </ul>
+    <div class="nav-actions">
+      <button class="icon-btn" id="theme-toggle" aria-label="Toggle theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+      <button class="icon-btn nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <a class="btn btn-primary" href="https://github.com/Subhajit-Roy-Partho/firebrat/releases/latest">Get the app</a>
+    </div>
+  </div>
+</nav>
+
+
+<header class="hero">
+  <div class="wrap" style="max-width:900px">
+    <span class="eyebrow">Get started</span>
+    <h1>Pick your path: private on your phone, or faster with a free LLM</h1>
+    <p class="lede">Firebrat can turn a PDF into an audiobook entirely on your phone, with nothing leaving the device, or use a free cloud LLM key to convert much faster. You choose per book, and you can change your mind any time.</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="#free-llm">Set up a free LLM</a>
+      <a class="btn btn-ghost" href="#private">Stay private and offline</a>
+      <a class="btn btn-ghost" href="#drive">Google Drive sync</a>
+    </div>
+  </div>
+</header>
+
+<section id="private">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Privacy first</span>
+      <h2>Private, offline reading is the default</h2>
+      <p>Many people care more about privacy than convenience, so the most private option needs no account, no server and no key. The cloud options below are always opt-in.</p>
+    </div>
+    <div class="grid grid-2" style="align-items:center">
+      <div class="prose" style="max-width:none">
+        <h3>What stays on your phone</h3>
+        <ul>
+          <li><strong>Offline mode</strong>: import a finished book file (.tar.gz or .zip) and read and listen with no server or account.</li>
+          <li><strong>On-device mode</strong>: your phone converts the PDF with a local model and a neural voice. After a one-time model and voice download, nothing leaves the device.</li>
+          <li>Guests can use both. No sign-in is required to read, import or convert on the device.</li>
+        </ul>
+        <h3>What leaves your phone, and only if you turn it on</h3>
+        <ul>
+          <li><strong>Cloud helper</strong> sends the hard passages (equations, figures, tables) to the LLM you configured.</li>
+          <li><strong>Use the cloud LLM for every passage</strong> sends all of the book&rsquo;s text to that provider. Leave it off for private books.</li>
+          <li><strong>Research characters online</strong> sends only the book title and character names, never the book&rsquo;s text.</li>
+          <li><strong>Google Drive sync</strong> stores your finished books in your own Drive.</li>
+        </ul>
+        <p class="muted">Free LLM providers may log prompts. Use the on-device model for anything confidential.</p>
+      </div>
+      <figure style="margin:0;text-align:center"><img src="assets/guide/07-private-offline.jpg" alt="Conversion settings showing the on-device model and offline narrator voice" loading="lazy" width="270" height="480" style="width:100%;max-width:270px;height:auto;border-radius:18px;box-shadow:0 18px 40px -18px rgba(0,0,0,.5)"><figcaption class="muted" style="margin-top:8px;font-size:.9rem">On-device model and offline voice</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="free-llm">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Faster conversion</span>
+      <h2>Use a free LLM instead of the on-device model</h2>
+      <p>A cloud model is far faster than a phone and needs no multi-gigabyte model download. Several services give out free keys that work with Firebrat, because they all speak the same OpenAI-compatible protocol.</p>
+    </div>
+    <div class="grid grid-2" style="align-items:start">
+      <div class="prose" style="max-width:none">
+        <h3>Option 1: OpenRouter (recommended)</h3>
+        <ol>
+          <li>Create a free account at <a href="https://openrouter.ai">openrouter.ai</a>.</li>
+          <li>Open <strong>Keys</strong> (openrouter.ai/keys) and choose <strong>Create key</strong>. Copy it now; it is shown once.</li>
+          <li>Browse <a href="https://openrouter.ai/models">openrouter.ai/models</a>, filter by <strong>Free</strong>, and note a model whose ID ends in <code>:free</code>. You can also let the app list them for you (step 5).</li>
+          <li>In Firebrat open <strong>Menu &rsaquo; Conversion settings &rsaquo; On-device</strong> and turn on <strong>Allow cloud helper</strong>.</li>
+          <li>Enter <code>https://openrouter.ai/api/v1</code> as the <strong>LLM URL</strong>, paste your key, then tap <strong>Load models</strong>. Pick a free model from the list (type to search).</li>
+          <li>Tap <strong>Test connection</strong>. A green &ldquo;Connected&rdquo; message means it works. Then tap <strong>Save</strong>.</li>
+          <li>For the biggest speed-up, turn on <strong>Use the cloud LLM for every passage</strong>. No local model is downloaded or loaded.</li>
+        </ol>
+        <p><strong>Free-tier limits:</strong> OpenRouter allows 20 requests a minute on free models, and 50 requests a day until you have purchased at least 10 credits, after which the daily limit is 1,000. Long books need many requests, so a free key suits shorter books, or lets you convert a longer book over a few days. Free model lists change often; always check the current list.</p>
+
+        <h3>Option 2: Groq</h3>
+        <p>Create a key at <a href="https://console.groq.com/keys">console.groq.com/keys</a>. LLM URL: <code>https://api.groq.com/openai/v1</code>. Tap Load models to see what your account can use.</p>
+
+        <h3>Option 3: Google AI Studio (Gemini)</h3>
+        <p>Create a key at <a href="https://aistudio.google.com">aistudio.google.com</a>. LLM URL: <code>https://generativelanguage.googleapis.com/v1beta/openai/</code>. Google offers a free tier with its own rate limits; check the current limits on their pricing page.</p>
+
+        <h3>Any other OpenAI-compatible service</h3>
+        <p>OpenAI, nano-gpt, a local server such as Ollama or LM Studio on your network, and many others work the same way: URL, key, model name. The URL usually ends in <code>/v1</code>.</p>
+      </div>
+      <div style="display:grid;gap:20px">
+        <figure style="margin:0;text-align:center"><img src="assets/guide/06-free-cloud-llm.jpg" alt="Conversion settings with the cloud LLM options" loading="lazy" width="270" height="480" style="width:100%;max-width:270px;height:auto;border-radius:18px;box-shadow:0 18px 40px -18px rgba(0,0,0,.5)"><figcaption class="muted" style="margin-top:8px;font-size:.9rem">The cloud options in Conversion settings</figcaption></figure>
+        <figure style="margin:0;text-align:center"><img src="assets/guide/extra-test-your-llm.jpg" alt="Load models and Test connection buttons" loading="lazy" width="270" height="480" style="width:100%;max-width:270px;height:auto;border-radius:18px;box-shadow:0 18px 40px -18px rgba(0,0,0,.5)"><figcaption class="muted" style="margin-top:8px;font-size:.9rem">Load models, then test the key</figcaption></figure>
+      </div>
+    </div>
+    <div class="grid grid-3" style="margin-top:32px">
+      <div class="card"><h3>Cloud helper only</h3><p>Easy passages stay on the phone; only equations, figures and tables go to the cloud. A good balance for private-leaning users.</p></div>
+      <div class="card"><h3>Cloud for every passage</h3><p>Fastest. Skips the local model entirely, but all of the book&rsquo;s text goes to your provider.</p></div>
+      <div class="card"><h3>Fully local</h3><p>Cloud helper off. Slowest, most private. Nothing leaves the phone after the one-time downloads.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="models">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">On-device</span>
+      <h2>Choosing a local model for your phone</h2>
+      <p>Bigger models read hard passages better but need more memory and time. Listed from lightest to heaviest (approximate RAM while converting). If Android closes the app or conversion stalls, step down a size or set the GPU acceleration slider to 0.</p>
+    </div>
+    <div class="prose" style="max-width:820px;margin:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr><th align="left">Model</th><th align="left">RAM</th><th align="left">Best for</th></tr></thead>
+        <tbody>
+          <tr><td>Qwen3 0.6B</td><td>~1 GB</td><td>Lightest and fastest. Safe on 4&ndash;6 GB phones.</td></tr>
+          <tr><td>Gemma 3 1B</td><td>~1.5 GB</td><td>Compact, text-only. Good for low-memory phones.</td></tr>
+          <tr><td>SmolLM2 1.7B</td><td>~1.7 GB</td><td>Small general model, fine on 6 GB and up.</td></tr>
+          <tr><td><strong>Qwen3 1.7B (default)</strong></td><td>~2 GB</td><td>Balanced choice for 6&ndash;8 GB phones. Start here.</td></tr>
+          <tr><td>Llama 3.2 3B</td><td>~3 GB</td><td>Better quality for 8 GB phones.</td></tr>
+          <tr><td>Qwen3 4B, Gemma 3 4B, Phi-4 Mini</td><td>~3.8 GB</td><td>Highest quality and heaviest. May run out of memory on 8 GB phones, especially with GPU offload.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="novels">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Two modes</span>
+      <h2>Novels with character voices, and illustrated books with pictures in sync</h2>
+      <p>Choose the book type in <strong>Conversion settings &rsaquo; Book type</strong>.</p>
+    </div>
+    <div class="grid grid-2" style="align-items:start">
+      <div class="prose" style="max-width:none">
+        <h3>Novel / characters</h3>
+        <p>Keeps the original prose word for word, splits dialogue by speaker, and gives each named character their own delivery. Speakers are recognised from explicit tags such as <em>Alice said</em> or <em>&ldquo;Hello,&rdquo; Bob replied</em>. Anything uncertain is read by the narrator.</p>
+        <p>Beyond male and female, each character can have an <strong>age</strong> (child, young, adult, elder) and a <strong>temperament</strong> (calm, cheerful, stern, gruff, gentle, energetic, mysterious). Age and temperament change speed, pitch and expressiveness, and spread characters across the available voices.</p>
+        <p>Set them yourself in <strong>Character voice overrides</strong>, one per line:</p>
+        <pre><code>Alice=child cheerful
+Mad Hatter=Michael, elder, gruff
+Queen of Hearts=female stern</code></pre>
+        <p>Names match without regard to case, and a short name such as &ldquo;Hatter&rdquo; also matches &ldquo;Mad Hatter&rdquo;. Overrides that match nobody are reported in the conversion log, so typos are easy to spot.</p>
+        <h3>Let the web figure it out</h3>
+        <p>Turn on <strong>Research characters online</strong>. Firebrat finds the book&rsquo;s Wikipedia article and asks your LLM to describe each character&rsquo;s age and temperament, then applies it. <strong>Only the title and character names are sent, never the book&rsquo;s text.</strong> This needs an LLM URL, key and model (see above) or a server. Your own overrides always win over research, and any failure simply skips the step.</p>
+        <h3>Illustrated / technical</h3>
+        <p>For textbooks, datasheets and papers: figures, tables and formulas stay on screen and highlighted exactly while they are being discussed, and <strong>Source page</strong> opens the original PDF page.</p>
+      </div>
+      <div style="display:grid;gap:20px">
+        <figure style="margin:0;text-align:center"><img src="assets/guide/03-novel-voices.jpg" alt="Character voice overrides with age and temperament" loading="lazy" width="270" height="480" style="width:100%;max-width:270px;height:auto;border-radius:18px;box-shadow:0 18px 40px -18px rgba(0,0,0,.5)"><figcaption class="muted" style="margin-top:8px;font-size:.9rem">Per-character voices and traits</figcaption></figure>
+        <figure style="margin:0;text-align:center"><img src="assets/guide/04-two-modes.jpg" alt="Book type chooser with novel and illustrated modes" loading="lazy" width="270" height="480" style="width:100%;max-width:270px;height:auto;border-radius:18px;box-shadow:0 18px 40px -18px rgba(0,0,0,.5)"><figcaption class="muted" style="margin-top:8px;font-size:.9rem">Choose a mode per book</figcaption></figure>
+        <figure style="margin:0;text-align:center"><img src="assets/guide/02-listen-and-follow.jpg" alt="Reader highlighting the sentence being read with its figure" loading="lazy" width="270" height="480" style="width:100%;max-width:270px;height:auto;border-radius:18px;box-shadow:0 18px 40px -18px rgba(0,0,0,.5)"><figcaption class="muted" style="margin-top:8px;font-size:.9rem">Illustrated mode keeps pictures in sync</figcaption></figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="drive">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Backup and sync</span>
+      <h2>Google Drive sync</h2>
+      <p>Keep your converted books safe and move them between devices through your own Google Drive.</p>
+    </div>
+    <div class="grid grid-2" style="align-items:center">
+      <div class="prose" style="max-width:none">
+        <ol>
+          <li>Sign in with Google from the menu (Drive sync needs an account; reading and local conversion do not).</li>
+          <li>Open <strong>Conversion settings</strong>. Under <strong>Get finished books from where?</strong> choose <strong>My Google Drive</strong>, then tap <strong>Connect Drive</strong> and approve the permission.</li>
+          <li>New books back up to a <strong>Firebrat</strong> folder in your Drive, one zip per book. Tap <strong>Sync now</strong> on another device to pull them, or use <strong>Per-book backup</strong> to choose which books to upload.</li>
+          <li>Open <strong>Menu &rsaquo; Sync &amp; backup</strong> to keep your reading position in each book across devices.</li>
+        </ol>
+        <p><strong>Privacy:</strong> Firebrat asks only for access to files it creates itself (the &ldquo;drive.file&rdquo; permission). It cannot see or change anything else in your Drive. You can turn sync off at any time.</p>
+      </div>
+      <figure style="margin:0;text-align:center"><img src="assets/guide/08-drive-sync.jpg" alt="In-app guide page about Google Drive sync" loading="lazy" width="270" height="480" style="width:100%;max-width:270px;height:auto;border-radius:18px;box-shadow:0 18px 40px -18px rgba(0,0,0,.5)"><figcaption class="muted" style="margin-top:8px;font-size:.9rem">Also explained in the in-app guide</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="app-guide">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Always at hand</span>
+      <h2>The same help is built into the app</h2>
+      <p>Firebrat opens a short guide the first time you start it, and you can reopen it whenever you like.</p>
+    </div>
+    <div class="grid grid-3">
+      <div class="card"><h3>From the menu</h3><p>Open the menu and choose <strong>App guide</strong>.</p></div>
+      <div class="card"><h3>From Conversion settings</h3><p>Tap the compass icon at the top right of the screen.</p></div>
+      <div class="card"><h3>From an empty library</h3><p>Tap <strong>Take the app tour</strong> under the import button.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="trouble">
+  <div class="wrap prose" style="max-width:820px">
+    <h2>If something goes wrong</h2>
+    <ul>
+      <li><strong>&ldquo;The API key was rejected&rdquo; (401/403):</strong> paste the whole key again and check it has not been revoked.</li>
+      <li><strong>&ldquo;Nothing at this URL&rdquo; (404):</strong> most providers need the URL to end in <code>/v1</code>, for example <code>https://openrouter.ai/api/v1</code>.</li>
+      <li><strong>&ldquo;Rate-limiting&rdquo; (429):</strong> free tiers allow only a few requests. Wait a minute, pick another free model, or continue tomorrow.</li>
+      <li><strong>&ldquo;The model answered with nothing&rdquo;:</strong> some reasoning models spend their budget thinking. Choose a different model.</li>
+      <li><strong>Android closes the app during on-device conversion:</strong> pick a smaller model and set GPU acceleration to 0.</li>
+    </ul>
+    <p>Still stuck? <a href="https://github.com/Subhajit-Roy-Partho/firebrat/issues/new?template=bug_report.yml">Open an issue</a>.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>Firebrat is licensed under the <a href="https://github.com/Subhajit-Roy-Partho/firebrat/blob/master/LICENSE">GNU AGPL-3.0</a>.</p>
+    <ul class="footer-links">
+      <li><a href="guide.html">Get started</a></li>
+      <li><a href="architecture.html">How it works</a></li>
+      <li><a href="about.html">Accessibility mission</a></li>
+      <li><a href="https://github.com/Subhajit-Roy-Partho/firebrat">GitHub</a></li>
+      <li><a href="https://github.com/Subhajit-Roy-Partho/firebrat/releases">Releases</a></li>
+    </ul>
+  </div>
+</footer>
+
+<script src="assets/main.js"></script>
+</body>
+</html>
