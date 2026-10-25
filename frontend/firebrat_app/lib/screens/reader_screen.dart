@@ -6,6 +6,8 @@ import '../state/library_providers.dart';
 import '../state/reader_providers.dart';
 import '../state/settings_providers.dart';
 import '../theme/app_theme.dart';
+import '../state/cast_provider.dart';
+import 'cast_screen.dart';
 import 'focus_mode_screen.dart';
 import 'source_pdf_screen.dart';
 import '../widgets/book_cover.dart';
@@ -87,6 +89,14 @@ class ReaderScreen extends ConsumerWidget {
               MaterialPageRoute(builder: (_) => FocusModeScreen(bookId: bookId)),
             ),
           ),
+          if (ref.watch(castProvider(bookId)).value != null)
+            IconButton(
+              icon: const Icon(Icons.groups_rounded),
+              tooltip: 'Cast & voices',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => CastScreen(bookId: bookId)),
+              ),
+            ),
           _SourcePageAction(bookId: bookId),
           IconButton(
             icon: const Icon(Icons.text_fields_rounded),

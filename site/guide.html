@@ -122,7 +122,22 @@
   </div>
 </section>
 
-<section id="models">
+<section id="ebooks">
+  <div class="wrap prose" style="max-width:820px">
+    <span class="eyebrow">Books you can convert</span>
+    <h2>PDF, EPUB, MOBI and AZW</h2>
+    <p>Besides PDFs and ZIPs of chapter PDFs, Firebrat converts <strong>DRM-free EPUB, MOBI, AZW and AZW3</strong> ebooks, on your phone or on a server. Ebooks are read as text in reading order, using the book&rsquo;s chapter titles, which makes them a great fit for <a href="#novels">Novel mode</a> with character voices.</p>
+    <ul>
+      <li>Pictures are not extracted from ebooks, and there is no &ldquo;Source page&rdquo; button because there is no PDF.</li>
+      <li>DRM-protected books and Kindle files with HUFF/CDIC compression are refused with a clear message. Remove DRM with your own tools, or convert to EPUB first (for example with Calibre).</li>
+      <li>In the app: Conversion settings &rsaquo; On-device (or Server), then <strong>Convert a book</strong> on the Conversions screen.</li>
+      <li><strong>Queue:</strong> on-device conversions run one at a time. Pick several books at once, or keep adding while one converts; <strong>Stop</strong> ends the current one and the next starts.</li>
+      <li><strong>Keep it running:</strong> conversion continues in the background with the screen off. For a long book allow unrestricted battery use for Firebrat (the Conversions screen has a button for it) and keep the phone charging.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="alt" id="models">
   <div class="wrap">
     <div class="section-head">
       <span class="eyebrow">On-device</span>
@@ -145,7 +160,7 @@
   </div>
 </section>
 
-<section class="alt" id="novels">
+<section id="novels">
   <div class="wrap">
     <div class="section-head">
       <span class="eyebrow">Two modes</span>
@@ -164,6 +179,8 @@ Queen of Hearts=female stern</code></pre>
         <p>Names match without regard to case, and a short name such as &ldquo;Hatter&rdquo; also matches &ldquo;Mad Hatter&rdquo;. Overrides that match nobody are reported in the conversion log, so typos are easy to spot.</p>
         <h3>Let the web figure it out</h3>
         <p>Turn on <strong>Research characters online</strong>. Firebrat finds the book&rsquo;s Wikipedia article and asks your LLM to describe each character&rsquo;s age and temperament, then applies it. <strong>Only the title and character names are sent, never the book&rsquo;s text.</strong> This needs an LLM URL, key and model (see above) or a server. Your own overrides always win over research, and any failure simply skips the step.</p>
+        <h3>Check who was found</h3>
+        <p>After a novel is converted, open <strong>Cast &amp; voices</strong> (the people icon in the reader, or long-press the book in your library). It lists every speaker with their number of lines, shows what share of the book&rsquo;s dialogue was attributed to a named character (the rest is read by the narrator), and shows each character&rsquo;s age, temperament and voice, plus what the web research found and missed. A character appears only when the book tags their lines (&ldquo;Elizabeth said&rdquo;), so the percentage is the honest measure of coverage.</p>
         <h3>Illustrated / technical</h3>
         <p>For textbooks, datasheets and papers: figures, tables and formulas stay on screen and highlighted exactly while they are being discussed, and <strong>Source page</strong> opens the original PDF page.</p>
       </div>

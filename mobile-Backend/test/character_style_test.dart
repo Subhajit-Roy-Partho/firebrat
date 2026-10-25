@@ -7,6 +7,24 @@ const _pages = [
 ];
 
 void main() {
+  test('coverage: lines per speaker and how much dialogue was attributed', () {
+    const pages = [RawPage(pageIdx: 0, text: '“One,” Alice said. “Two,” Alice said. “Three,” said Bob. “Nobody tags this one.” “Nor this.”')];
+    final plan = NovelBookPlan.analyze(pages);
+    expect(plan.dialogueTotal, 5);
+    expect(plan.dialogueAttributed, 3);
+    expect(plan.characters.firstWhere((c) => c.name == 'Alice').lines, 2);
+    expect(plan.characters.firstWhere((c) => c.name == 'Bob').lines, 1);
+    final json = plan.toJson();
+    expect(json['dialogue'], {'total': 5, 'attributed': 3});
+    expect((json['characters'] as List).first['lines'], isA<int>());
+  });
+  researchCoverageTests();
+  test('titled speakers keep their whole name', () {
+    const pages = [RawPage(pageIdx: 0, text: '“Indeed,” said Mr. Darcy. “Never,” Elizabeth replied. “Oh!” cried Mrs. Bennet. “Quite so,” said Lady Catherine de Bourgh.')];
+    final names = NovelBookPlan.analyze(pages).characters.map((c) => c.name).toSet();
+    expect(names, containsAll(['Mr. Darcy', 'Elizabeth', 'Mrs. Bennet']));
+    expect(names, isNot(contains('Mr')));
+  });
   overrideMatchingTests();
   test('user trait words in an override become traits, the rest is the voice', () {
     final plan = NovelBookPlan.analyze(_pages, voiceOverrides: {'Bob': 'Michael, elder gruff', 'Dan': 'child cheerful'});
@@ -104,14 +122,80 @@ void main() {
   });
 }
 
+void researchCoverageTests() {
+  test('a large cast is researched in batches, each with the paragraphs about those characters', () async {
+    final names = [for (var i = 1; i <= 25; i++) 'Person$i'];
+    final article = [for (final n in names) '${n.toLowerCase()} appears here. $n is a gruff old man in the story, described at length.'].join('\n');
+    final prompts = <String>[];
+    final dio = Dio()..httpClientAdapter = _Fake((o) {
+      if (o.uri.host == 'en.wikipedia.org' && o.queryParameters['list'] == 'search') {
+        return {'query': {'search': [{'title': 'Big Novel'}]}};
+      }
+      if (o.uri.host == 'en.wikipedia.org') {
+        return {'query': {'pages': {'1': {'extract': article}}}};
+      }
+      final user = ((o.data as Map)['messages'] as List).last['content'] as String;
+      prompts.add(user);
+      final asked = RegExp(r'Characters: (.*)').firstMatch(user)!.group(1)!.split(', ');
+      return {'choices': [{'message': {'content': '{${asked.map((n) => '"$n":{"gender":"male","age":"elder","temperament":"gruff"}').join(',')}}'}}]};
+    });
+    final result = await CharacterResearcher(llm: LlmEndpoint(baseUrl: 'x.test', apiKey: 'k', dio: dio), model: 'm', dio: dio)
+        .research(title: 'Big Novel', names: names);
+    expect(prompts.length, 3); // 10 + 10 + 5
+    expect(result.traits.length, 25);
+    expect(result.missing, isEmpty);
+    expect(prompts.first, contains('Person1 is a gruff'));
+    expect(prompts.first, isNot(contains('Person25 is a gruff'))); // not stuffed with the whole article
+    expect(result.toJson()['described'], 25);
+  });
+
+  test('aliases with no matching paragraph still get context; unmatched names are reported missing', () async {
+    final ctx = CharacterResearcher.contextFor(['Lizzy'], [(title: 'T', url: 'u', text: 'Elizabeth Bennet is the second daughter, witty and cheerful. ' * 3)]);
+    expect(ctx, contains('Elizabeth Bennet'));
+    final dio = Dio()..httpClientAdapter = _Fake((o) {
+      if (o.uri.host == 'en.wikipedia.org' && o.queryParameters['list'] == 'search') {
+        return {'query': {'search': [{'title': 'T'}]}};
+      }
+      if (o.uri.host == 'en.wikipedia.org') return {'query': {'pages': {'1': {'extract': 'Lizzy is young and cheerful. Zed is mentioned too.'}}}};
+      return {'choices': [{'message': {'content': '{"Lizzy":{"gender":"female","age":"young","temperament":"cheerful"},"Zed":{}}'}}]};
+    });
+    final result = await CharacterResearcher(llm: LlmEndpoint(baseUrl: 'x.test', apiKey: 'k', dio: dio), model: 'm', dio: dio)
+        .research(title: 'T', names: ['Lizzy', 'Zed']);
+    expect(result.traits.keys, ['Lizzy']);
+    expect(result.missing, ['Zed']);
+  });
+
+  test('a rate-limited LLM call is retried with backoff and then succeeds', () async {
+    var calls = 0;
+    final dio = Dio()..httpClientAdapter = _Fake((o) {
+      calls++;
+      return {'choices': [{'message': {'content': 'ready'}}]};
+    }, statusFor: (n) => n < 3 ? 429 : 200);
+    final llm = LlmEndpoint(baseUrl: 'x.test', apiKey: 'k', dio: dio, retryDelays: const [Duration.zero, Duration.zero]);
+    expect(await llm.chat(model: 'm', messages: const [{'role': 'user', 'content': 'hi'}]), 'ready');
+    expect(calls, 3);
+    final dead = Dio()..httpClientAdapter = _Fake((o) => {'error': {'message': 'busy'}}, status: 429);
+    await expectLater(LlmEndpoint(baseUrl: 'x.test', apiKey: 'k', dio: dead, retryDelays: const [Duration.zero]).chat(model: 'm', messages: const []),
+        throwsA(isA<LlmEndpointException>().having((e) => e.message, 'm', contains('rate-limiting'))));
+  });
+
+  test('research defaults to on and does not need the cloud helper', () {
+    expect(const OnDeviceModeSettings().researchCharacters, isTrue);
+    expect(const OnDeviceModeSettings().allowCloudFallback, isFalse);
+  });
+}
+
 class _Fake implements HttpClientAdapter {
   final Object Function(RequestOptions) handler;
   final int status;
-  _Fake(this.handler, {this.status = 200});
+  final int Function(int callNumber)? statusFor;
+  int _n = 0;
+  _Fake(this.handler, {this.status = 200, this.statusFor});
   @override
   Future<ResponseBody> fetch(RequestOptions options, Stream<List<int>>? requestStream, Future<void>? cancelFuture) async {
     final body = handler(options);
-    return ResponseBody.fromString(jsonEncodeBody(body), status, headers: {Headers.contentTypeHeader: ['application/json']});
+    _n++;
+    return ResponseBody.fromString(jsonEncodeBody(body), statusFor?.call(_n) ?? status, headers: {Headers.contentTypeHeader: ['application/json']});
   }
   @override
   void close({bool force = false}) {}

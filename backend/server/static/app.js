@@ -103,7 +103,7 @@ document.getElementById('upload').addEventListener('submit', async (e) => {
   e.preventDefault();
   const msg = document.getElementById('uploadmsg');
   const file = document.getElementById('pdf').files[0];
-  if (!file) { msg.textContent = 'pick a PDF or a ZIP of PDFs first.'; return; }
+  if (!file) { msg.textContent = 'pick a PDF, a ZIP of PDFs, or an EPUB/MOBI/AZW book first.'; return; }
   const fd = new FormData();
   fd.append('file', file);
   fd.append('title', document.getElementById('title').value);

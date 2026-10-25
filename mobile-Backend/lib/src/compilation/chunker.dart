@@ -25,7 +25,7 @@ List<PageChunk> chunkLocalPages(List<RawPage> pages, {int maxChars = 2000}) {
         if (boundary > maxChars ~/ 2) end = boundary + 1;
       }
       chunks.add(PageChunk(chunkIdx: chunks.length, pages: [
-        RawPage(pageIdx: page.pageIdx, text: remaining.substring(0, end)),
+        RawPage(pageIdx: page.pageIdx, text: remaining.substring(0, end), title: page.title),
       ]));
       remaining = remaining.substring(end);
     }

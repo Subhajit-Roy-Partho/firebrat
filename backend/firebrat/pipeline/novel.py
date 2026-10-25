@@ -9,20 +9,33 @@ import re
 from firebrat.pipeline import character_traits as ct
 
 _QUOTE = re.compile(r'“[^”]+”|"[^"\n]+"')
-_NAME = r'([A-Z][a-z]+(?: [A-Z][a-z]+)?)'
-_VERB = r'(?:said|asked|replied|whispered|shouted|answered|cried|murmured)'
+# An optional title ('Mr. Darcy', 'Lady Catherine') so the speaker is the whole name.
+_TITLES = r'(?:(?:Mr|Mrs|Miss|Ms|Dr|Lady|Lord|Sir|Colonel|Captain|Major|Professor|Reverend|Uncle|Aunt)\.?\s+)?'
+_NAME = r'(' + _TITLES + r'[A-Z][a-z]+(?: [A-Z][a-z]+)?)'
+_VERB = r'(?:said|asked|replied|whispered|shouted|answered|cried|murmured|exclaimed|called|remarked|continued|added)'
+# A tag can follow the quote ("Elizabeth said" / "said Mr. Darcy") or precede it.
 _AFTER = re.compile(r'^\s*[,;:]?\s*' + _NAME + r'\s+' + _VERB + r'\b')
+_AFTER_INVERTED = re.compile(r'^\s*[,;:]?\s*' + _VERB + r'\s+' + _NAME)
 _BEFORE = re.compile(_NAME + r'\s+' + _VERB + r'\s*[,;:]?\s*$')
+_BEFORE_INVERTED = re.compile(_VERB + r'\s+' + _NAME + r'\s*[,;:]?\s*$')
 _EXCLUDE = {'He', 'She', 'They', 'It', 'I', 'We', 'You', 'The', 'A', 'An'}
 
 
 def _speaker(text, match):
     # Limit evidence to the immediate tag so another sentence cannot assign it.
-    tag = _AFTER.match(text[match.end():match.end() + 100])
-    if not tag:
-        tag = _BEFORE.search(text[max(0, match.start() - 100):match.start()])
+    after = text[match.end():match.end() + 100]
+    before = text[max(0, match.start() - 100):match.start()]
+    for pattern, source in ((_AFTER, after), (_AFTER_INVERTED, after)):
+        tag = pattern.match(source)
+        if tag:
+            break
+    else:
+        for pattern in (_BEFORE, _BEFORE_INVERTED):
+            tag = pattern.search(before)
+            if tag:
+                break
     name = tag.group(1) if tag else None
-    return name if name and name.split()[0] not in _EXCLUDE else None
+    return name if name and name.split()[0].rstrip('.') not in _EXCLUDE else None
 
 
 def infer_voice_gender(name, pages):
@@ -73,16 +86,19 @@ def apply_traits(roster, researched, user_traits):
 
 def compile_novel(raw: dict, researched=None, user_traits=None) -> dict:
     pages = sorted(raw.get('pages', []), key=lambda p: p['page_idx'])
-    evidence = {}
+    evidence, line_counts, total, attributed = {}, {}, 0, 0
     for page in pages:
         text = page.get('text') or page.get('markdown') or ''
         for quote in _QUOTE.finditer(text):
+            total += 1
             name = _speaker(text, quote)
             if name:
+                attributed += 1
+                line_counts[name] = line_counts.get(name, 0) + 1
                 evidence.setdefault(name, set()).add(page['page_idx'])
     # Scan every page before assigning styles; encounter order has no effect.
     roster = [dict(character_id=f'character_{i + 1:04d}', name=name,
-                   evidence_pages=sorted(evidence[name]),
+                   evidence_pages=sorted(evidence[name]), lines=line_counts[name],
                    voice_style={'pitch_semitones': (-2, 2, -1, 1)[i % 4],
                                 'exaggeration': (0.3, 0.5, 0.35, 0.45)[i % 4]})
               for i, name in enumerate(sorted(evidence))]
@@ -128,12 +144,35 @@ def compile_novel(raw: dict, researched=None, user_traits=None) -> dict:
             segments[1]['text'] = segments[0]['text'] + segments[1]['text']
             segments.pop(0)
         sections.append({'section_id': f'sec_{len(sections) + 1:04d}',
-                         'title': f"Page {page['page_idx'] + 1}",
+                         'title': page.get('title') or f"Page {page['page_idx'] + 1}",
                          'source_pages': [page['page_idx']], 'segments': segments})
     if not sections:
         raise ValueError('Novel has no extracted text; extract/OCR the source before conversion')
     return {'book_id': raw.get('book_id'), 'content_mode': 'novel',
-            'character_roster': roster, 'sections': sections, 'formulas': []}
+            'character_roster': roster, 'sections': sections, 'formulas': [],
+            # How much dialogue a named speaker was found for; the rest is read by the narrator.
+            'dialogue_stats': {'total': total, 'attributed': attributed}}
+
+
+def write_character_roster(pkg_dir, compiled):
+    """character_roster.json at the package root: what the app's "Cast & voices" screen
+    shows so a reader can verify who was found. (compiled.json itself is not shipped.)"""
+    roster = {
+        'engine': 'chatterbox',
+        'dialogue': compiled.get('dialogue_stats', {'total': 0, 'attributed': 0}),
+        'characters': [
+            {'name': c['name'], 'lines': c.get('lines', 0), 'evidence_pages': c['evidence_pages'],
+             'voice_gender': c.get('voice_gender', 'unknown'), 'traits': c.get('traits', {}),
+             'voice_style': c['voice_style']}
+            for c in compiled['character_roster']],
+    }
+    if compiled.get('character_research'):
+        roster['research'] = compiled['character_research']
+    if compiled.get('unmatched_character_traits'):
+        roster['unmatched_overrides'] = compiled['unmatched_character_traits']
+    os.makedirs(pkg_dir, exist_ok=True)
+    with open(os.path.join(pkg_dir, 'character_roster.json'), 'w', encoding='utf-8') as f:
+        json.dump(roster, f, ensure_ascii=False, indent=2)
 
 
 def run_novel_compilation(raw_path, output_dir, book_id=None, title=None,
@@ -168,6 +207,7 @@ def run_novel_compilation(raw_path, output_dir, book_id=None, title=None,
         compiled['character_research'] = report
     if book_id:
         compiled['book_id'] = book_id
+    write_character_roster(output_dir, compiled)
     for path in {os.path.join(os.path.dirname(raw_path), 'compiled.json'),
                  os.path.join(output_dir, 'compiled.json')}:
         with open(path, 'w', encoding='utf-8') as f:

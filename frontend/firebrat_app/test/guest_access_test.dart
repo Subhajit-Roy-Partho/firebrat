@@ -70,7 +70,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Sign in for server conversion'), findsOneWidget);
     expect(find.text('Use on-device conversion'), findsOneWidget);
-    expect(find.text('Convert a PDF or ZIP'), findsNothing);
+    expect(find.text('Convert a book'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

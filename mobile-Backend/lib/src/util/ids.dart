@@ -5,7 +5,7 @@
 library;
 
 String sanitizeBookId(String pdfFileName) {
-  final stem = pdfFileName.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '');
+  final stem = pdfFileName.replaceAll(RegExp(r'\.(pdf|epub|mobi|azw3?)$', caseSensitive: false), '');
   final cleaned = stem
       .replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '-')
       .replaceAll(RegExp(r'^-+|-+$'), '')

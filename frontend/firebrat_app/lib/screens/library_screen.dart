@@ -19,6 +19,8 @@ import '../widgets/app_drawer.dart';
 import '../widgets/book_card.dart';
 import '../widgets/book_cover.dart';
 import 'chapter_reader_screen.dart';
+import '../state/cast_provider.dart';
+import 'cast_screen.dart';
 import 'conversions_screen.dart';
 import 'reader_screen.dart';
 import 'tour_screen.dart';
@@ -363,6 +365,8 @@ class LibraryScreen extends ConsumerWidget {
     } catch (e) {
       notifier.clear(book.bookId);
       unawaited(NotificationService.cancelDownloadNotification(book.bookId));
+      // A cancel-and-clear already told the user; don't also say "paused".
+      if (DownloadManager.consumeDiscarded(book.bookId)) return;
       if (context.mounted) {
         // User-initiated pause surfaces as a Dio cancellation — the .part
         // file stays, and tapping the card resumes. Not an error.
@@ -380,6 +384,9 @@ class LibraryScreen extends ConsumerWidget {
   /// deletion is irreversible).
   Future<void> _showBookActions(
       BuildContext context, WidgetRef ref, BookSummary book, bool isLocal) async {
+    // Load the cast first: a provider read inside the sheet would still be empty.
+    final hasCast = isLocal && (await ref.read(castProvider(book.bookId).future)) != null;
+    if (!context.mounted) return;
     final catalogBooks = ref.read(catalogProvider).value ?? const <BookSummary>[];
     final isOnServer = catalogBooks.any((b) => b.bookId == book.bookId);
     await showModalBottomSheet<void>(
@@ -403,6 +410,16 @@ class LibraryScreen extends ConsumerWidget {
                 _openOrDownload(context, ref, book, isLocal);
               },
             ),
+            if (hasCast)
+              ListTile(
+                leading: const Icon(Icons.groups_rounded),
+                title: const Text('Cast & voices'),
+                subtitle: const Text('Check which characters were found and how they sound.'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => CastScreen(bookId: book.bookId)));
+                },
+              ),
             if (isLocal)
               ListTile(
                 leading: const Icon(Icons.delete_outline_rounded),

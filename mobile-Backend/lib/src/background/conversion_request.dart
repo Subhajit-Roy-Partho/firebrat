@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import '../util/ids.dart';
 
 /// Everything the background task isolate needs to run one conversion.
 /// `flutter_foreground_task`'s `TaskHandler` runs in a genuinely separate
@@ -40,14 +41,14 @@ class ConversionRequest {
     this.titleOverride,
     this.allowCloudFallback = false,
     this.cloudForAll = false,
-    this.researchCharacters = false,
+    this.researchCharacters = true,
     this.contentMode = 'illustrated',
     required this.llmBaseUrl,
     required this.llmApiKey,
     required this.llmModel,
     this.onDeviceLlmModelId,
     this.onDeviceGpuLayers = 0,
-    this.voiceEngine = 'stockTts',
+    this.voiceEngine = 'kokoroOnnx',
     this.kokoroVoice = 'Bella',
     this.maleVoice = 'Adam',
     this.femaleVoice = 'Sarah',
@@ -56,6 +57,11 @@ class ConversionRequest {
 
   /// Every source PDF in chapter order — [pdfPaths] when set, else the
   /// legacy single [pdfPath]. The pipeline merges them at the text layer.
+  /// The folder name (under the books root) this conversion writes into; mirrors
+  /// how the pipeline names a book, so a cancelled run's leftovers can be found.
+  String get bookId => sanitizeBookId(
+      titleOverride != null ? '$titleOverride.pdf' : sourcePdfPaths.first.split(Platform.pathSeparator).last);
+
   List<String> get sourcePdfPaths =>
       (pdfPaths != null && pdfPaths!.isNotEmpty) ? pdfPaths! : [pdfPath];
 
@@ -88,14 +94,14 @@ class ConversionRequest {
         titleOverride: json['titleOverride'] as String?,
         allowCloudFallback: json['allowCloudFallback'] as bool? ?? false,
         cloudForAll: json['cloudForAll'] as bool? ?? false,
-        researchCharacters: json['researchCharacters'] as bool? ?? false,
+        researchCharacters: json['researchCharacters'] as bool? ?? true,
         contentMode: json['contentMode'] as String? ?? 'illustrated',
         llmBaseUrl: json['llmBaseUrl'] as String,
         llmApiKey: json['llmApiKey'] as String,
         llmModel: json['llmModel'] as String,
         onDeviceLlmModelId: json['onDeviceLlmModelId'] as String?,
         onDeviceGpuLayers: json['onDeviceGpuLayers'] as int? ?? 0,
-        voiceEngine: json['voiceEngine'] as String? ?? 'stockTts',
+        voiceEngine: json['voiceEngine'] as String? ?? 'kokoroOnnx',
         kokoroVoice: json['kokoroVoice'] as String? ?? 'Bella',
         maleVoice: json['maleVoice'] as String? ?? 'Adam',
         femaleVoice: json['femaleVoice'] as String? ?? 'Sarah',

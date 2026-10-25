@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mobile_backend_pipeline/src/extraction/ocr_fallback.dart';
-import 'package:mobile_backend_pipeline/src/extraction/page_visuals.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

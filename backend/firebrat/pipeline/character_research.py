@@ -21,6 +21,8 @@ log = logging.getLogger(__name__)
 _API = "https://en.wikipedia.org/w/api.php"
 _HEADERS = {"User-Agent": "Firebrat/1.7 (https://github.com/Subhajit-Roy-Partho/firebrat)"}
 _SYSTEM = ("You help cast an audiobook. Using ONLY the reference text, describe each listed character. "
+           "A listed name may be a nickname, a title or a surname (for example 'Lizzy' is Elizabeth Bennet, and "
+           "'Mr. Darcy' is Fitzwilliam Darcy): match it to the right person in the text. "
            "Answer with one JSON object mapping each name exactly as given to "
            '{"gender":"male|female|unknown","age":"child|young|adult|elder|unknown",'
            '"temperament":"calm|cheerful|stern|gruff|gentle|energetic|mysterious|unknown"}. '
@@ -50,53 +52,99 @@ def parse_traits_reply(reply, names):
     return out
 
 
-def _find_article(title, names, session):
-    hits = session.get(_API, params={"action": "query", "list": "search", "format": "json",
-                                     "srlimit": 3, "srsearch": f'"{title}" novel'},
-                       headers=_HEADERS, timeout=20).json().get("query", {}).get("search", [])
-    for hit in hits:
-        page_title = hit["title"]
+_HONORIFICS = {"mr", "mrs", "miss", "ms", "dr", "lady", "lord", "sir", "colonel", "captain", "major",
+               "professor", "reverend", "uncle", "aunt", "the", "of", "de", "van", "von"}
+BATCH_SIZE = 10
+
+
+def _name_words(names, min_len=3):
+    return {w.lower() for n in names for w in re.split(r"[\s.\-]+", n)
+            if len(w) >= min_len and w.lower() not in _HONORIFICS}
+
+
+def context_for(names, articles, max_chars=9000):
+    """Paragraphs that mention these names (whole words only), from every article;
+    falls back to the start of the first article when only aliases appear."""
+    patterns = [re.compile(r"\b" + re.escape(w) + r"\b", re.I) for w in _name_words(names)]
+    picked, size = [], 0
+    for _title, _url, text in articles:
+        for paragraph in re.split(r"\n+", text):
+            if len(paragraph.strip()) > 20 and any(p.search(paragraph) for p in patterns):
+                if size + len(paragraph) > max_chars:
+                    return "\n".join(picked)
+                picked.append(paragraph)
+                size += len(paragraph)
+    return "\n".join(picked) if picked else articles[0][2][:4000]
+
+
+def _find_articles(title, names, session, limit=3):
+    titles = []
+    for query in (f'"{title}" novel', f'characters in "{title}"'):
+        hits = session.get(_API, params={"action": "query", "list": "search", "format": "json",
+                                         "srlimit": 3, "srsearch": query},
+                           headers=_HEADERS, timeout=20).json().get("query", {}).get("search", [])
+        titles += [h["title"] for h in hits if h["title"] not in titles]
+    words = _name_words(names, min_len=4)
+    found = []
+    for page_title in titles[:5]:
         pages = session.get(_API, params={"action": "query", "prop": "extracts", "explaintext": 1,
                                           "format": "json", "titles": page_title},
                             headers=_HEADERS, timeout=30).json().get("query", {}).get("pages", {})
         extract = next(iter(pages.values()), {}).get("extract", "") if pages else ""
-        lower = extract.lower()
         # An unrelated article must not be used: it has to mention a speaker.
-        if not extract or not any(n.lower() in lower for n in names):
+        if not extract or not any(w in extract.lower() for w in words):
             continue
-        match = re.search(r"==\s*(Main )?[Cc]haracters?\s*==", extract)
-        start = match.start() if match else 0
-        return page_title, "https://en.wikipedia.org/wiki/" + quote(page_title.replace(" ", "_")), extract[start:start + 9000]
-    return None
+        found.append((page_title, "https://en.wikipedia.org/wiki/" + quote(page_title.replace(" ", "_")), extract[:60000]))
+        if len(found) >= limit:
+            break
+    return found
 
 
 def research_characters(title, names, model, chat=None, session=None):
-    """Returns ({name: traits}, report). Never raises."""
+    """Returns ({name: traits}, report). Never raises. Characters are researched in
+    batches, each given the paragraphs that mention them, so a large cast is covered."""
     report = {"status": "skipped", "source": "Wikipedia"}
     if not names:
         report["reason"] = "no named speakers were found"
         return {}, report
     try:
         session = session or requests.Session()
-        found = _find_article(title, names, session)
-        if found is None:
+        articles = _find_articles(title, names, session)
+        if not articles:
             report["reason"] = "no matching Wikipedia article mentions these characters"
             return {}, report
-        article_title, url, text = found
-        report.update(article=article_title, url=url)
+        report["articles"] = [a[0] for a in articles]
+        report["urls"] = [a[1] for a in articles]
         if chat is None:
             from firebrat.llm_client import chat_completion
 
             def chat(messages):
-                resp = chat_completion(messages, model, temperature=0, max_tokens=1500, retries=1, timeout=120)
+                resp = chat_completion(messages, model, temperature=0, max_tokens=3000, retries=2, timeout=120)
                 return resp["choices"][0]["message"]["content"] or ""
-        reply = chat([{"role": "system", "content": _SYSTEM},
-                      {"role": "user", "content": f"Characters: {', '.join(names)}\n\nReference text:\n{text}"}])
-        traits = parse_traits_reply(reply, names)
+        traits, last_error = {}, None
+        for start in range(0, len(names), BATCH_SIZE):
+            batch = names[start:start + BATCH_SIZE]
+            context = context_for(batch, articles)
+            for attempt in range(2):
+                system = _SYSTEM if attempt == 0 else _SYSTEM + " Reply with the JSON object and nothing else."
+                try:
+                    reply = chat([{"role": "system", "content": system},
+                                  {"role": "user", "content": f"Characters: {', '.join(batch)}\n\nReference text:\n{context}"}])
+                except Exception as exc:  # the client already retried rate limits
+                    last_error = str(exc)
+                    break
+                parsed = parse_traits_reply(reply, batch)
+                if parsed:
+                    traits.update(parsed)
+                    break
         if not traits:
-            report["reason"] = "the model returned no usable character descriptions"
+            report["reason"] = last_error or "the model returned no usable character descriptions"
             return {}, report
         report["status"] = "applied"
+        report["described"] = len(traits)
+        missing = [n for n in names if n not in traits]
+        if missing:
+            report["not_described"] = missing
         return traits, report
     except Exception as exc:  # network, JSON, provider error: never fail the conversion
         log.warning("Character research skipped: %s", exc)

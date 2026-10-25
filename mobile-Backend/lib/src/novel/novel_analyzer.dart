@@ -27,16 +27,19 @@ class NovelCharacter {
   /// Age/temperament (and gender) from web research or the user. Drives the
   /// delivery style on top of the narrator-or-male/female voice.
   final CharacterTraits traits;
+
+  /// How many quoted lines the book attributes to this character.
+  final int lines;
   const NovelCharacter(this.id, this.name, this.evidencePages, this.style,
     {this.voiceGender = 'unknown', this.genderEvidence = const [], this.voiceOverride,
-     this.traits = const CharacterTraits()});
+     this.traits = const CharacterTraits(), this.lines = 0});
 
   NovelCharacter copyWith({CharacterVoiceStyle? style, String? voiceGender,
       List<String>? genderEvidence, CharacterTraits? traits}) =>
     NovelCharacter(id, name, evidencePages, style ?? this.style,
       voiceGender: voiceGender ?? this.voiceGender,
       genderEvidence: genderEvidence ?? this.genderEvidence,
-      voiceOverride: voiceOverride, traits: traits ?? this.traits);
+      voiceOverride: voiceOverride, traits: traits ?? this.traits, lines: lines);
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
@@ -45,6 +48,7 @@ class NovelCharacter {
     'voice_gender': voiceGender, 'gender_evidence': genderEvidence,
     'voice_override': voiceOverride,
     'traits': traits.toJson(),
+    'lines': lines,
   };
 }
 
@@ -68,12 +72,22 @@ class NovelBookPlan {
   /// User override names that matched no speaker found in the book (usually a
   /// typo, or a name the book never tags as speaking).
   final List<String> unmatchedOverrides;
-  const NovelBookPlan(this.characters, this.scannedPages, {this.unmatchedOverrides = const []});
+
+  /// Every quoted line in the book, and how many of them a named speaker was
+  /// found for. The rest are read by the narrator. This is the honest measure of
+  /// how much of the dialogue the casting actually covers.
+  final int dialogueTotal;
+  final int dialogueAttributed;
+  const NovelBookPlan(this.characters, this.scannedPages,
+      {this.unmatchedOverrides = const [], this.dialogueTotal = 0, this.dialogueAttributed = 0});
 
   static final _dialogue = RegExp(r'“[^”\n]+”|"[^"\n]+"');
   static const _verbs =
       r'(?:said|asked|replied|answered|whispered|shouted|cried|exclaimed|murmured|called|remarked|continued|added)';
-  static const _name = r'[A-Z][a-z]+(?:[ -][A-Z][a-z]+){0,2}';
+  // An optional title ('Mr. Darcy', 'Lady Catherine', 'Colonel Fitzwilliam') so
+  // the speaker is the whole name, not just 'Mr'.
+  static const _name =
+      r'(?:(?:Mr|Mrs|Miss|Ms|Dr|Lady|Lord|Sir|Colonel|Captain|Major|Professor|Reverend|Uncle|Aunt)\.?\s+)?[A-Z][a-z]+(?:[ -][A-Z][a-z]+){0,2}';
   static final _after = RegExp(
     '^\\s*[,;:—-]?\\s*(?:($_verbs)\\s+($_name)|($_name)\\s+($_verbs))(?=[\\s.,;:!?]|\$)',
   );
@@ -110,10 +124,15 @@ class NovelBookPlan {
 
   factory NovelBookPlan.analyze(List<RawPage> pages, {Map<String, String> voiceOverrides = const {}}) {
     final evidence = <String, Set<int>>{};
+    final lineCounts = <String, int>{};
+    var total = 0, attributed = 0;
     for (final page in pages) {
       for (final quote in _dialogue.allMatches(page.text)) {
+        total++;
         final name = _speaker(page.text, quote);
         if (name != null) {
+          attributed++;
+          lineCounts[name] = (lineCounts[name] ?? 0) + 1;
           evidence.putIfAbsent(name, () => {}).add(page.pageIdx);
         }
       }
@@ -135,6 +154,7 @@ class NovelBookPlan {
             i + 1,
           ),
           voiceGender: inferred.gender, genderEvidence: inferred.evidence,
+          lines: lineCounts[name] ?? 0,
           voiceOverride: _splitOverride(voiceOverrides[matchOverrideKey(name, voiceOverrides)]).voice,
           traits: _splitOverride(voiceOverrides[matchOverrideKey(name, voiceOverrides)]).traits ?? const CharacterTraits(),
         ),
@@ -146,7 +166,8 @@ class NovelBookPlan {
       if (key != null) matched.add(key);
     }
     final plan = NovelBookPlan(characters, pages.length,
-        unmatchedOverrides: [for (final k in voiceOverrides.keys) if (!matched.contains(k)) k]);
+        unmatchedOverrides: [for (final k in voiceOverrides.keys) if (!matched.contains(k)) k],
+        dialogueTotal: total, dialogueAttributed: attributed);
     // User-supplied traits apply immediately; web research layers beneath them.
     return plan.withResearch(const {});
   }
@@ -207,7 +228,8 @@ class NovelBookPlan {
         ) : c.style,
       ));
     }
-    return NovelBookPlan(out, scannedPages, unmatchedOverrides: unmatchedOverrides);
+    return NovelBookPlan(out, scannedPages,
+        unmatchedOverrides: unmatchedOverrides, dialogueTotal: dialogueTotal, dialogueAttributed: dialogueAttributed);
   }
 
   List<NovelUtterance> split(String text) {
@@ -240,6 +262,7 @@ class NovelBookPlan {
     'attribution': 'explicit_named_speech_tags',
     'unknown_speaker': 'narrator',
     'characters': characters.map((c) => c.toJson()).toList(),
+    'dialogue': {'total': dialogueTotal, 'attributed': dialogueAttributed},
     if (unmatchedOverrides.isNotEmpty) 'unmatched_overrides': unmatchedOverrides,
   };
 }

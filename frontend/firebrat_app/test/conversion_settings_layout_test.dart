@@ -53,10 +53,10 @@ void main() {
     // first viewport misses the long model labels and voice dropdown.
     await tester.scrollUntilVisible(find.text('Device acceleration'), 160, scrollable: find.byType(Scrollable).first);
     expect(tester.takeException(), isNull);
-    await tester.scrollUntilVisible(find.text('Kokoro (on-device neural)'), 160, scrollable: find.byType(Scrollable).first);
-    await tester.ensureVisible(find.text('Kokoro (on-device neural)'));
+    await tester.scrollUntilVisible(find.text('Kokoro (on-device neural, default)'), 160, scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(find.text('Kokoro (on-device neural, default)'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Kokoro (on-device neural)'));
+    await tester.tap(find.text('Kokoro (on-device neural, default)'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Kokoro voice'), 160, scrollable: find.byType(Scrollable).first);
     expect(tester.takeException(), isNull);

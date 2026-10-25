@@ -175,4 +175,43 @@ void main() {
     await tester.longPress(find.byType(BookCard));
     expect(longPressed, 1);
   });
+
+  testWidgets('download ring follows the progress and shows the percentage', (tester) async {
+    Future<void> pump(double fraction) => tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 164,
+                height: 300,
+                child: BookCard(
+                  layout: LibraryLayout.smallCards,
+                  book: _book(title: 'Moving'),
+                  isDownloaded: false,
+                  downloadProgress: DownloadProgress(
+                    fraction: fraction,
+                    receivedBytes: (fraction * 100).round(),
+                    totalBytes: 100,
+                    phase: 'downloading',
+                  ),
+                  onTap: () {},
+                ),
+              ),
+            ),
+          ),
+        );
+    double ringValue() => tester
+        .widget<CircularProgressIndicator>(find.byKey(const ValueKey('download-ring')))
+        .value!;
+
+    await pump(0.25);
+    await tester.pumpAndSettle();
+    expect(ringValue(), closeTo(.25, .001));
+    expect(find.text('25%'), findsOneWidget);
+
+    await pump(0.70); // same widget, new progress: the ring must move
+    await tester.pumpAndSettle();
+    expect(ringValue(), closeTo(.70, .001));
+    expect(find.text('70%'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -15,8 +15,15 @@ class LlmEndpoint {
   final String apiKey;
   final Dio _dio;
 
-  LlmEndpoint({required String baseUrl, required this.apiKey, Dio? dio})
-      : baseUrl = normalizeBaseUrl(baseUrl),
+  /// Waits before retrying a rate-limited (429) or failing (5xx) chat call.
+  final List<Duration> retryDelays;
+
+  LlmEndpoint({
+    required String baseUrl,
+    required this.apiKey,
+    Dio? dio,
+    this.retryDelays = const [Duration(seconds: 4), Duration(seconds: 12)],
+  })  : baseUrl = normalizeBaseUrl(baseUrl),
         _dio = dio ?? Dio();
 
   /// Adds https:// when missing and drops trailing slashes, so
@@ -105,14 +112,24 @@ class LlmEndpoint {
     if (baseUrl.isEmpty) throw LlmEndpointException('Enter the LLM URL first.');
     if (model.trim().isEmpty) throw LlmEndpointException('Choose a model first.');
     try {
-      final r = await _dio.post<dynamic>('$baseUrl/chat/completions',
-          data: {
-            'model': model.trim(),
-            'messages': messages,
-            'max_tokens': maxTokens,
-            'temperature': temperature,
-          },
-          options: _options);
+      Response<dynamic> r;
+      for (var attempt = 0;; attempt++) {
+        r = await _dio.post<dynamic>('$baseUrl/chat/completions',
+            data: {
+              'model': model.trim(),
+              'messages': messages,
+              'max_tokens': maxTokens,
+              'temperature': temperature,
+            },
+            options: _options);
+        final code = r.statusCode ?? 0;
+        // Free tiers rate-limit in bursts: back off and try again before giving up.
+        if ((code == 429 || code >= 500) && attempt < retryDelays.length) {
+          await Future<void>.delayed(retryDelays[attempt]);
+          continue;
+        }
+        break;
+      }
       if (r.statusCode != 200) throw _problem(r, what: 'The test call');
       final choices = (r.data is Map ? r.data['choices'] : null) as List?;
       final content = choices == null || choices.isEmpty ? null : choices.first['message']?['content'];

@@ -9,6 +9,25 @@ import '../util/ids.dart';
 class PageVisuals {
   static const _channel = MethodChannel('firebrat/local_pdf');
 
+  /// A page-1 cover is used only when the first page has almost no text, like a
+  /// title page. A first page of body text or a contents list keeps the generated cover.
+  static const maxCoverTextChars = 150;
+  static bool looksLikeCover(String firstPageText) => firstPageText.trim().length < maxCoverTextChars;
+
+  /// Renders page 1 of [pdfPath] to `<bookDir>/cover.png` (Android only). Never
+  /// throws: a cover is cosmetic.
+  static Future<bool> renderCover({required String pdfPath, required String bookDir}) async {
+    if (!Platform.isAndroid) return false;
+    try {
+      await _channel.invokeMethod<String>('renderPage', {
+        'path': pdfPath, 'page': 0, 'output': '$bookDir/cover.png',
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<List<ManifestFigure>> render({
     required List<String> pdfPaths,
     required String bookDir,

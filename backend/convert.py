@@ -41,7 +41,7 @@ TTS_PY = os.environ.get("FIREBRAT_TTS_PY", "/scratch/sroy85/conda-envs/firebrat-
 
 def parse_args():
     p = argparse.ArgumentParser(description="Firebrat PDF -> audiobook package")
-    p.add_argument("pdf", help="Path to source PDF")
+    p.add_argument("pdf", help="Path to the source: a PDF, or an .epub / .mobi / .azw / .azw3 ebook (DRM-free)")
     p.add_argument("--output", "-o", default=None,
                    help="Output directory (default: backend/output)")
     p.add_argument("--book-id", default=None, help="Override book id")
@@ -89,6 +89,9 @@ def main():
         log.error("PDF not found: %s", pdf_path)
         sys.exit(2)
 
+    from firebrat.pipeline.ebook import is_ebook, run_ebook_extraction, EbookError
+    ebook = is_ebook(pdf_path)  # .epub/.mobi/.azw/.azw3: text only, no PDF stages
+
     book_id = args.book_id or sanitize_book_id(pdf_path)
     out_root = _output_dir(args)
     pkg_dir = os.path.join(out_root, book_id)
@@ -108,7 +111,19 @@ def main():
     # batch-processes every page it's given at once — so for anything but a
     # tiny test slice, extraction runs in EXTRACT_BATCH_PAGES-sized chunks,
     # each a fresh subprocess, so memory is fully released between batches.
-    if not args.skip_extraction:
+    if not args.skip_extraction and ebook:
+        log.info("Stage 1: reading ebook text (%s)", os.path.basename(pdf_path))
+        write_status(pkg_dir, status="running", stage="extracting", detail="reading ebook text", progress=0.0)
+        try:
+            stats = run_ebook_extraction(pdf_path, pkg_dir, book_id)
+            if not args.title and stats.get("title"):
+                title = stats["title"]
+            log.info("Stage 1 done: %s", stats)
+        except EbookError as e:
+            log.error("Ebook could not be read: %s", e)
+            write_status(pkg_dir, status="failed", stage="extracting", detail=str(e), error=str(e))
+            sys.exit(2)
+    if not args.skip_extraction and not ebook:
         log.info("Stage 1: extraction (batched)")
         try:
             import pymupdf
@@ -165,6 +180,11 @@ def main():
             os.makedirs(os.path.dirname(raw_json), exist_ok=True)
             with open(raw_json, "w", encoding="utf-8") as f:
                 json.dump(raw_out, f, ensure_ascii=False, indent=2)
+
+            # Page 1 as the book's cover when it looks like a cover page (little text).
+            from firebrat.pipeline.cover import render_pdf_cover
+            if all_pages and render_pdf_cover(pdf_path, pkg_dir, all_pages[0].get("text")):
+                log.info("Used page 1 as the front cover")
 
             stats = {
                 "book_id": book_id, "page_count": len(all_pages),
@@ -258,7 +278,7 @@ def main():
     if compiled_path and not os.path.isfile(os.path.join(pkg_dir, "manifest.json")):
         try:
             build_manifest(pkg_dir, book_id, title, os.path.basename(pdf_path), voice_ref=args.voice_ref,
-                           source_pdf_path=pdf_path)
+                           source_pdf_path=None if ebook else pdf_path)
         except Exception as e:
             log.warning("Early manifest build failed (non-fatal): %s", e)
 
@@ -433,7 +453,7 @@ def main():
     # ── Final manifest ───────────────────────────────────────────
     try:
         mpath = build_manifest(pkg_dir, book_id, title, os.path.basename(pdf_path), voice_ref=args.voice_ref,
-                               source_pdf_path=pdf_path)
+                               source_pdf_path=None if ebook else pdf_path)
         log.info("Manifest: %s", mpath)
         # Brief summary
         with open(mpath, "r", encoding="utf-8") as f:

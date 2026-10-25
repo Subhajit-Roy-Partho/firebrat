@@ -12,6 +12,14 @@ import 'on_device_conversion_providers.dart';
 /// server job to poll for this path, so this is its own tiny piece of
 /// state instead of going through `state/conversions_providers.dart`'s
 /// server-backed `jobsProvider`.
+/// One line of the conversion's activity log.
+class RunEvent {
+  final DateTime at;
+  final String stage;
+  final String detail;
+  const RunEvent(this.at, this.stage, this.detail);
+}
+
 class OnDeviceRunState {
   final String? stage;
   final String? detail;
@@ -19,7 +27,36 @@ class OnDeviceRunState {
   final String? error;
   final bool done;
 
-  const OnDeviceRunState({this.stage, this.detail, this.fraction, this.error, this.done = false});
+  /// What happened so far (newest last), kept for the book's detail screen.
+  final List<RunEvent> events;
+  final DateTime? startedAt;
+
+  const OnDeviceRunState({
+    this.stage,
+    this.detail,
+    this.fraction,
+    this.error,
+    this.done = false,
+    this.events = const [],
+    this.startedAt,
+  });
+
+  /// The next state after a progress report, extending the activity log
+  /// (only when the message changed, capped so a long book stays small).
+  OnDeviceRunState next({String? stage, String? detail, double? fraction, String? error, bool done = false}) {
+    final last = events.isEmpty ? null : events.last;
+    final changed = stage != null && detail != null && (last == null || last.stage != stage || last.detail != detail);
+    final log = changed ? [...events, RunEvent(DateTime.now(), stage, detail)] : events;
+    return OnDeviceRunState(
+      stage: stage ?? this.stage,
+      detail: detail ?? this.detail,
+      fraction: fraction ?? this.fraction,
+      error: error,
+      done: done,
+      events: log.length > 120 ? log.sublist(log.length - 120) : log,
+      startedAt: startedAt ?? DateTime.now(),
+    );
+  }
 }
 
 class OnDeviceRunNotifier extends Notifier<OnDeviceRunState?> {
@@ -46,19 +83,63 @@ final onDeviceRunProvider = NotifierProvider<OnDeviceRunNotifier, OnDeviceRunSta
 /// so no on-device PDF merge library is needed (none mature exists for
 /// pure-Dart; the pipeline only ever reads the text layer anyway).
 Future<String> runOnDeviceConversion(WidgetRef ref, List<String> pdfPaths,
+    {String? titleOverride}) {
+  // The conversion outlives its screen. Do not retain its WidgetRef in a
+  // completion callback: navigating back would prevent the library refresh.
+  final container = ProviderScope.containerOf(ref.context, listen: false);
+  return runOnDeviceConversionIn(container, pdfPaths, titleOverride: titleOverride);
+}
+
+/// Thrown by the running conversion's future when the user stops it.
+class ConversionCancelled implements Exception {
+  @override
+  String toString() => 'Conversion stopped.';
+}
+
+/// Cancels the conversion started by [runOnDeviceConversionIn], if any: ends the
+/// background service, removes what it had written so far (only if the book was
+/// never completed), and makes the running future throw [ConversionCancelled].
+Future<void> cancelOnDeviceConversion(ProviderContainer container) async {
+  final active = _active;
+  await BackgroundConversionRunner.cancel();
+  if (active != null) {
+    await _removePartialBook(active.request);
+    active.cancel();
+  }
+  container.read(onDeviceRunProvider.notifier).set(null);
+}
+
+class _ActiveRun {
+  final ConversionRequest request;
+  final void Function() cancel;
+  _ActiveRun(this.request, this.cancel);
+}
+
+_ActiveRun? _active;
+
+Future<void> _removePartialBook(ConversionRequest request) async {
+  try {
+    final dir = Directory('${request.booksRootDir}/${request.bookId}');
+    // Never delete a finished book that is merely being re-converted.
+    if (await dir.exists() && !await File('${dir.path}/manifest.json').exists()) {
+      await dir.delete(recursive: true);
+    }
+  } catch (_) {}
+}
+
+/// Same as [runOnDeviceConversion] but driven by a container, so it can run
+/// from the queue without any screen being open.
+Future<String> runOnDeviceConversionIn(ProviderContainer container, List<String> pdfPaths,
     {String? titleOverride}) async {
   if (pdfPaths.isEmpty) {
     throw ArgumentError('runOnDeviceConversion needs at least one PDF');
   }
-  // The conversion outlives its screen. Do not retain its WidgetRef in a
-  // completion callback: navigating back would prevent the library refresh.
-  final container = ProviderScope.containerOf(ref.context, listen: false);
   final settings = container.read(conversionModeProvider);
   if (!settings.isOnDeviceConfigured) {
     throw StateError('On-device LLM url/api key/model are not configured — see Conversion settings.');
   }
   final notifier = container.read(onDeviceRunProvider.notifier);
-  notifier.set(const OnDeviceRunState(stage: 'starting', detail: 'preparing'));
+  notifier.set(OnDeviceRunState(stage: 'starting', detail: 'preparing', startedAt: DateTime.now()));
 
   await BackgroundConversionRunner.requestPermissions();
   final booksDir = await container.read(downloadManagerProvider).booksDir();
@@ -67,22 +148,23 @@ Future<String> runOnDeviceConversion(WidgetRef ref, List<String> pdfPaths,
   late final void Function(Object data) listener;
   listener = (Object data) {
     if (data is! Map) return;
+    final prev = container.read(onDeviceRunProvider) ?? const OnDeviceRunState();
     if (data['error'] != null) {
       final error = data['error'].toString();
-      notifier.set(OnDeviceRunState(error: error, done: true));
+      notifier.set(prev.next(error: error, done: true));
       BackgroundConversionRunner.removeProgressListener(listener);
       if (!completer.isCompleted) completer.completeError(StateError(error));
       return;
     }
     if (data['done'] == true) {
-      notifier.set(const OnDeviceRunState(stage: 'done', detail: 'complete', fraction: 1.0, done: true));
+      notifier.set(prev.next(stage: 'done', detail: 'complete', fraction: 1.0, done: true));
       container.invalidate(localBooksProvider);
       container.invalidate(catalogProvider);
       BackgroundConversionRunner.removeProgressListener(listener);
       if (!completer.isCompleted) completer.complete(data['bookId'] as String);
       return;
     }
-    notifier.set(OnDeviceRunState(
+    notifier.set(prev.next(
       stage: data['stage'] as String?,
       detail: data['detail'] as String?,
       fraction: (data['fraction'] as num?)?.toDouble(),
@@ -118,11 +200,19 @@ Future<String> runOnDeviceConversion(WidgetRef ref, List<String> pdfPaths,
   if (result is ServiceRequestFailure) {
     BackgroundConversionRunner.removeProgressListener(listener);
     final error = result.error.toString();
-    notifier.set(OnDeviceRunState(error: error, done: true));
+    notifier.set((container.read(onDeviceRunProvider) ?? const OnDeviceRunState()).next(error: error, done: true));
     throw StateError('Could not start the background conversion service: $error');
   }
 
-  return completer.future;
+  _active = _ActiveRun(request, () {
+    BackgroundConversionRunner.removeProgressListener(listener);
+    if (!completer.isCompleted) completer.completeError(ConversionCancelled());
+  });
+  try {
+    return await completer.future;
+  } finally {
+    _active = null;
+  }
 }
 
 /// Unpacks a zipped book (one PDF per chapter) into a temp dir and returns

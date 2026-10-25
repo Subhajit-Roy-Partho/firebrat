@@ -40,7 +40,7 @@ class ConversionModeSettings {
   /// llama.cpp GPU offload layers: 99 = everything that fits (accelerated),
   /// 0 = pure CPU fallback for uncooperative GPU drivers.
   final int onDeviceGpuLayers;
-  /// 'stockTts' (platform voice, default) or 'kokoroOnnx' (on-device neural).
+  /// 'kokoroOnnx' (on-device neural, default) or 'stockTts' (the phone's own voice).
   final String voiceEngine;
   /// Kokoro preset voice name (kKokoroVoices), only used for kokoroOnnx.
   final String kokoroVoice;
@@ -55,7 +55,7 @@ class ConversionModeSettings {
     this.contentMode = 'illustrated',
     this.allowCloudFallback = false,
     this.cloudForAll = false,
-    this.researchCharacters = false,
+    this.researchCharacters = true,
     this.onDeviceLlmUrl = '',
     this.onDeviceLlmApiKey = '',
     this.onDeviceLlmModel = '',
@@ -65,7 +65,7 @@ class ConversionModeSettings {
     this.serverLlmModel = '',
     this.onDeviceLlmModelId = 'qwen3-1.7b',
     this.onDeviceGpuLayers = 0,
-    this.voiceEngine = 'stockTts',
+    this.voiceEngine = 'kokoroOnnx',
     this.kokoroVoice = 'Bella',
     this.maleVoice = 'Adam',
     this.femaleVoice = 'Sarah',
@@ -157,7 +157,7 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
       contentMode: prefs.getString('conversion.contentMode') ?? 'illustrated',
       allowCloudFallback: prefs.getBool('conversion.allowCloudFallback') ?? false,
       cloudForAll: prefs.getBool('conversion.cloudForAll') ?? false,
-      researchCharacters: prefs.getBool('conversion.researchCharacters') ?? false,
+      researchCharacters: prefs.getBool('conversion.researchCharacters') ?? true,
       onDeviceLlmUrl: prefs.getString(_kLlmUrl) ?? '',
       onDeviceLlmApiKey: prefs.getString(_kLlmKey) ?? '',
       onDeviceLlmModel: prefs.getString(_kLlmModel) ?? '',
@@ -167,7 +167,7 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
       serverLlmModel: prefs.getString(_kServerLlmModel) ?? '',
       onDeviceLlmModelId: prefs.getString(_kLocalLlmId) ?? 'qwen3-1.7b',
       onDeviceGpuLayers: prefs.getInt(_kGpuLayers) ?? 0,
-      voiceEngine: prefs.getString(_kVoiceEngine) ?? 'stockTts',
+      voiceEngine: prefs.getString(_kVoiceEngine) ?? 'kokoroOnnx',
       kokoroVoice: prefs.getString(_kKokoroVoice) ?? 'Bella',
       maleVoice: prefs.getString('conversion.maleVoice') ?? 'Adam',
       femaleVoice: prefs.getString('conversion.femaleVoice') ?? 'Sarah',

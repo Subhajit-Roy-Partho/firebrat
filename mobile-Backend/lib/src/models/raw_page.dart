@@ -8,7 +8,10 @@ class RawPage {
   final int pageIdx; // 0-based
   final String text;
 
-  const RawPage({required this.pageIdx, required this.text});
+  /// Chapter title for ebook-sourced pages (EPUB/MOBI/AZW); null for PDFs.
+  final String? title;
+
+  const RawPage({required this.pageIdx, required this.text, this.title});
 }
 
 /// A group of consecutive pages sent to the compilation LLM as one request

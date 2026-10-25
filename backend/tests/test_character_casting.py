@@ -123,3 +123,48 @@ def test_trait_overrides_match_loosely_and_unmatched_are_reported(tmp_path):
     cast = {c['name']: c for c in compiled['character_roster']}
     assert cast['Hatter']['traits']['age'] == 'elder'
     assert compiled['unmatched_character_traits'] == ['Cheshire']
+
+
+def test_large_casts_are_batched_with_whole_word_context():
+    from firebrat.pipeline import character_research as cr
+    names = [f'Person{i}' for i in range(1, 26)]
+    article = '\n'.join(f'{n} is a gruff old man in the story, described at length.' for n in names)
+    prompts = []
+
+    class Session(_Session):
+        def get(self, url, params=None, **kw):
+            if params.get('list') == 'search':
+                return _Resp({'query': {'search': [{'title': 'Big Novel'}]}})
+            return _Resp({'query': {'pages': {'1': {'extract': article}}}})
+
+    def chat(messages):
+        user = messages[-1]['content']
+        prompts.append(user)
+        asked = user.split('\n')[0].replace('Characters: ', '').split(', ')
+        import json
+        return json.dumps({n: {'gender': 'male', 'age': 'elder', 'temperament': 'gruff'} for n in asked})
+
+    traits, report = cr.research_characters('Big Novel', names, 'm', chat=chat, session=Session())
+    assert len(prompts) == 3 and len(traits) == 25 and report['described'] == 25
+    assert 'Person1 is a gruff' in prompts[0] and 'Person25 is a gruff' not in prompts[0]
+
+
+def test_titled_speakers_keep_their_whole_name_in_server_novels():
+    raw = {'pages': [{'page_idx': 0, 'text': '“Indeed,” said Mr. Darcy. “Never,” Elizabeth replied. “Oh!” cried Mrs. Bennet.'}]}
+    names = {c['name'] for c in compile_novel(raw)['character_roster']}
+    assert {'Mr. Darcy', 'Elizabeth', 'Mrs. Bennet'} <= names and 'Mr' not in names
+
+
+def test_roster_reports_coverage_and_is_written_for_the_app(tmp_path):
+    import json
+    from firebrat.pipeline.novel import run_novel_compilation
+    raw = tmp_path / 'raw_pages.json'
+    raw.write_text(json.dumps({'pages': [{'page_idx': 0, 'text':
+        '“One,” Alice said. “Two,” Alice said. “Three,” said Bob. “Nobody tags this.” “Nor this.”'}]}))
+    pkg = tmp_path / 'pkg'
+    run_novel_compilation(str(raw), str(pkg), book_id='b', trait_overrides={'Nobody': 'elder'})
+    roster = json.loads((pkg / 'character_roster.json').read_text())
+    assert roster['dialogue'] == {'total': 5, 'attributed': 3}
+    lines = {c['name']: c['lines'] for c in roster['characters']}
+    assert lines == {'Alice': 2, 'Bob': 1}
+    assert roster['unmatched_overrides'] == ['Nobody']

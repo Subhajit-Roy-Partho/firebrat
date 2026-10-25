@@ -7,6 +7,7 @@ import '../services/analytics_service.dart';
 import '../services/drive_sync_service.dart';
 import '../services/firestore_sync_service.dart';
 import 'sync_screen.dart';
+import 'llm_key_guide_screen.dart';
 import 'tour_screen.dart';
 import '../state/library_providers.dart';
 import '../state/model_download_providers.dart';
@@ -148,9 +149,9 @@ class _ConversionSettingsScreenState
           IconButton(
             icon: const Icon(Icons.explore_outlined),
             tooltip: 'App guide',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const TourScreen()),
-            ),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const TourScreen())),
           ),
         ],
       ),
@@ -326,22 +327,31 @@ class _ConversionSettingsScreenState
               value: settings.allowCloudFallback,
               onChanged: notifier.setAllowCloudFallback,
             ),
-            if (settings.allowCloudFallback) ...[
-              SwitchListTile(
-                title: const Text('Use the cloud LLM for every passage'),
-                subtitle: const Text(
-                  'Faster, and no local model download. The text of the book is sent to your provider, so leave this off for private books.',
+            // The LLM fields serve two jobs: the cloud helper (book text, opt-in)
+            // and character research (title and names only, automatic in novels).
+            if (settings.allowCloudFallback ||
+                (settings.contentMode == 'novel' &&
+                    settings.researchCharacters)) ...[
+              if (settings.allowCloudFallback)
+                SwitchListTile(
+                  title: const Text('Use the cloud LLM for every passage'),
+                  subtitle: const Text(
+                    'Faster, and no local model download. The text of the book is sent to your provider, so leave this off for private books.',
+                  ),
+                  value: settings.cloudForAll,
+                  onChanged: notifier.setCloudForAll,
                 ),
-                value: settings.cloudForAll,
-                onChanged: notifier.setCloudForAll,
-              ),
               _SectionTitle(
-                settings.cloudForAll
+                !settings.allowCloudFallback
+                    ? 'LLM for character research'
+                    : settings.cloudForAll
                     ? 'Cloud LLM'
                     : 'Cloud helper for hard chunks',
               ),
               _HelpText(
-                settings.cloudForAll
+                !settings.allowCloudFallback
+                    ? 'Used only to describe the characters of a novel from its Wikipedia article. Only the book title and character names are sent, never the book\'s text. Any OpenAI-compatible endpoint works, including free keys from OpenRouter (https://openrouter.ai/api/v1), Groq or Google AI Studio.'
+                    : settings.cloudForAll
                     ? 'Every passage goes to this provider, and no local model is downloaded. Any OpenAI-compatible '
                           'endpoint works, including free keys from OpenRouter (https://openrouter.ai/api/v1), Groq or Google AI Studio.'
                     : 'Easy chunks run on the local model below. Chunks with equations, figures, or tables '
@@ -932,18 +942,18 @@ class _VoicePicker extends StatelessWidget {
           child: Column(
             children: [
               RadioListTile<String>(
-                title: const Text('System voice'),
+                title: const Text('Kokoro (on-device neural, default)'),
                 subtitle: const Text(
-                  'Uses an installed offline English voice. Download one in Android speech settings if needed.',
-                ),
-                value: 'stockTts',
-              ),
-              RadioListTile<String>(
-                title: const Text('Kokoro (on-device neural)'),
-                subtitle: const Text(
-                  'Natural neural voice, fully offline. Voice data (~110 MB) downloads on first use.',
+                  'Natural neural voice, fully offline. Voice data (~110 MB) downloads once, on first use.',
                 ),
                 value: 'kokoroOnnx',
+              ),
+              RadioListTile<String>(
+                title: const Text('System voice'),
+                subtitle: const Text(
+                  'Instant, no download. Uses an installed offline English voice; download one in Android speech settings if needed.',
+                ),
+                value: 'stockTts',
               ),
             ],
           ),
@@ -980,23 +990,18 @@ class _VoicePicker extends StatelessWidget {
               'Automatic casting uses he/she evidence in the book, never names alone. Conflicting or missing evidence keeps the narrator. Override any named character below; voice casting does not establish a person’s gender.',
             ),
             SwitchListTile(
-              title: const Text('Research characters online'),
+              title: const Text('Research characters online (automatic)'),
               subtitle: Text(
                 settings.mode == ConversionModePref.cloud
                     ? 'The server looks the book up on Wikipedia and asks its LLM for each character\'s age and temperament, so characters sound different. Only the title and character names are sent, never the book\'s text.'
-                    : settings.allowCloudFallback
-                    ? 'Looks the book up on Wikipedia and asks your cloud LLM for each character\'s age and temperament, so characters sound different (speed, pitch and voice). Only the title and character names are sent, never the book\'s text.'
-                    : 'Needs the cloud helper: turn it on in the On-device section and add your LLM URL, key and model.',
+                    : settings.onDeviceLlmUrl.trim().isEmpty ||
+                          settings.onDeviceLlmApiKey.trim().isEmpty ||
+                          settings.onDeviceLlmModel.trim().isEmpty
+                    ? 'Runs automatically for every novel once an LLM URL, key and model are saved above: it looks the book up on Wikipedia and asks the LLM for each character\'s age and temperament. Only the title and character names are sent, never the book\'s text.'
+                    : 'On. Each novel is looked up on Wikipedia and your LLM describes every character\'s age and temperament, so characters get different speed, pitch and voice. Only the title and character names are sent, never the book\'s text.',
               ),
-              value:
-                  (settings.mode == ConversionModePref.cloud ||
-                      settings.allowCloudFallback) &&
-                  settings.researchCharacters,
-              onChanged:
-                  (settings.mode == ConversionModePref.cloud ||
-                      settings.allowCloudFallback)
-                  ? notifier.setResearchCharacters
-                  : null,
+              value: settings.researchCharacters,
+              onChanged: notifier.setResearchCharacters,
             ),
             for (final male in [true, false]) ...[
               const SizedBox(height: 12),
@@ -1269,6 +1274,20 @@ class _EndpointToolsState extends State<_EndpointTools> {
     }
   }
 
+  /// Opens the guide; if the user picks a provider's URL there, fill it in.
+  Future<void> _openKeyGuide() async {
+    final url = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const LlmKeyGuideScreen()),
+    );
+    if (url != null && mounted) {
+      widget.urlController.text = url;
+      setState(() {
+        _ok = true;
+        _message = 'URL filled in. Paste your API key, then tap Load models.';
+      });
+    }
+  }
+
   Future<void> _loadModels() => _run(() async {
     final found = await _endpoint.listModels();
     if (mounted) setState(() => _models = found);
@@ -1305,6 +1324,11 @@ class _EndpointToolsState extends State<_EndpointTools> {
               onPressed: _busy ? null : _test,
               icon: const Icon(Icons.network_check_rounded, size: 18),
               label: const Text('Test connection'),
+            ),
+            TextButton.icon(
+              onPressed: _openKeyGuide,
+              icon: const Icon(Icons.help_outline_rounded, size: 18),
+              label: const Text('How to get a free API key'),
             ),
             if (_busy)
               const Padding(

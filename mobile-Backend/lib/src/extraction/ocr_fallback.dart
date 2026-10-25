@@ -25,10 +25,10 @@ class OcrFallback {
       });
       try {
         final recognized = await _recognizer.processImage(InputImage.fromFilePath(tempPath));
-        if (recognized.text.trim().isEmpty) {
-          throw StateError('Could not read source page ${pageIdx + 1} with offline OCR.');
-        }
-        results.add(RawPage(pageIdx: pageIdx, text: recognized.text));
+        // A cover, frontispiece or blank page legitimately has no text. Keep it as an
+        // empty page instead of failing the whole book; the pipeline reports how many
+        // pages had no readable text, and still refuses a document with none at all.
+        results.add(RawPage(pageIdx: pageIdx, text: recognized.text.trim()));
       } finally {
         final file = File(tempPath);
         if (await file.exists()) await file.delete();

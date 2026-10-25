@@ -6,6 +6,7 @@ import '../compilation/compilation_router.dart';
 import '../compilation/model_catalog.dart';
 import '../compilation/on_device_compiler.dart';
 import '../compilation/prose_fidelity.dart';
+import '../extraction/ebook_text_extractor.dart';
 import '../extraction/pdf_text_extractor.dart';
 import '../extraction/page_visuals.dart';
 import '../extraction/ocr_fallback.dart';
@@ -83,7 +84,8 @@ class MobileConversionPipeline {
         pdfPaths.first.split(Platform.pathSeparator).last;
     final bookId = sanitizeBookId(
         titleOverride != null ? '$titleOverride.pdf' : pdfPaths.first.split(Platform.pathSeparator).last);
-    final title = titleOverride ?? bookId.replaceAll('-', ' ');
+    var title = titleOverride ?? bookId.replaceAll('-', ' ');
+    final hasEbook = pdfPaths.any(isEbookPath);
     final bookDir = '$booksRootDir/$bookId';
     await Directory(bookDir).create(recursive: true);
 
@@ -95,7 +97,8 @@ class MobileConversionPipeline {
     // (same old-package path as a book converted before this existed).
     const sourcePdfPath = 'source.pdf';
     String? shippedSourcePdf;
-    if (pdfPaths.length == 1) {
+    // An ebook (EPUB/MOBI/AZW) has no PDF pages to link to.
+    if (pdfPaths.length == 1 && !hasEbook) {
       try {
         await File(pdfPaths.first).copy('$bookDir/$sourcePdfPath');
         shippedSourcePdf = sourcePdfPath;
@@ -106,43 +109,80 @@ class MobileConversionPipeline {
       }
     }
 
-    _report('extracting', 'reading PDF text layer (1/${pdfPaths.length} files)', 0.0);
+    _report('extracting', hasEbook ? 'reading ebook text' : 'reading PDF text layer (1/${pdfPaths.length} files)', 0.0);
     final parts = <ExtractionResult>[];
+    String? ebookTitle;
     for (var i = 0; i < pdfPaths.length; i++) {
-      var part = await MobilePdfTextExtractor.extractPages(pdfPaths[i]);
+      late ExtractionResult part;
+      if (isEbookPath(pdfPaths[i])) {
+        final content = await EbookTextExtractor.read(pdfPaths[i]);
+        ebookTitle ??= content.title;
+        // The book's own front cover, if it has one: the app shows cover.* at the package root.
+        final cover = content.cover;
+        if (cover != null) {
+          for (final old in ['.jpg', '.png', '.webp']) {
+            final stale = File('$bookDir/cover$old');
+            if (await stale.exists()) await stale.delete();
+          }
+          await File('$bookDir/cover${cover.ext}').writeAsBytes(cover.bytes);
+        }
+        part = ExtractionResult(
+            pages: EbookTextExtractor.chaptersToPages(content.chapters), ocrCandidatePageIndices: const []);
+      } else {
+        part = await MobilePdfTextExtractor.extractPages(pdfPaths[i]);
+      }
       if (part.ocrCandidatePageIndices.isNotEmpty && Platform.isAndroid) {
         final ocr = OcrFallback();
         try {
           final replacements = await ocr.reExtractPages(pdfPaths[i], part.ocrCandidatePageIndices, '$bookDir/ocr');
           final byIndex = {for (final p in replacements) p.pageIdx: p};
           part = ExtractionResult(pages: [for (final p in part.pages) byIndex[p.pageIdx] ?? p], ocrCandidatePageIndices: []);
+          final blank = replacements.where((p) => p.text.isEmpty).length;
+          if (blank > 0) {
+            _report('extracting', '$blank of ${replacements.length} scanned pages had no readable text (blank or picture-only)', 0.4);
+          }
         } finally { ocr.dispose(); }
       }
       parts.add(part);
       _report('extracting',
           'reading PDF text layer (${i + 1}/${pdfPaths.length} files)', (i + 1) / pdfPaths.length * 0.5);
     }
+    if (titleOverride == null && ebookTitle != null && ebookTitle.isNotEmpty) title = ebookTitle;
     final extraction = mergeExtractions(parts);
+    // A single PDF whose first page looks like a cover (little text): use it as the book cover.
+    if (!hasEbook && pdfPaths.length == 1 && extraction.pages.isNotEmpty &&
+        PageVisuals.looksLikeCover(extraction.pages.first.text)) {
+      await PageVisuals.renderCover(pdfPath: pdfPaths.first, bookDir: bookDir);
+    }
     if (extraction.pages.isEmpty || extraction.pages.every((p) => p.text.trim().isEmpty)) {
       throw StateError('No readable text was found in this document.');
     }
     final isNovel = settings.contentMode == BookContentMode.novel;
     var novelPlan = isNovel ? NovelBookPlan.analyze(extraction.pages, voiceOverrides: settings.characterVoices) : null;
     Map<String, dynamic>? researchReport;
-    if (novelPlan != null && settings.researchCharacters && settings.allowCloudFallback &&
-        settings.llmBaseUrl.trim().isNotEmpty && settings.llmApiKey.trim().isNotEmpty &&
-        settings.llmModel.trim().isNotEmpty) {
-      _report('extracting', 'researching characters (only the title and names are sent)', 0.72);
-      final result = await CharacterResearcher(
-        llm: LlmEndpoint(baseUrl: settings.llmBaseUrl, apiKey: settings.llmApiKey),
-        model: settings.llmModel,
-      ).research(title: title, names: [for (final c in novelPlan.characters) c.name]);
-      researchReport = result.toJson();
-      if (result.traits.isNotEmpty) {
-        novelPlan = novelPlan.withResearch(result.traits);
-        _report('extracting', 'cast ${result.traits.length} characters from "${result.sourceTitle}"', 0.74);
+    // Automatic character research: needs only an LLM URL, key and model (not the
+    // "cloud helper"), and sends just the title and character names.
+    if (novelPlan != null && settings.researchCharacters) {
+      if (settings.llmBaseUrl.trim().isEmpty || settings.llmApiKey.trim().isEmpty || settings.llmModel.trim().isEmpty) {
+        _report('extracting', 'character research skipped: add an LLM URL, key and model in Conversion settings', 0.72);
       } else {
-        _report('extracting', 'character research skipped: ${result.skipped}', 0.74);
+        _report('extracting', 'researching characters online (only the title and names are sent)', 0.72);
+        final result = await CharacterResearcher(
+          llm: LlmEndpoint(baseUrl: settings.llmBaseUrl, apiKey: settings.llmApiKey),
+          model: settings.llmModel,
+        ).research(
+          title: title,
+          names: [for (final c in novelPlan.characters) c.name],
+          onProgress: (status) => _report('extracting', status, 0.73),
+        );
+        researchReport = result.toJson();
+        if (result.traits.isNotEmpty) {
+          novelPlan = novelPlan.withResearch(result.traits);
+          final extra = result.missing.isEmpty ? '' : '; ${result.missing.length} not described';
+          _report('extracting', 'cast ${result.traits.length} characters from ${result.sourceTitle}$extra', 0.76);
+        } else {
+          _report('extracting', 'character research skipped: ${result.skipped}', 0.76);
+        }
       }
     }
     if (novelPlan != null && novelPlan.unmatchedOverrides.isNotEmpty) {
@@ -156,10 +196,13 @@ class MobileConversionPipeline {
           'assigned_voices': {for (final character in novelPlan.characters)
             character.name: resolveKokoroCharacterVoice(character, narrator: settings.kokoroVoice, male: settings.maleVoice, female: settings.femaleVoice)},
       }));
-      _report('extracting', 'scanned ${novelPlan.scannedPages} pages; ${novelPlan.characters.length} explicitly attributed characters', 0.75);
+      final pct = novelPlan.dialogueTotal == 0 ? 0 : (100 * novelPlan.dialogueAttributed / novelPlan.dialogueTotal).round();
+      _report('extracting',
+          'scanned ${novelPlan.scannedPages} pages; ${novelPlan.characters.length} speakers found; '
+          '$pct% of ${novelPlan.dialogueTotal} dialogue lines attributed (the rest are read by the narrator)', 0.75);
     }
     _report('extracting', 'preserving original page visuals', 0.8);
-    final pageVisuals = isNovel ? <ManifestFigure>[] : await PageVisuals.render(pdfPaths: pdfPaths, bookDir: bookDir, pages: extraction.pages);
+    final pageVisuals = (isNovel || hasEbook) ? <ManifestFigure>[] : await PageVisuals.render(pdfPaths: pdfPaths, bookDir: bookDir, pages: extraction.pages);
 
     final chunks = settings.allowCloudFallback
         ? chunkPages(extraction.pages, chunkPages: 10)
@@ -171,7 +214,7 @@ class MobileConversionPipeline {
       // A novel is read verbatim. Educational paraphrasing destroys dialogue
       // attribution and is neither required nor safe for narrative fiction.
       compiledSections = [for (final chunk in chunkLocalPages(extraction.pages))
-        CompiledSection(title: 'Page ${chunk.startPage + 1}', sourcePages: [chunk.startPage],
+        CompiledSection(title: chunk.pages.single.title ?? 'Page ${chunk.startPage + 1}', sourcePages: [chunk.startPage],
           segments: [CompiledSegment(type: SegmentKind.prose, text: chunk.pages.single.text)])];
       _report('compiling', 'preserved novel text and full-book voice roster', 1.0);
     } else {

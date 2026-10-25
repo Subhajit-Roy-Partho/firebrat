@@ -82,28 +82,58 @@ class _BookCardState extends State<BookCard> {
     );
   }
 
-  /// Scrim over the cover while downloading: ring + pause/cancel.
+  /// Scrim over the cover while downloading: a bright progress ring with the
+  /// percentage in the middle, and pause/cancel underneath. The ring is white on
+  /// a dark scrim so progress reads at a glance on every cover colour.
   Widget _downloadOverlay(ColorScheme scheme, {required bool compact}) {
     final p = widget.downloadProgress!;
+    final fraction = p.fraction.clamp(0.0, 1.0);
+    final ring = compact ? 52.0 : 64.0;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: .6),
+        color: Colors.black.withValues(alpha: .66),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: compact ? 30 : 44,
-              height: compact ? 30 : 44,
-              child: CircularProgressIndicator(
-                value: p.fraction.clamp(0.0, 1.0),
-                strokeWidth: 3.5,
-                color: scheme.primaryContainer,
-                backgroundColor: Colors.white24,
+            // Eases between updates instead of jumping.
+            TweenAnimationBuilder<double>(
+              tween: Tween(end: fraction),
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+              builder: (context, value, _) => SizedBox(
+                width: ring,
+                height: ring,
+                child: Stack(
+                  alignment: Alignment.center,
+                  fit: StackFit.expand,
+                  children: [
+                    CircularProgressIndicator(
+                      key: const ValueKey('download-ring'),
+                      // Indeterminate until the first bytes arrive.
+                      value: fraction <= 0 ? null : value,
+                      strokeWidth: 5,
+                      strokeCap: StrokeCap.round,
+                      color: Colors.white,
+                      backgroundColor: Colors.white24,
+                    ),
+                    Center(
+                      child: Text(
+                        '${(value * 100).round()}%',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
+            const SizedBox(height: 2),
             Wrap(
               alignment: WrapAlignment.center,
               children: [

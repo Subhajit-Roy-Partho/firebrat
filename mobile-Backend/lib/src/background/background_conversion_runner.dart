@@ -90,4 +90,15 @@ class BackgroundConversionRunner {
   static Future<bool> get isRunning => FlutterForegroundTask.isRunningService;
 
   static Future<ServiceRequestResult> stop() => FlutterForegroundTask.stopService();
+
+  /// Stops the running conversion: ends the foreground service (which ends the
+  /// pipeline isolate with it) and drops the pending request so nothing restarts it.
+  static Future<void> cancel() async {
+    try {
+      await FlutterForegroundTask.stopService();
+    } finally {
+      final stateDir = (await getApplicationSupportDirectory()).path;
+      await ConversionRequest.clear(stateDir);
+    }
+  }
 }

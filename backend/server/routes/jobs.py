@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from firebrat.pipeline import character_traits as character_traits_mod
+from firebrat.pipeline import ebook as ebook_mod
 from server import auth, config, job_runner, jobs, storage
 from server.pdf_merge import merge_zip_pdfs_to_pdf
 from firebrat.pipeline.status import read_status
@@ -74,8 +75,9 @@ async def upload_book(
     lname = (file.filename or "").lower()
     is_pdf = lname.endswith(".pdf")
     is_zip = lname.endswith(".zip")
-    if not file.filename or (not is_pdf and not is_zip):
-        raise HTTPException(status_code=400, detail="only .pdf or .zip (of PDFs) uploads are accepted")
+    is_ebook_upload = ebook_mod.is_ebook(lname)
+    if not file.filename or (not is_pdf and not is_zip and not is_ebook_upload):
+        raise HTTPException(status_code=400, detail="only .pdf, .zip (of PDFs), .epub, .mobi, .azw or .azw3 uploads are accepted")
 
     os.makedirs(config.UPLOAD_DIR, exist_ok=True)
     book_id = sanitize_book_id(file.filename)
@@ -88,7 +90,9 @@ async def upload_book(
             n += 1
         book_id = f"{book_id}-{n}"
 
-    dest_path = os.path.join(config.UPLOAD_DIR, f"{book_id}.pdf")
+    # Ebooks keep their own extension: convert.py picks the text reader from it.
+    dest_ext = os.path.splitext(lname)[1] if is_ebook_upload else ".pdf"
+    dest_path = os.path.join(config.UPLOAD_DIR, f"{book_id}{dest_ext}")
     size = 0
     max_bytes = config.MAX_UPLOAD_MB * 1024 * 1024
     if is_zip:
@@ -132,6 +136,15 @@ async def upload_book(
                     os.remove(dest_path)
                     raise HTTPException(status_code=413, detail=f"file exceeds {config.MAX_UPLOAD_MB} MB limit")
                 out.write(chunk)
+
+    if is_ebook_upload:
+        # Fail now, with a readable reason (DRM, damaged file), instead of
+        # queueing a job that can only fail later.
+        try:
+            ebook_mod.read_ebook(dest_path)
+        except ebook_mod.EbookError as e:
+            os.remove(dest_path)
+            raise HTTPException(status_code=400, detail=str(e))
 
     book_title = title or book_id.replace("-", " ").title()
     # Empty provider/chunk (the mobile app sends neither) inherits the

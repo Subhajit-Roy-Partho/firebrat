@@ -3,6 +3,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/conversion_settings.dart';
 import '../pipeline/mobile_conversion_pipeline.dart';
 import 'conversion_request.dart';
+import 'progress_throttle.dart';
 
 /// Runs inside `flutter_foreground_task`'s dedicated background isolate —
 /// this is what makes an on-device conversion survive the app being
@@ -41,6 +42,9 @@ class MobileConversionTaskHandler extends TaskHandler {
       return;
     }
 
+    // Forward progress at a sane rate: a model download reports per network
+    // chunk, which flooded the notification manager and froze the phone.
+    final throttle = ProgressThrottle();
     final pipeline = MobileConversionPipeline(
       settings: OnDeviceModeSettings(
         allowCloudFallback: request.allowCloudFallback,
@@ -61,6 +65,7 @@ class MobileConversionTaskHandler extends TaskHandler {
         maleVoice: request.maleVoice, femaleVoice: request.femaleVoice, characterVoices: request.characterVoices,
       ),
       onProgress: (p) {
+        if (!throttle.shouldEmit(stage: p.stage, detail: p.detail, fraction: p.fraction ?? 0)) return;
         FlutterForegroundTask.sendDataToMain({
           'stage': p.stage,
           'detail': p.detail,

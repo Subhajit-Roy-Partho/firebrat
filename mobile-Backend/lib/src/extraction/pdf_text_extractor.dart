@@ -73,7 +73,7 @@ ExtractionResult mergeExtractions(List<ExtractionResult> parts) {
   var offset = 0;
   for (final part in parts) {
     for (final page in part.pages) {
-      pages.add(RawPage(pageIdx: page.pageIdx + offset, text: page.text));
+      pages.add(RawPage(pageIdx: page.pageIdx + offset, text: page.text, title: page.title));
     }
     for (final idx in part.ocrCandidatePageIndices) {
       ocrCandidates.add(idx + offset);

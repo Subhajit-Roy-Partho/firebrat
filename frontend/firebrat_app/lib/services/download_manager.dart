@@ -193,9 +193,17 @@ class DownloadManager {
 
   /// Pause + delete the partial file (start fully over next time).
   Future<void> discardPartial(String bookId) async {
+    // Cancelling aborts the transfer the same way pausing does, so remember
+    // that THIS abort was a discard: the UI must not also announce a "pause".
+    _discarded.add(bookId);
     pauseDownload(bookId);
     await discardPartialStatic(bookId);
   }
+
+  static final Set<String> _discarded = {};
+
+  /// True once (and only once) if [bookId]'s last abort was a user discard.
+  static bool consumeDiscarded(String bookId) => _discarded.remove(bookId);
 
   /// Static variant for notification-action callbacks (no ApiClient needed —
   /// it's pure file deletion). Never throws.

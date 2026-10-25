@@ -10,6 +10,8 @@ export 'src/models/segment_models.dart';
 export 'src/models/compiled_models.dart';
 export 'src/models/raw_page.dart';
 export 'src/extraction/pdf_text_extractor.dart';
+export 'src/extraction/ebook_text_extractor.dart';
+export 'src/extraction/page_visuals.dart';
 export 'src/compilation/chunker.dart';
 export 'src/compilation/routing.dart';
 export 'src/compilation/compilation_router.dart';

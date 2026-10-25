@@ -1,15 +1,18 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart' show CharacterTraits;
+import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart' show CharacterTraits, isEbookPath;
 import '../models/job.dart';
 import '../state/conversions_providers.dart';
 import '../state/library_providers.dart';
 import '../state/on_device_conversion_providers.dart';
 import '../state/on_device_pipeline_run_provider.dart';
+import '../state/on_device_queue_provider.dart';
+import '../widgets/battery_notice.dart';
 import '../state/guest_access_provider.dart';
 import '../services/auth_service.dart';
 import '../services/integrity_service.dart';
+import 'conversion_detail_screen.dart';
 import 'conversion_settings_screen.dart';
 
 /// Upload a PDF (or a ZIP of PDFs, merged server-side) for conversion,
@@ -26,8 +29,12 @@ class ConversionsScreen extends ConsumerWidget {
     final uploadProgress = ref.watch(uploadProgressProvider);
     final conversionMode = ref.watch(conversionModeProvider);
     final onDeviceRun = ref.watch(onDeviceRunProvider);
-    final busy = uploadProgress != null || (onDeviceRun != null && !onDeviceRun.done);
     final isOnDevice = conversionMode.mode == ConversionModePref.onDevice;
+    // Server uploads are one at a time; on-device conversions queue, so adding
+    // another book is always possible there.
+    final busy = uploadProgress != null;
+    final queue = ref.watch(onDeviceQueueProvider);
+    final queueActive = queue.any((i) => i.status == QueueStatus.queued || i.status == QueueStatus.running);
     final isOffline = conversionMode.mode == ConversionModePref.offline;
     final needsServerSignIn = !isOffline && !isOnDevice &&
         AuthService.instance.currentUser == null;
@@ -47,8 +54,8 @@ class ConversionsScreen extends ConsumerWidget {
       ),
       body: Column(
         children: [
-          if (onDeviceRun != null && !onDeviceRun.done) _OnDeviceRunBanner(state: onDeviceRun),
-          if (onDeviceRun?.error != null) _OnDeviceErrorBanner(message: onDeviceRun!.error!),
+          if (isOnDevice && (queueActive || onDeviceRun != null && !onDeviceRun.done)) const BatteryNotice(),
+          if (isOnDevice && onDeviceRun != null && !onDeviceRun.done) _OnDeviceRunBanner(state: onDeviceRun),
           // Server job queue is meaningless in on-device mode (nothing is
           // uploaded anywhere) — polling it here is what made the screen
           // "still look for the server". On-device runs surface above.
@@ -61,7 +68,7 @@ class ConversionsScreen extends ConsumerWidget {
                         textAlign: TextAlign.center),
                   ))
                 : isOnDevice
-                ? const _OnDeviceJobsPlaceholder()
+                ? const _OnDeviceQueue()
                 : needsServerSignIn
                 ? Center(child: SingleChildScrollView(
                     padding: const EdgeInsets.all(24),
@@ -83,7 +90,7 @@ class ConversionsScreen extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: isOffline || needsServerSignIn ? null : busy
+      floatingActionButton: isOffline || needsServerSignIn ? null : (busy && !isOnDevice)
           ? FloatingActionButton.extended(
               onPressed: null,
               icon: SizedBox(
@@ -91,15 +98,15 @@ class ConversionsScreen extends ConsumerWidget {
                 height: 18,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  value: uploadProgress != null && uploadProgress > 0 ? uploadProgress : null,
+                  value: uploadProgress > 0 ? uploadProgress : null,
                 ),
               ),
-              label: Text(uploadProgress != null ? 'Uploading ${(uploadProgress * 100).round()}%' : 'Converting…'),
+              label: Text('Uploading ${(uploadProgress * 100).round()}%'),
             )
           : FloatingActionButton.extended(
               onPressed: () => _pickAndConvert(context, ref, conversionMode.mode),
-              icon: const Icon(Icons.upload_file_rounded),
-              label: const Text('Convert a PDF or ZIP'),
+              icon: Icon(isOnDevice && queueActive ? Icons.playlist_add_rounded : Icons.upload_file_rounded),
+              label: Text(isOnDevice && queueActive ? 'Add to queue' : 'Convert a book'),
             ),
     );
   }
@@ -107,37 +114,47 @@ class ConversionsScreen extends ConsumerWidget {
   Future<void> _pickAndConvert(BuildContext context, WidgetRef ref, ConversionModePref mode) async {
     if (mode == ConversionModePref.offline) return;
     // file_picker 12 returns the picked files directly (empty = cancelled).
-    // Both modes accept a .zip of chapter PDFs: cloud uploads merge
-    // server-side, on-device unzips locally and merges at the text layer.
-    final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'zip']);
-    if (files.isEmpty) return; // user cancelled
-    final path = files.single.path;
-    if (path == null) return;
-
-    if (!context.mounted) return;
-    if (mode == ConversionModePref.onDevice) {
-      await _convertOnDevice(context, ref, path);
+    // Both modes accept a PDF, a .zip of chapter PDFs (cloud uploads merge
+    // server-side, on-device unzips locally and merges at the text layer),
+    // or a DRM-free EPUB / MOBI / AZW / AZW3 book (text only, no pictures).
+    // FileType.any, then check the extension ourselves: Android's picker has no
+    // MIME type for .azw/.azw3 (and sometimes .mobi), so a custom-extension
+    // filter would hide Kindle files entirely.
+    // On-device conversions queue, so several books can be picked at once.
+    final onDevice = mode == ConversionModePref.onDevice;
+    final List<PlatformFile> files;
+    if (onDevice) {
+      files = await FilePicker.pickFiles(type: FileType.any);
     } else {
-      await _uploadFile(context, ref, path);
+      final one = await FilePicker.pickFile(type: FileType.any);
+      files = one == null ? const [] : [one];
     }
-  }
+    if (files.isEmpty) return; // user cancelled
+    bool supported(String p) {
+      final lower = p.toLowerCase();
+      return lower.endsWith('.pdf') || lower.endsWith('.zip') || isEbookPath(lower);
+    }
 
-  Future<void> _convertOnDevice(BuildContext context, WidgetRef ref, String path) async {
-    try {
-      if (path.toLowerCase().endsWith('.zip')) {
-        final chapters = await unpackZipChapters(path);
-        final zipStem = path.split('/').last.replaceAll(RegExp(r'\.zip$', caseSensitive: false), '');
-        await runOnDeviceConversion(ref, chapters, titleOverride: zipStem);
-      } else {
-        await runOnDeviceConversion(ref, [path]);
+    final paths = [for (final f in files) if (f.path != null) f.path!];
+    final good = paths.where(supported).toList();
+    if (!context.mounted) return;
+    if (good.length < paths.length) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(good.isEmpty
+            ? 'Choose a PDF, a ZIP of PDFs, or an EPUB, MOBI, AZW or AZW3 book.'
+            : 'Skipped ${paths.length - good.length} file(s) that are not a PDF, ZIP or ebook.'),
+      ));
+    }
+    if (good.isEmpty) return;
+    if (onDevice) {
+      // Tell the user once, before the first book starts, how to keep it running.
+      await explainBatteryIfNeeded(context, ref);
+      ref.read(onDeviceQueueProvider.notifier).enqueue(good);
+      if (good.length > 1 && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Added ${good.length} books to the queue.')));
       }
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Converted — check your library.')));
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('On-device conversion failed: $e')));
-      }
+    } else {
+      await _uploadFile(context, ref, good.first);
     }
   }
 
@@ -188,24 +205,88 @@ class ConversionsScreen extends ConsumerWidget {
 /// Shown instead of the server queue when conversion mode is on-device:
 /// there is no server involved, so polling GET /jobs would only produce a
 /// connection error. On-device runs surface as banners above.
-class _OnDeviceJobsPlaceholder extends StatelessWidget {
-  const _OnDeviceJobsPlaceholder();
+/// The on-device queue: the book converting now, the ones waiting, and what
+/// just finished. Books are converted one at a time, in order.
+class _OnDeviceQueue extends ConsumerWidget {
+  const _OnDeviceQueue();
 
   @override
-  Widget build(BuildContext context) {
-    return ListView(
-      children: const [
-        SizedBox(height: 120),
-        Center(
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              'On-device mode: conversions run on this phone and finished '
-              'books appear in your library.\n\nTap "Convert a PDF or ZIP" to start one — a ZIP of chapter PDFs is merged automatically.',
-              textAlign: TextAlign.center,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final items = ref.watch(onDeviceQueueProvider);
+    final run = ref.watch(onDeviceRunProvider);
+    final notifier = ref.read(onDeviceQueueProvider.notifier);
+    final scheme = Theme.of(context).colorScheme;
+    if (items.isEmpty) {
+      return ListView(
+        children: const [
+          SizedBox(height: 120),
+          Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                'On-device mode: conversions run on this phone, one after another, and finished '
+                'books appear in your library.\n\nTap "Convert a book" to start. You can pick several at once, '
+                'and add more while one is converting. Choose a PDF, a ZIP of chapter PDFs (merged automatically), '
+                'or a DRM-free EPUB, MOBI, AZW or AZW3 ebook.',
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
-        ),
+        ],
+      );
+    }
+    final finished = items.where((i) => i.status != QueueStatus.queued && i.status != QueueStatus.running).length;
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 96),
+      children: [
+        for (final item in items)
+          ListTile(
+            key: ValueKey('queue-${item.id}'),
+            leading: switch (item.status) {
+              QueueStatus.running => const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3)),
+              QueueStatus.queued => Icon(Icons.schedule_rounded, color: scheme.onSurfaceVariant),
+              QueueStatus.done => const Icon(Icons.check_circle_rounded, color: Colors.green),
+              QueueStatus.failed => Icon(Icons.error_rounded, color: scheme.error),
+              QueueStatus.cancelled => Icon(Icons.stop_circle_outlined, color: scheme.onSurfaceVariant),
+            },
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => ConversionDetailScreen(itemId: item.id)),
+            ),
+            title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+            subtitle: Text(switch (item.status) {
+              QueueStatus.running => run?.detail ?? run?.stage ?? 'Converting…',
+              QueueStatus.queued => 'Waiting',
+              QueueStatus.done => 'Done. It is in your library.',
+              QueueStatus.failed => 'Failed: ${item.error ?? 'unknown error'}',
+              QueueStatus.cancelled => 'Stopped',
+            }, maxLines: 3, overflow: TextOverflow.ellipsis),
+            trailing: switch (item.status) {
+              QueueStatus.running => IconButton(
+                  tooltip: 'Stop this conversion',
+                  icon: const Icon(Icons.stop_rounded),
+                  onPressed: () => notifier.stopCurrent(),
+                ),
+              QueueStatus.queued => IconButton(
+                  tooltip: 'Remove from the queue',
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => notifier.remove(item.id),
+                ),
+              _ => IconButton(
+                  tooltip: 'Dismiss',
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => notifier.remove(item.id),
+                ),
+            },
+          ),
+        if (finished > 0)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: notifier.clearFinished,
+              icon: const Icon(Icons.clear_all_rounded),
+              label: const Text('Clear finished'),
+            ),
+          ),
       ],
     );
   }
@@ -234,7 +315,7 @@ class _ServerJobsList extends ConsumerWidget {
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
-                        'No conversions yet. Tap "Convert a PDF or ZIP" to convert a book.',
+                        'No conversions yet. Tap "Convert a book" to convert a book.',
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -254,47 +335,45 @@ class _ServerJobsList extends ConsumerWidget {
   }
 }
 
-class _OnDeviceRunBanner extends StatelessWidget {  final OnDeviceRunState state;
+class _OnDeviceRunBanner extends ConsumerWidget {
+  final OnDeviceRunState state;
   const _OnDeviceRunBanner({required this.state});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       color: scheme.primaryContainer,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Column(
+      padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.phone_android_rounded, size: 18),
-              const SizedBox(width: 8),
-              Expanded(child: Text(state.stage ?? 'Converting on this device…', style: Theme.of(context).textTheme.titleSmall)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.phone_android_rounded, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(state.stage ?? 'Converting on this device…', style: Theme.of(context).textTheme.titleSmall)),
+                  ],
+                ),
+                if (state.detail != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(state.detail!)),
+                const SizedBox(height: 8),
+                LinearProgressIndicator(value: state.fraction),
+              ],
+            ),
           ),
-          if (state.detail != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(state.detail!)),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(value: state.fraction),
+          const SizedBox(width: 4),
+          TextButton.icon(
+            onPressed: () => ref.read(onDeviceQueueProvider.notifier).stopCurrent(),
+            icon: const Icon(Icons.stop_rounded),
+            label: const Text('Stop'),
+          ),
         ],
       ),
-    );
-  }
-}
-
-class _OnDeviceErrorBanner extends StatelessWidget {
-  final String message;
-  const _OnDeviceErrorBanner({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      width: double.infinity,
-      color: scheme.errorContainer,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Text(message, style: TextStyle(color: scheme.onErrorContainer)),
     );
   }
 }

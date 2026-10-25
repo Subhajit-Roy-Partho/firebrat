@@ -1,6 +1,6 @@
 Free your eyes. Let the story speak.
 
-Turn your own PDFs into narrated listening. Take a novel on a walk, or follow a technical chapter with its pictures beside the words. Firebrat brings the page and the voice together, so you choose how to spend time with your books.
+Turn your own PDFs and DRM-free EPUB, MOBI and AZW ebooks into narrated listening. Take a novel on a walk, or follow a technical chapter with its pictures beside the words. Firebrat brings the page and the voice together, so you choose how to spend time with your books.
 
 PRESS PLAY. STAY IN THE STORY.
 Listen to downloaded books offline. Follow the spoken sentence as it highlights, change speed, move between sections and keep listening in the background. Every book gets its own cover on a smooth, modern shelf, and the cover appears on your lock screen and notification while you listen. Open the original PDF page whenever you want a closer look.
@@ -13,6 +13,7 @@ PRIVATE BY DEFAULT, FASTER IF YOU CHOOSE
 • Private and offline: convert on your phone with a local model and a neural voice. After the one-time downloads, no account, server or key is needed and nothing leaves your device.
 • Faster with a free LLM: paste a free key from services such as OpenRouter, Groq or Google AI Studio, tap Load models to see what is available, test it, and convert far faster with no local model download. Free providers may log prompts, so keep confidential books on the on-device model.
 • Your own server: run the companion Firebrat server, upload a PDF and download the finished book.
+• Ebooks: convert DRM-free EPUB, MOBI, AZW and AZW3 files (text only, no pictures), great for novels.
 • Already converted: import a Firebrat ZIP or tar.gz and start listening.
 
 Model downloads, memory needs, speed and quality vary by device and PDF. Cloud options send the relevant content to the provider you configure. Check narration, facts and character casting against the source.

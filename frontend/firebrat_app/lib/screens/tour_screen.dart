@@ -82,7 +82,17 @@ const _pages = <_TourPage>[
       _TourItem(
         Icons.cloud_upload_rounded,
         'Conversions (top right)',
-        'Send a PDF to be converted and follow each job: queued, converting, done or failed. Finished books download into your library.',
+        'Convert a PDF, a ZIP of PDFs, or a DRM-free EPUB, MOBI, AZW or AZW3 ebook, and follow each job: queued, converting, done or failed. Ebooks are text only, with no pictures, and work well with Novel mode.',
+      ),
+      _TourItem(
+        Icons.playlist_add_rounded,
+        'Queue several books',
+        'Pick many files at once, or keep adding while one converts. They run one after another; Stop ends the current one and the queue carries on.',
+      ),
+      _TourItem(
+        Icons.battery_charging_full_rounded,
+        'Keep it running',
+        'Conversion continues in the background, even with the screen off. For a long book, allow unrestricted battery use for Firebrat (the Conversions screen shows a button) and keep the phone charging.',
       ),
       _TourItem(
         Icons.memory_rounded,
@@ -102,6 +112,11 @@ const _pages = <_TourPage>[
         Icons.chevron_right_rounded,
         'Section bar',
         'Previous and next section, plus "Section 3 of 12" so you know where you are.',
+      ),
+      _TourItem(
+        Icons.groups_rounded,
+        'Cast & voices (novels)',
+        'Check which characters were found, how many lines each has, how much dialogue was attributed, and the voice each one was given.',
       ),
       _TourItem(
         Icons.text_fields_rounded,

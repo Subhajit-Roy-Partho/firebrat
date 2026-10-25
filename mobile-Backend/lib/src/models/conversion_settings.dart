@@ -44,9 +44,10 @@ class OnDeviceModeSettings {
   /// but the book's text leaves the device (privacy trade-off, off by default).
   final bool cloudForAll;
 
-  /// Novel mode only: look the book up on Wikipedia and let the cloud LLM
-  /// describe each character's age and temperament, so characters get distinct
-  /// voices. Sends the book title and character names, never the book's text.
+  /// Novel mode only, on by default and automatic once an LLM is configured: look
+  /// the book up on Wikipedia and let the LLM describe each character's age and
+  /// temperament, so characters get distinct voices. Sends the book title and
+  /// character names, never the book's text.
   final bool researchCharacters;
   final BookContentMode contentMode;
   final String llmBaseUrl;
@@ -80,14 +81,14 @@ class OnDeviceModeSettings {
   const OnDeviceModeSettings({
     this.allowCloudFallback = false,
     this.cloudForAll = false,
-    this.researchCharacters = false,
+    this.researchCharacters = true,
     this.contentMode = BookContentMode.illustrated,
     this.llmBaseUrl = '',
     this.llmApiKey = '',
     this.llmModel = '',
     this.onDeviceLlmModelId,
     this.onDeviceGpuLayers = 0,
-    this.voiceEngine = OnDeviceVoiceEngine.stockTts,
+    this.voiceEngine = OnDeviceVoiceEngine.kokoroOnnx,
     this.kokoroVoice = 'Bella',
     this.maleVoice = 'Adam',
     this.femaleVoice = 'Sarah',
