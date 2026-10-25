@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:audio_service/audio_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -17,10 +18,14 @@ Future<void> main() async {
   // injected by CI; options here mirror it for project firebrat-8c597.
   // Best-effort: a misconfigured Firebase must never stop the app from
   // booting (reads work fully offline, AuthService degrades to signed-out).
-  try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    await GoogleSignIn.instance.initialize();
-  } catch (_) {}
+  // Android-only: no iOS Firebase app is registered, and the native iOS SDK
+  // throws an uncatchable ObjC exception (crash at launch) on a bad app id.
+  if (Platform.isAndroid) {
+    try {
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      await GoogleSignIn.instance.initialize();
+    } catch (_) {}
+  }
   // Push setup is best-effort: the reader works fully offline and must
   // never fail to start because notifications couldn't initialize.
   final prefs = await SharedPreferences.getInstance();
