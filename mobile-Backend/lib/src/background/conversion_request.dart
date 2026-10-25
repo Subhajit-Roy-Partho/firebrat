@@ -18,6 +18,8 @@ class ConversionRequest {
   final String modelsDir;
   final String? titleOverride;
   final bool allowCloudFallback;
+  final bool cloudForAll;
+  final bool researchCharacters;
   final String contentMode;
   final String llmBaseUrl;
   final String llmApiKey;
@@ -37,6 +39,8 @@ class ConversionRequest {
     required this.modelsDir,
     this.titleOverride,
     this.allowCloudFallback = false,
+    this.cloudForAll = false,
+    this.researchCharacters = false,
     this.contentMode = 'illustrated',
     required this.llmBaseUrl,
     required this.llmApiKey,
@@ -62,6 +66,8 @@ class ConversionRequest {
     'modelsDir': modelsDir,
     'titleOverride': titleOverride,
     'allowCloudFallback': allowCloudFallback,
+    'cloudForAll': cloudForAll,
+    'researchCharacters': researchCharacters,
     'contentMode': contentMode,
     'llmBaseUrl': llmBaseUrl,
     'llmApiKey': llmApiKey,
@@ -81,6 +87,8 @@ class ConversionRequest {
         modelsDir: json['modelsDir'] as String,
         titleOverride: json['titleOverride'] as String?,
         allowCloudFallback: json['allowCloudFallback'] as bool? ?? false,
+        cloudForAll: json['cloudForAll'] as bool? ?? false,
+        researchCharacters: json['researchCharacters'] as bool? ?? false,
         contentMode: json['contentMode'] as String? ?? 'illustrated',
         llmBaseUrl: json['llmBaseUrl'] as String,
         llmApiKey: json['llmApiKey'] as String,

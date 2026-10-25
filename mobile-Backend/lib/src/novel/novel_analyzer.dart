@@ -1,4 +1,5 @@
 import '../models/raw_page.dart';
+import 'character_traits.dart';
 
 /// Stable, bounded stock TTS settings. These distinguish delivery, not cloned
 /// actors; voices are selected only from the engine's installed offline voices.
@@ -22,8 +23,20 @@ class NovelCharacter {
   final String voiceGender;
   final List<String> genderEvidence;
   final String? voiceOverride;
+
+  /// Age/temperament (and gender) from web research or the user. Drives the
+  /// delivery style on top of the narrator-or-male/female voice.
+  final CharacterTraits traits;
   const NovelCharacter(this.id, this.name, this.evidencePages, this.style,
-    {this.voiceGender = 'unknown', this.genderEvidence = const [], this.voiceOverride});
+    {this.voiceGender = 'unknown', this.genderEvidence = const [], this.voiceOverride,
+     this.traits = const CharacterTraits()});
+
+  NovelCharacter copyWith({CharacterVoiceStyle? style, String? voiceGender,
+      List<String>? genderEvidence, CharacterTraits? traits}) =>
+    NovelCharacter(id, name, evidencePages, style ?? this.style,
+      voiceGender: voiceGender ?? this.voiceGender,
+      genderEvidence: genderEvidence ?? this.genderEvidence,
+      voiceOverride: voiceOverride, traits: traits ?? this.traits);
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
@@ -31,6 +44,7 @@ class NovelCharacter {
     'style': style.toJson(),
     'voice_gender': voiceGender, 'gender_evidence': genderEvidence,
     'voice_override': voiceOverride,
+    'traits': traits.toJson(),
   };
 }
 
@@ -50,7 +64,11 @@ class NovelUtterance {
 class NovelBookPlan {
   final List<NovelCharacter> characters;
   final int scannedPages;
-  const NovelBookPlan(this.characters, this.scannedPages);
+
+  /// User override names that matched no speaker found in the book (usually a
+  /// typo, or a name the book never tags as speaking).
+  final List<String> unmatchedOverrides;
+  const NovelBookPlan(this.characters, this.scannedPages, {this.unmatchedOverrides = const []});
 
   static final _dialogue = RegExp(r'“[^”\n]+”|"[^"\n]+"');
   static const _verbs =
@@ -117,11 +135,79 @@ class NovelBookPlan {
             i + 1,
           ),
           voiceGender: inferred.gender, genderEvidence: inferred.evidence,
-          voiceOverride: voiceOverrides[name],
+          voiceOverride: _splitOverride(voiceOverrides[matchOverrideKey(name, voiceOverrides)]).voice,
+          traits: _splitOverride(voiceOverrides[matchOverrideKey(name, voiceOverrides)]).traits ?? const CharacterTraits(),
         ),
       );
     }
-    return NovelBookPlan(characters, pages.length);
+    final matched = <String>{};
+    for (final name in names) {
+      final key = matchOverrideKey(name, voiceOverrides);
+      if (key != null) matched.add(key);
+    }
+    final plan = NovelBookPlan(characters, pages.length,
+        unmatchedOverrides: [for (final k in voiceOverrides.keys) if (!matched.contains(k)) k]);
+    // User-supplied traits apply immediately; web research layers beneath them.
+    return plan.withResearch(const {});
+  }
+
+  static String _norm(String s) => s.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  /// The override key that applies to [name]: an exact match ignoring case and
+  /// spacing, otherwise a unique whole-word match, so "Mad Hatter" reaches the
+  /// speaker the book tags as "Hatter" (and vice versa). Null when none/ambiguous.
+  static String? matchOverrideKey(String name, Map<String, String> overrides) {
+    final n = _norm(name);
+    for (final k in overrides.keys) {
+      if (_norm(k) == n) return k;
+    }
+    final nw = n.split(' ').toSet();
+    final hits = [
+      for (final k in overrides.keys)
+        if (_norm(k).isNotEmpty &&
+            (_norm(k).split(' ').toSet().containsAll(nw) ||
+                nw.containsAll(_norm(k).split(' ').toSet())))
+          k,
+    ];
+    return hits.length == 1 ? hits.single : null;
+  }
+
+  /// "Michael, elder, gruff" -> voice "Michael" + traits. Words from the
+  /// trait vocabulary are traits; the first remaining word is the voice.
+  static ({String? voice, CharacterTraits? traits}) _splitOverride(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return (voice: null, traits: null);
+    final words = raw.split(RegExp(r'[,\s]+')).where((w) => w.isNotEmpty).toList();
+    final traits = CharacterTraits.parseWords(words);
+    final voice = words.where((w) => CharacterTraits.parseWords([w]) == null).firstOrNull;
+    return (voice: voice, traits: traits);
+  }
+
+  /// Merges researched [traits] (keyed by character name) under whatever the
+  /// user already set, then re-derives each character's delivery style.
+  /// Researched gender only fills in an `unknown` voice gender.
+  NovelBookPlan withResearch(Map<String, CharacterTraits> researched) {
+    final out = <NovelCharacter>[];
+    for (final c in characters) {
+      final merged = c.traits.orElse(researched[c.name] ?? const CharacterTraits());
+      var gender = c.voiceGender;
+      var evidence = c.genderEvidence;
+      if (gender == 'unknown' && merged.gender != 'unknown') {
+        gender = merged.gender;
+        evidence = [...evidence, merged.source == 'user'
+            ? 'set by the user' : 'web research about this book'];
+      }
+      out.add(c.copyWith(
+        traits: merged,
+        voiceGender: gender,
+        genderEvidence: evidence,
+        style: merged.hasStyle ? CharacterVoiceStyle(
+          (c.style.pitch * merged.pitchFactor).clamp(0.6, 1.4).toDouble(),
+          (c.style.rate * merged.speedFactor).clamp(0.3, 0.75).toDouble(),
+          c.style.voiceIndex,
+        ) : c.style,
+      ));
+    }
+    return NovelBookPlan(out, scannedPages, unmatchedOverrides: unmatchedOverrides);
   }
 
   List<NovelUtterance> split(String text) {
@@ -154,6 +240,7 @@ class NovelBookPlan {
     'attribution': 'explicit_named_speech_tags',
     'unknown_speaker': 'narrator',
     'characters': characters.map((c) => c.toJson()).toList(),
+    if (unmatchedOverrides.isNotEmpty) 'unmatched_overrides': unmatchedOverrides,
   };
 }
 

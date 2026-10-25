@@ -9,6 +9,8 @@ import '../compilation/prose_fidelity.dart';
 import '../extraction/pdf_text_extractor.dart';
 import '../extraction/page_visuals.dart';
 import '../extraction/ocr_fallback.dart';
+import '../llm/llm_endpoint.dart';
+import '../novel/character_research.dart';
 import '../novel/novel_analyzer.dart';
 import '../models/compiled_models.dart';
 import '../models/conversion_settings.dart';
@@ -125,9 +127,30 @@ class MobileConversionPipeline {
       throw StateError('No readable text was found in this document.');
     }
     final isNovel = settings.contentMode == BookContentMode.novel;
-    final novelPlan = isNovel ? NovelBookPlan.analyze(extraction.pages, voiceOverrides: settings.characterVoices) : null;
+    var novelPlan = isNovel ? NovelBookPlan.analyze(extraction.pages, voiceOverrides: settings.characterVoices) : null;
+    Map<String, dynamic>? researchReport;
+    if (novelPlan != null && settings.researchCharacters && settings.allowCloudFallback &&
+        settings.llmBaseUrl.trim().isNotEmpty && settings.llmApiKey.trim().isNotEmpty &&
+        settings.llmModel.trim().isNotEmpty) {
+      _report('extracting', 'researching characters (only the title and names are sent)', 0.72);
+      final result = await CharacterResearcher(
+        llm: LlmEndpoint(baseUrl: settings.llmBaseUrl, apiKey: settings.llmApiKey),
+        model: settings.llmModel,
+      ).research(title: title, names: [for (final c in novelPlan.characters) c.name]);
+      researchReport = result.toJson();
+      if (result.traits.isNotEmpty) {
+        novelPlan = novelPlan.withResearch(result.traits);
+        _report('extracting', 'cast ${result.traits.length} characters from "${result.sourceTitle}"', 0.74);
+      } else {
+        _report('extracting', 'character research skipped: ${result.skipped}', 0.74);
+      }
+    }
+    if (novelPlan != null && novelPlan.unmatchedOverrides.isNotEmpty) {
+      _report('extracting', 'no speaker found for override: ${novelPlan.unmatchedOverrides.join(', ')}', 0.7);
+    }
     if (novelPlan != null) {
       await File('$bookDir/character_roster.json').writeAsString(jsonEncode({...novelPlan.toJson(),
+        'research': ?researchReport,
         'voice_engine': settings.voiceEngine.name,
         if (settings.voiceEngine == OnDeviceVoiceEngine.kokoroOnnx)
           'assigned_voices': {for (final character in novelPlan.characters)
@@ -157,12 +180,17 @@ class MobileConversionPipeline {
       gpuLayers: settings.onDeviceGpuLayers,
     );
     try {
-    await onDeviceCompiler.ensureReady(
-      modelsDir: '$modelsDir/llm',
-      onProgress: (progress, status) => _report('compiling', status, progress),
-    );
+    final cloudForAll = settings.allowCloudFallback && settings.cloudForAll;
+    // Cloud-for-all never touches the local model, so skip its (large)
+    // download and load entirely.
+    if (!cloudForAll) {
+      await onDeviceCompiler.ensureReady(
+        modelsDir: '$modelsDir/llm',
+        onProgress: (progress, status) => _report('compiling', status, progress),
+      );
+    }
     final cloudCompiler = settings.allowCloudFallback ? CloudCompiler(settings) : null;
-    final router = CompilationRouter(onDeviceCompiler: onDeviceCompiler, cloudCompiler: cloudCompiler, allowCloudFallback: settings.allowCloudFallback);
+    final router = CompilationRouter(onDeviceCompiler: onDeviceCompiler, cloudCompiler: cloudCompiler, allowCloudFallback: settings.allowCloudFallback, cloudForAll: cloudForAll);
 
       compiledSections = await router.compileAll(
         chunks,

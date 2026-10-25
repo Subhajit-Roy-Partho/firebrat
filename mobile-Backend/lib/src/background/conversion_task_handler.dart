@@ -44,6 +44,8 @@ class MobileConversionTaskHandler extends TaskHandler {
     final pipeline = MobileConversionPipeline(
       settings: OnDeviceModeSettings(
         allowCloudFallback: request.allowCloudFallback,
+        cloudForAll: request.cloudForAll,
+        researchCharacters: request.researchCharacters,
         contentMode: request.contentMode == 'novel'
             ? BookContentMode.novel
             : BookContentMode.illustrated,

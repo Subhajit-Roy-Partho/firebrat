@@ -169,8 +169,26 @@ const kKokoroFemaleVoices = ['Default', 'Bella', 'Nicole', 'Sarah'];
 String resolveKokoroCharacterVoice(NovelCharacter? character,
     {required String narrator, required String male, required String female}) {
   final override = character?.voiceOverride;
-  if (override != null && kKokoroVoices.contains(override)) return override;
-  if (character?.voiceGender == 'male' && kKokoroMaleVoices.contains(male)) return male;
-  if (character?.voiceGender == 'female' && kKokoroFemaleVoices.contains(female)) return female;
-  return narrator;
+  if (override != null) {
+    for (final v in kKokoroVoices) {
+      if (v.toLowerCase() == override.trim().toLowerCase()) return v;
+    }
+  }
+  final gender = character?.voiceGender;
+  final pool = gender == 'male' && kKokoroMaleVoices.contains(male)
+      ? [male, ...kKokoroMaleVoices.where((v) => v != male)]
+      : gender == 'female' && kKokoroFemaleVoices.contains(female)
+          ? [female, ...kKokoroFemaleVoices.where((v) => v != female)]
+          : null;
+  if (pool == null) return narrator;
+  // Characters with a known age/temperament are spread across the voices of
+  // their gender (never the narrator's own voice, so they stay
+  // distinguishable); everyone else keeps the single configured voice.
+  if (character!.traits.hasStyle) {
+    final candidates = pool.where((v) => v != narrator).toList();
+    if (candidates.isNotEmpty) {
+      return candidates[character.style.voiceIndex % candidates.length];
+    }
+  }
+  return pool.first;
 }

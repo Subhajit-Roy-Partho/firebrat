@@ -16,9 +16,11 @@ class CompilationRouter {
   final OnDeviceCompiler onDeviceCompiler;
   final CloudCompiler? cloudCompiler;
   final bool allowCloudFallback;
+  /// Route every chunk to the cloud LLM, not just the hard ones.
+  final bool cloudForAll;
   int _formulaCounter = 1;
 
-  CompilationRouter({required this.onDeviceCompiler, this.cloudCompiler, this.allowCloudFallback = false});
+  CompilationRouter({required this.onDeviceCompiler, this.cloudCompiler, this.allowCloudFallback = false, this.cloudForAll = false});
 
   int _nextFormulaNumber() => _formulaCounter++;
 
@@ -35,7 +37,7 @@ class CompilationRouter {
     final allSections = <CompiledSection>[];
     for (var i = 0; i < chunks.length; i++) {
       final chunk = chunks[i];
-      final useCloud = allowCloudFallback && needsCloudModel(chunk);
+      final useCloud = allowCloudFallback && (cloudForAll || needsCloudModel(chunk));
       if (useCloud && cloudCompiler == null) {
         throw StateError('Cloud helper is enabled but not configured');
       }
@@ -50,6 +52,7 @@ class CompilationRouter {
         'model': checkpointModelKey ?? onDeviceCompiler.model.id,
         'gpu_layers': onDeviceCompiler.gpuLayers,
         'allow_cloud': allowCloudFallback,
+        'cloud_for_all': cloudForAll,
         'uses_cloud': useCloud,
         // Omit credentials and URL query parameters from persisted metadata.
         'cloud_endpoint': endpoint == null ? '' :

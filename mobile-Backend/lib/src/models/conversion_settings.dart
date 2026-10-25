@@ -38,6 +38,16 @@ enum OnDeviceVoiceEngine { stockTts, kokoroOnnx }
 class OnDeviceModeSettings {
   /// e.g. https://nano-gpt.com/api/v1 or https://api.openai.com/v1
   final bool allowCloudFallback;
+
+  /// With [allowCloudFallback], send EVERY passage to the cloud LLM instead of
+  /// only the hard ones. Faster on most phones, and no local model download —
+  /// but the book's text leaves the device (privacy trade-off, off by default).
+  final bool cloudForAll;
+
+  /// Novel mode only: look the book up on Wikipedia and let the cloud LLM
+  /// describe each character's age and temperament, so characters get distinct
+  /// voices. Sends the book title and character names, never the book's text.
+  final bool researchCharacters;
   final BookContentMode contentMode;
   final String llmBaseUrl;
   final String llmApiKey;
@@ -69,6 +79,8 @@ class OnDeviceModeSettings {
 
   const OnDeviceModeSettings({
     this.allowCloudFallback = false,
+    this.cloudForAll = false,
+    this.researchCharacters = false,
     this.contentMode = BookContentMode.illustrated,
     this.llmBaseUrl = '',
     this.llmApiKey = '',
