@@ -90,6 +90,13 @@ Future<String> runOnDeviceConversion(WidgetRef ref, List<String> pdfPaths,
   return runOnDeviceConversionIn(container, pdfPaths, titleOverride: titleOverride);
 }
 
+/// How many sections are narrated, from a "N/M sections" progress line.
+int? _sectionsReady(String? stage, String? detail) {
+  if (stage != 'synthesizing' || detail == null) return null;
+  final m = RegExp(r'^(\d+)/\d+ sections').firstMatch(detail);
+  return m == null ? null : int.parse(m.group(1)!);
+}
+
 /// Thrown by the running conversion's future when the user stops it.
 class ConversionCancelled implements Exception {
   @override
@@ -98,12 +105,14 @@ class ConversionCancelled implements Exception {
 
 /// Cancels the conversion started by [runOnDeviceConversionIn], if any: ends the
 /// background service, removes what it had written so far (only if the book was
-/// never completed), and makes the running future throw [ConversionCancelled].
-Future<void> cancelOnDeviceConversion(ProviderContainer container) async {
+/// never completed, and not when [keepProgress] is set for a pause), and makes
+/// the running future throw [ConversionCancelled].
+Future<void> cancelOnDeviceConversion(ProviderContainer container, {bool keepProgress = false}) async {
   final active = _active;
   await BackgroundConversionRunner.cancel();
   if (active != null) {
-    await _removePartialBook(active.request);
+    // Pausing keeps everything written so far; the next run resumes from it.
+    if (!keepProgress) await _removePartialBook(active.request);
     active.cancel();
   }
   container.read(onDeviceRunProvider.notifier).set(null);
@@ -145,6 +154,7 @@ Future<String> runOnDeviceConversionIn(ProviderContainer container, List<String>
   final booksDir = await container.read(downloadManagerProvider).booksDir();
 
   final completer = Completer<String>();
+  var lastReady = -1;
   late final void Function(Object data) listener;
   listener = (Object data) {
     if (data is! Map) return;
@@ -164,11 +174,18 @@ Future<String> runOnDeviceConversionIn(ProviderContainer container, List<String>
       if (!completer.isCompleted) completer.complete(data['bookId'] as String);
       return;
     }
+    final detail = data['detail'] as String?;
     notifier.set(prev.next(
       stage: data['stage'] as String?,
-      detail: data['detail'] as String?,
+      detail: detail,
       fraction: (data['fraction'] as num?)?.toDouble(),
     ));
+    // Each narrated section is playable at once: show it in the library as it lands.
+    final ready = _sectionsReady(data['stage'] as String?, detail);
+    if (ready != null && ready != lastReady) {
+      lastReady = ready;
+      container.invalidate(localBooksProvider);
+    }
   };
   BackgroundConversionRunner.addProgressListener(listener);
 

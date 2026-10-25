@@ -1,8 +1,6 @@
-Firebrat 1.7.1
-- Convert DRM-free EPUB, MOBI, AZW and AZW3 ebooks, on your phone or a server
-- Beautiful new library: every book gets its own cover art, with smooth animations
-- Lock-screen and notification artwork for every book, including novels
-- Profile photo in the menu
-- Built-in guide to every mode, now with free cloud LLM and Google Drive sync help
-- Option to use a free cloud LLM (such as OpenRouter) instead of the on-device model
-- New playback bar and refreshed look in light and dark mode
+Firebrat 1.7.2
+- Listen while it converts: open a book once its first sections are narrated and playback carries on as more finish
+- Pause and resume conversions; progress is saved after every section, so an app update or restart no longer loses it
+- Stopped or failed conversions can be resumed
+- A resumed novel keeps its character voices
+- New in 1.7: EPUB/MOBI/AZW books, an on-device queue, a Cast screen, a free LLM key guide

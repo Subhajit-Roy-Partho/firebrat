@@ -235,7 +235,9 @@ class _OnDeviceQueue extends ConsumerWidget {
         ],
       );
     }
-    final finished = items.where((i) => i.status != QueueStatus.queued && i.status != QueueStatus.running).length;
+    final finished = items
+        .where((i) => i.status != QueueStatus.queued && i.status != QueueStatus.running && i.status != QueueStatus.paused)
+        .length;
     return ListView(
       padding: const EdgeInsets.only(bottom: 96),
       children: [
@@ -245,6 +247,7 @@ class _OnDeviceQueue extends ConsumerWidget {
             leading: switch (item.status) {
               QueueStatus.running => const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3)),
               QueueStatus.queued => Icon(Icons.schedule_rounded, color: scheme.onSurfaceVariant),
+              QueueStatus.paused => Icon(Icons.pause_circle_outline_rounded, color: scheme.primary),
               QueueStatus.done => const Icon(Icons.check_circle_rounded, color: Colors.green),
               QueueStatus.failed => Icon(Icons.error_rounded, color: scheme.error),
               QueueStatus.cancelled => Icon(Icons.stop_circle_outlined, color: scheme.onSurfaceVariant),
@@ -256,16 +259,36 @@ class _OnDeviceQueue extends ConsumerWidget {
             subtitle: Text(switch (item.status) {
               QueueStatus.running => run?.detail ?? run?.stage ?? 'Converting…',
               QueueStatus.queued => 'Waiting',
+              QueueStatus.paused => 'Paused. Progress is saved; tap Resume to carry on.',
               QueueStatus.done => 'Done. It is in your library.',
               QueueStatus.failed => 'Failed: ${item.error ?? 'unknown error'}',
               QueueStatus.cancelled => 'Stopped',
             }, maxLines: 3, overflow: TextOverflow.ellipsis),
             trailing: switch (item.status) {
-              QueueStatus.running => IconButton(
-                  tooltip: 'Stop this conversion',
-                  icon: const Icon(Icons.stop_rounded),
-                  onPressed: () => notifier.stopCurrent(),
-                ),
+              QueueStatus.running => Row(mainAxisSize: MainAxisSize.min, children: [
+                  IconButton(
+                    tooltip: 'Pause (progress is saved)',
+                    icon: const Icon(Icons.pause_rounded),
+                    onPressed: () => notifier.pauseCurrent(),
+                  ),
+                  IconButton(
+                    tooltip: 'Stop this conversion',
+                    icon: const Icon(Icons.stop_rounded),
+                    onPressed: () => notifier.stopCurrent(),
+                  ),
+                ]),
+              QueueStatus.paused || QueueStatus.cancelled || QueueStatus.failed => Row(mainAxisSize: MainAxisSize.min, children: [
+                  IconButton(
+                    tooltip: 'Resume from where it stopped',
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    onPressed: () => notifier.resume(item.id),
+                  ),
+                  IconButton(
+                    tooltip: 'Dismiss',
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => notifier.remove(item.id),
+                  ),
+                ]),
               QueueStatus.queued => IconButton(
                   tooltip: 'Remove from the queue',
                   icon: const Icon(Icons.close_rounded),
@@ -367,10 +390,20 @@ class _OnDeviceRunBanner extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 4),
-          TextButton.icon(
-            onPressed: () => ref.read(onDeviceQueueProvider.notifier).stopCurrent(),
-            icon: const Icon(Icons.stop_rounded),
-            label: const Text('Stop'),
+          Column(
+            children: [
+              TextButton.icon(
+                key: const Key('banner-pause'),
+                onPressed: () => ref.read(onDeviceQueueProvider.notifier).pauseCurrent(),
+                icon: const Icon(Icons.pause_rounded),
+                label: const Text('Pause'),
+              ),
+              TextButton.icon(
+                onPressed: () => ref.read(onDeviceQueueProvider.notifier).stopCurrent(),
+                icon: const Icon(Icons.stop_rounded),
+                label: const Text('Stop'),
+              ),
+            ],
           ),
         ],
       ),

@@ -58,15 +58,40 @@ class _BookCardState extends State<BookCard> {
   }
 
   Widget _cover() => BookCover(
-        bookId: widget.book.bookId,
-        title: widget.book.title,
-        author: widget.book.author,
-        coverPath: widget.coverPath,
-      );
+    bookId: widget.book.bookId,
+    title: widget.book.title,
+    author: widget.book.author,
+    coverPath: widget.coverPath,
+  );
 
   /// Check / download badge sitting on the cover's bottom-right corner.
+  String _sectionsLabel() {
+    final b = widget.book;
+    if (!b.partial) return '${_duration()} · ${b.sectionCount} sections';
+    final planned = b.sectionsPlanned;
+    return planned == null
+        ? '${_duration()} ready · still converting'
+        : '${_duration()} ready · ${b.sectionCount} of $planned sections';
+  }
+
   Widget _badge(ColorScheme scheme) {
     final done = widget.isDownloaded;
+    if (widget.book.partial) {
+      return Container(
+        key: const Key('partial-badge'),
+        padding: const EdgeInsets.all(5),
+        decoration: BoxDecoration(
+          color: scheme.tertiaryContainer,
+          shape: BoxShape.circle,
+          boxShadow: const [BoxShadow(color: Color(0x44000000), blurRadius: 6)],
+        ),
+        child: Icon(
+          Icons.hourglass_top_rounded,
+          size: 16,
+          color: scheme.onTertiaryContainer,
+        ),
+      );
+    }
     return Container(
       padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
@@ -194,24 +219,32 @@ class _BookCardState extends State<BookCard> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(book.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: text.titleMedium),
+                      Text(
+                        book.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: text.titleMedium,
+                      ),
                       if (book.author.isNotEmpty)
-                        Text(book.author,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: text.bodyMedium
-                                ?.copyWith(color: scheme.onSurfaceVariant)),
+                        Text(
+                          book.author,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: text.bodyMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
                       const SizedBox(height: 6),
                       if (downloading) ...[
-                        DownloadProgressIndicator(progress: widget.downloadProgress!),
+                        DownloadProgressIndicator(
+                          progress: widget.downloadProgress!,
+                        ),
                         Wrap(
                           children: [
                             IconButton(
                               onPressed: widget.onPauseDownload,
-                              tooltip: 'Pause download (tap the book to resume)',
+                              tooltip:
+                                  'Pause download (tap the book to resume)',
                               icon: const Icon(Icons.pause_rounded),
                               visualDensity: VisualDensity.compact,
                             ),
@@ -224,16 +257,16 @@ class _BookCardState extends State<BookCard> {
                           ],
                         ),
                       ] else
-                        Text('${_duration()} · ${book.sectionCount} sections',
-                            style: text.bodySmall
-                                ?.copyWith(color: scheme.onSurfaceVariant)),
+                        Text(
+                          _sectionsLabel(),
+                          style: text.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
                     ],
                   ),
                 ),
-                if (!downloading) ...[
-                  const SizedBox(width: 8),
-                  _badge(scheme),
-                ],
+                if (!downloading) ...[const SizedBox(width: 8), _badge(scheme)],
               ],
             ),
           )
@@ -252,32 +285,44 @@ class _BookCardState extends State<BookCard> {
                         if (downloading)
                           _downloadOverlay(scheme, compact: true)
                         else
-                          Positioned(right: 7, bottom: 7, child: _badge(scheme)),
+                          Positioned(
+                            right: 7,
+                            bottom: 7,
+                            child: _badge(scheme),
+                          ),
                       ],
                     ),
                   ),
                 ),
               ),
               const SizedBox(height: 10),
-              Text(book.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: text.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+              Text(
+                book.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+              ),
               if (book.author.isNotEmpty)
-                Text(book.author,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                Text(
+                  book.author,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: text.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
               const SizedBox(height: 2),
               Text(
                 downloading
                     ? widget.downloadProgress!.label
                     : widget.layout == LibraryLayout.smallCards
-                        ? _duration()
-                        : '${_duration()} · ${book.sectionCount} sections',
+                    ? _duration()
+                    : _sectionsLabel(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: text.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+                style: text.labelSmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
             ],
           );

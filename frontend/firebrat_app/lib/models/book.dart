@@ -9,6 +9,11 @@ class BookSummary {
   final int sizeBytes;
   final String updatedAt;
 
+  /// An on-device book still being narrated: [sectionCount] sections are
+  /// playable now, out of [sectionsPlanned].
+  final bool partial;
+  final int? sectionsPlanned;
+
   const BookSummary({
     required this.bookId,
     required this.title,
@@ -17,6 +22,8 @@ class BookSummary {
     required this.sectionCount,
     required this.sizeBytes,
     required this.updatedAt,
+    this.partial = false,
+    this.sectionsPlanned,
   });
 
   factory BookSummary.fromJson(Map<String, dynamic> json) => BookSummary(

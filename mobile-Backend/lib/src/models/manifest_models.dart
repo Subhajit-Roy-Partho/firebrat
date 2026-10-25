@@ -22,6 +22,15 @@ class ManifestFormula {
     required this.page,
   });
 
+  factory ManifestFormula.fromJson(Map<String, dynamic> j) => ManifestFormula(
+        formulaId: j['formula_id'] as String,
+        latex: j['latex'] as String? ?? '',
+        imagePath: j['image_path'] as String? ?? '',
+        spokenText: j['spoken_text'] as String? ?? '',
+        visuallyEssential: j['visually_essential'] as bool? ?? false,
+        page: j['page'] as int? ?? 0,
+      );
+
   Map<String, dynamic> toJson() => {
         'formula_id': formulaId,
         'latex': latex,
@@ -91,6 +100,20 @@ class ManifestSection {
     this.sourcePages = const [],
   });
 
+  factory ManifestSection.fromJson(Map<String, dynamic> j) => ManifestSection(
+        sectionId: j['section_id'] as String,
+        order: j['order'] as int,
+        title: j['title'] as String? ?? '',
+        audioPath: j['audio_path'] as String,
+        segmentsPath: j['segments_path'] as String,
+        durationMs: j['duration_ms'] as int? ?? 0,
+        figureRefs: (j['figure_refs'] as List? ?? const []).cast<String>(),
+        formulaRefs: (j['formula_refs'] as List? ?? const []).cast<String>(),
+        tableRefs: (j['table_refs'] as List? ?? const []).cast<String>(),
+        needsReview: j['needs_review'] as bool? ?? false,
+        sourcePages: (j['source_pages'] as List? ?? const []).map((e) => (e as num).toInt()).toList(),
+      );
+
   Map<String, dynamic> toJson() => {
         'section_id': sectionId,
         'chapter': null,
@@ -120,6 +143,11 @@ class Manifest {
   final List<ManifestTable> tables;
   final String narratorEngine; // "on_device_tts" for this pipeline's narration, distinguishing it from "chatterbox-tts"
   final String? sourcePdfPath; // relative path of the shipped source PDF (e.g. "source.pdf"), null for old packages
+  /// True while the book is still being narrated: [sections] holds only the
+  /// sections finished so far, out of [sectionsPlanned]. Absent (false) in a
+  /// finished book, so complete packages keep their original shape.
+  final bool partial;
+  final int? sectionsPlanned;
 
   const Manifest({
     required this.bookId,
@@ -134,6 +162,8 @@ class Manifest {
     required this.tables,
     required this.narratorEngine,
     this.sourcePdfPath,
+    this.partial = false,
+    this.sectionsPlanned,
   });
 
   Map<String, dynamic> toJson() => {
@@ -162,5 +192,7 @@ class Manifest {
         'figures': figures.map((f) => f.toJson()).toList(),
         'formulas': formulas.map((f) => f.toJson()).toList(),
         'tables': tables.map((t) => t.toJson()).toList(),
+        if (partial) 'partial': true,
+        if (partial && sectionsPlanned != null) 'sections_planned': sectionsPlanned,
       };
 }

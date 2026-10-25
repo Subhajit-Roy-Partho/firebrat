@@ -12,6 +12,7 @@ import '../extraction/page_visuals.dart';
 import '../extraction/ocr_fallback.dart';
 import '../llm/llm_endpoint.dart';
 import '../novel/character_research.dart';
+import '../novel/character_traits.dart';
 import '../novel/novel_analyzer.dart';
 import '../models/compiled_models.dart';
 import '../models/conversion_settings.dart';
@@ -162,7 +163,27 @@ class MobileConversionPipeline {
     Map<String, dynamic>? researchReport;
     // Automatic character research: needs only an LLM URL, key and model (not the
     // "cloud helper"), and sends just the title and character names.
-    if (novelPlan != null && settings.researchCharacters) {
+    // A book being resumed keeps the cast it was already narrated with, so a
+    // second web lookup can never change a voice halfway through.
+    final resuming = await File('$bookDir/$_checkpointName').exists();
+    final researchCache = File('$bookDir/research_cache.json');
+    CharacterResearchResult? cachedResearch;
+    if (resuming && await researchCache.exists()) {
+      try {
+        final j = jsonDecode(await researchCache.readAsString()) as Map<String, dynamic>;
+        cachedResearch = CharacterResearchResult({
+          for (final e in (j['traits'] as Map).entries)
+            e.key as String: CharacterTraits.fromJson(e.value as Map, source: 'web'),
+        }, sources: (j['sources'] as List).cast<String>(), missing: (j['missing'] as List).cast<String>());
+      } catch (_) {
+        cachedResearch = null;
+      }
+    }
+    if (novelPlan != null && cachedResearch != null && cachedResearch.traits.isNotEmpty) {
+      researchReport = cachedResearch.toJson();
+      novelPlan = novelPlan.withResearch(cachedResearch.traits);
+      _report('extracting', 'reusing the cast from the earlier run (${cachedResearch.traits.length} characters)', 0.76);
+    } else if (novelPlan != null && settings.researchCharacters) {
       if (settings.llmBaseUrl.trim().isEmpty || settings.llmApiKey.trim().isEmpty || settings.llmModel.trim().isEmpty) {
         _report('extracting', 'character research skipped: add an LLM URL, key and model in Conversion settings', 0.72);
       } else {
@@ -177,6 +198,11 @@ class MobileConversionPipeline {
         );
         researchReport = result.toJson();
         if (result.traits.isNotEmpty) {
+          await researchCache.writeAsString(jsonEncode({
+            'traits': {for (final e in result.traits.entries) e.key: e.value.toJson()},
+            'sources': result.sources,
+            'missing': result.missing,
+          }));
           novelPlan = novelPlan.withResearch(result.traits);
           final extra = result.missing.isEmpty ? '' : '; ${result.missing.length} not described';
           _report('extracting', 'cast ${result.traits.length} characters from ${result.sourceTitle}$extra', 0.76);
@@ -277,8 +303,65 @@ class MobileConversionPipeline {
     var totalDurationMs = 0;
     int? audioSampleRate;
 
+    // Publish the book after every finished section so it can be opened and
+    // played while the rest is still being narrated. Re-converting a book that
+    // is already complete keeps its old manifest until the new one is ready.
+    final checkpointFile = File('$bookDir/$_checkpointName');
+    final fingerprint = _fingerprint(compiledSections);
+    var startIndex = 0;
     try {
-      for (var i = 0; i < compiledSections.length; i++) {
+      if (await checkpointFile.exists()) {
+        final j = jsonDecode(await checkpointFile.readAsString()) as Map<String, dynamic>;
+        final done = [for (final m in j['sections'] as List) ManifestSection.fromJson(m as Map<String, dynamic>)];
+        var intact = j['fingerprint'] == fingerprint && done.length <= compiledSections.length;
+        for (final d in done) {
+          if (!intact) break;
+          intact = await File('$bookDir/${d.audioPath}').exists() && await File('$bookDir/${d.segmentsPath}').exists();
+        }
+        if (intact && done.isNotEmpty) {
+          manifestSections.addAll(done);
+          manifestFormulas.addAll([for (final f in j['formulas'] as List) ManifestFormula.fromJson(f as Map<String, dynamic>)]);
+          totalDurationMs = j['total_duration_ms'] as int;
+          audioSampleRate = j['sample_rate'] as int?;
+          startIndex = done.length;
+          _report('synthesizing', 'resuming after section $startIndex of ${compiledSections.length}',
+              startIndex / compiledSections.length);
+        }
+      }
+    } catch (_) {
+      startIndex = 0; // an unreadable checkpoint just means starting the narration over
+      manifestSections.clear();
+      manifestFormulas.clear();
+      totalDurationMs = 0;
+      audioSampleRate = null;
+    }
+    final manifestFile = File('$bookDir/manifest.json');
+    final publishProgress = !await _hasCompleteManifest(manifestFile);
+    Future<void> writeManifest({required bool partial}) async {
+      final manifest = Manifest(
+        bookId: bookId,
+        title: title,
+        sourcePdf: displayName,
+        generatedAt: DateTime.now().toUtc().toIso8601String(),
+        totalDurationMs: totalDurationMs,
+        sampleRate: audioSampleRate ?? 22050,
+        sections: List.of(manifestSections),
+        figures: pageVisuals,
+        formulas: List.of(manifestFormulas),
+        tables: const [],
+        narratorEngine: narratorEngineName,
+        sourcePdfPath: shippedSourcePdf,
+        partial: partial,
+        sectionsPlanned: compiledSections.length,
+      );
+      // Write beside, then rename: a reader never sees a half-written file.
+      final staged = File('$bookDir/manifest.json.tmp');
+      await staged.writeAsString(jsonEncode(manifest.toJson()), flush: true);
+      await staged.rename(manifestFile.path);
+    }
+
+    try {
+      for (var i = startIndex; i < compiledSections.length; i++) {
         final original = compiledSections[i];
         final visuals = pageVisuals.where((f) => original.sourcePages.contains(f.page)).toList();
         final segments = [...original.segments];
@@ -339,29 +422,61 @@ class MobileConversionPipeline {
           sourcePages: section.sourcePages,
         ));
 
+        await checkpointFile.writeAsString(jsonEncode({
+          'fingerprint': fingerprint,
+          'sections': [for (final m in manifestSections) m.toJson()],
+          'formulas': [for (final f in manifestFormulas) f.toJson()],
+          'total_duration_ms': totalDurationMs,
+          'sample_rate': audioSampleRate,
+        }), flush: true);
+        if (publishProgress && i + 1 < compiledSections.length) await writeManifest(partial: true);
         _report('synthesizing', '${i + 1}/${compiledSections.length} sections', (i + 1) / compiledSections.length);
       }
     } finally {
       tts.dispose();
     }
 
-    final manifest = Manifest(
-      bookId: bookId,
-      title: title,
-      sourcePdf: displayName,
-      generatedAt: DateTime.now().toUtc().toIso8601String(),
-      totalDurationMs: totalDurationMs,
-      sampleRate: audioSampleRate ?? 22050,
-      sections: manifestSections,
-      figures: pageVisuals,
-      formulas: manifestFormulas,
-      tables: const [],
-      narratorEngine: narratorEngineName,
-      sourcePdfPath: shippedSourcePdf,
-    );
-    await File('$bookDir/manifest.json').writeAsString(jsonEncode(manifest.toJson()));
+    await writeManifest(partial: false);
+    // Finished: nothing left to resume.
+    for (final name in [_checkpointName, 'research_cache.json']) {
+      try {
+        await File('$bookDir/$name').delete();
+      } catch (_) {}
+    }
 
     _report('done', '${manifestSections.length} sections, ${manifestFormulas.length} formulas', 1.0);
     return bookId;
+  }
+
+  /// True when [file] is a finished book's manifest (not a partial one).
+  static Future<bool> _hasCompleteManifest(File file) async {
+    try {
+      if (!await file.exists()) return false;
+      final json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      return json['partial'] != true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static const _checkpointName = 'synthesis_checkpoint.json';
+
+  /// A cheap fingerprint of the text about to be narrated, so a resume only
+  /// reuses finished sections when the book it was made from is unchanged.
+  static String _fingerprint(List<CompiledSection> sections) {
+    var h = 0x811c9dc5;
+    void mix(String text) {
+      for (final unit in text.codeUnits) {
+        h = ((h ^ unit) * 0x01000193) & 0xffffffff;
+      }
+    }
+
+    for (final section in sections) {
+      mix(section.title);
+      for (final segment in section.segments) {
+        mix(segment.text);
+      }
+    }
+    return '${sections.length}:${h.toRadixString(16)}';
   }
 }

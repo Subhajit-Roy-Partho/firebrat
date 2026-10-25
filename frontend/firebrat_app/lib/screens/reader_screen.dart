@@ -118,6 +118,7 @@ class ReaderScreen extends ConsumerWidget {
             ),
           ),
           _SourcePageButton(bookId: bookId),
+          if (state.manifest.partial) _ConvertingBanner(state: state),
           if (state.error != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -353,6 +354,42 @@ class _SegmentList extends ConsumerWidget {
           onTap: () => controller.player.seekToSegment(seg),
         );
       },
+    );
+  }
+}
+
+/// Shown while an on-device conversion is still narrating this book: how many
+/// sections are ready, and that playback carries on as more arrive.
+class _ConvertingBanner extends StatelessWidget {
+  final ReaderState state;
+  const _ConvertingBanner({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final planned = state.manifest.sectionsPlanned;
+    final ready = state.manifest.sections.length;
+    return Container(
+      key: const Key('converting-banner'),
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: scheme.tertiaryContainer, borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          Icon(Icons.hourglass_top_rounded, size: 18, color: scheme.onTertiaryContainer),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              state.waitingForNext
+                  ? 'Waiting for the next section to finish. Playback continues by itself.'
+                  : planned == null
+                      ? 'Still converting: $ready sections ready. More appear as they finish.'
+                      : 'Still converting: $ready of $planned sections ready. More appear as they finish.',
+              style: TextStyle(color: scheme.onTertiaryContainer),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

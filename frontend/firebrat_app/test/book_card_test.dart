@@ -214,4 +214,29 @@ void main() {
     expect(find.text('70%'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('a book still being converted shows how many sections are ready', (tester) async {
+    await _pumpCard(
+      tester,
+      BookCard(
+        book: const BookSummary(
+          bookId: 'b1',
+          title: 'Half done',
+          author: '',
+          totalDurationMs: 90 * 60000,
+          sectionCount: 12,
+          sizeBytes: 1,
+          updatedAt: '',
+          partial: true,
+          sectionsPlanned: 40,
+        ),
+        isDownloaded: true,
+        downloadProgress: null,
+        onTap: () {},
+      ),
+    );
+    expect(find.textContaining('12 of 40 sections'), findsOneWidget);
+    expect(find.byKey(const Key('partial-badge')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

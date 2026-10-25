@@ -13,6 +13,7 @@ import '../services/reading_progress_store.dart';
 import '../services/audio_handler.dart';
 import '../services/library_repository.dart';
 import '../services/playback_controller.dart';
+import 'on_device_pipeline_run_provider.dart';
 import 'library_providers.dart';
 import 'settings_providers.dart';
 
@@ -46,6 +47,10 @@ class ReaderState {
   /// package) — the reader shows this instead of spinning forever.
   final String? error;
 
+  /// A book still being converted whose last ready section has finished
+  /// playing: playback carries on by itself as the next one lands.
+  final bool waitingForNext;
+
   const ReaderState({
     required this.manifest,
     required this.sectionIndex,
@@ -54,6 +59,7 @@ class ReaderState {
     this.assetPaths = const {},
     this.currentVisualId,
     this.error,
+    this.waitingForNext = false,
   });
 
   ManifestSection get section => manifest.sections[sectionIndex];
@@ -77,6 +83,8 @@ class ReaderState {
   }
 
   ReaderState copyWith({
+    Manifest? manifest,
+    bool? waitingForNext,
     int? sectionIndex,
     Segment? activeSegment,
     bool clearActiveSegment = false,
@@ -88,7 +96,8 @@ class ReaderState {
     bool clearError = false,
   }) =>
       ReaderState(
-        manifest: manifest,
+        manifest: manifest ?? this.manifest,
+        waitingForNext: waitingForNext ?? this.waitingForNext,
         sectionIndex: sectionIndex ?? this.sectionIndex,
         activeSegment: clearActiveSegment ? null : (activeSegment ?? this.activeSegment),
         loadingSection: loadingSection ?? this.loadingSection,
@@ -113,12 +122,15 @@ class ReaderController extends Notifier<ReaderState?> {
   String _signature = '';
   String? _currentAudioPath;
   Uri? _coverUri;
+  Timer? _partialTimer;
+  bool _refreshing = false;
   String get _bookId => bookId;
 
   @override
   ReaderState? build() {
     player = PlaybackController(ref.read(audioHandlerProvider));
     ref.onDispose(() {
+      _partialTimer?.cancel();
       _activeSub?.cancel();
       _completeSub?.cancel();
       _progressSub?.cancel();
@@ -148,16 +160,20 @@ class ReaderController extends Notifier<ReaderState?> {
       return;
     }
     ref.read(readerErrorProvider(bookId).notifier).set(null);
-    _signature = sha256.convert(utf8.encode(jsonEncode([
-      for (final s in manifest.sections) [s.sectionId, s.durationMs],
-    ]))).toString();
+    _signature = _signatureFor(manifest);
     _progressStore = ref.read(firestoreSyncServiceProvider).progressStore(bookId);
-    final restored = await _progressStore!.restore(_signature);
+    var restored = await _progressStore!.restore(_signature);
+    // A book that was listened to while still converting saved its place under
+    // the "partial" signature: carry it over once the book is finished.
+    if (restored == null && !manifest.partial) {
+      restored = await _progressStore!.restore(_partialSignature);
+    }
     if (!ref.mounted) return;
-    final restoredIndex = restored == null ? -1 :
-        manifest.sections.indexWhere((s) => s.sectionId == restored.sectionId);
+    final found = restored;
+    final restoredIndex = found == null ? -1 :
+        manifest.sections.indexWhere((s) => s.sectionId == found.sectionId);
     final index = restoredIndex < 0 ? 0 : restoredIndex;
-    _lastCheckpoint = restoredIndex < 0 ? null : restored;
+    _lastCheckpoint = restoredIndex < 0 ? null : found;
     state = ReaderState(manifest: manifest, sectionIndex: index, activeSegment: null, loadingSection: true);
     _coverUri = await CoverArtService(ref.read(downloadManagerProvider)).coverUri(
         bookId: bookId, title: manifest.title, author: manifest.author);
@@ -182,6 +198,63 @@ class ReaderController extends Notifier<ReaderState?> {
       }
     });
     _completeSub = player.sectionCompleteStream.listen((_) => _onSectionComplete());
+    if (manifest.partial) {
+      _partialTimer = Timer.periodic(const Duration(seconds: 4), (_) => unawaited(_refreshManifest()));
+    }
+  }
+
+  static const _partialSignature = 'partial';
+
+  /// A growing book keeps one stable signature, so the place being listened to
+  /// survives new sections arriving; a finished book hashes its section list.
+  String _signatureFor(Manifest manifest) => manifest.partial
+      ? _partialSignature
+      : sha256.convert(utf8.encode(jsonEncode([
+          for (final s in manifest.sections) [s.sectionId, s.durationMs],
+        ]))).toString();
+
+  bool _conversionRunning() {
+    final run = ref.read(onDeviceRunProvider);
+    return run != null && !run.done && run.error == null;
+  }
+
+  /// Picks up sections that finished since the book was opened. When playback
+  /// had caught up with the conversion, continues with the next one.
+  Future<void> _refreshManifest() async {
+    if (_refreshing || !ref.mounted) return;
+    _refreshing = true;
+    try {
+      final Manifest fresh;
+      try {
+        fresh = await ref.read(libraryRepositoryProvider).loadLocalManifest(bookId);
+      } catch (_) {
+        return; // mid-write or briefly unreadable: the next tick tries again
+      }
+      final current = state;
+      if (current == null || !ref.mounted) return;
+      final grew = fresh.sections.length > current.manifest.sections.length;
+      if (grew || (current.manifest.partial && !fresh.partial)) {
+        state = current.copyWith(manifest: fresh);
+        if (!fresh.partial) {
+          _partialTimer?.cancel();
+          _signature = _signatureFor(fresh);
+        }
+      }
+      final s = state;
+      if (s == null) return;
+      if (s.waitingForNext) {
+        if (s.sectionIndex < s.manifest.sections.length - 1) {
+          state = s.copyWith(waitingForNext: false);
+          await nextSection();
+          await player.play();
+        } else if (!s.manifest.partial || !_conversionRunning()) {
+          state = s.copyWith(waitingForNext: false); // finished, or paused/stopped: nothing more is coming
+          await player.pause();
+        }
+      }
+    } finally {
+      _refreshing = false;
+    }
   }
 
   Future<void> _loadSection(int index) async {
@@ -288,9 +361,16 @@ class ReaderController extends Notifier<ReaderState?> {
   Future<void> _onSectionComplete() async {
     await _saveCheckpoint(force: true);
     final settings = ref.read(readerSettingsProvider);
+    if (state?.manifest.partial == true) await _refreshManifest();
     final s = state;
     if (s == null) return;
-    if (!settings.autoplayEnabled || s.sectionIndex >= s.manifest.sections.length - 1) {
+    final atEnd = s.sectionIndex >= s.manifest.sections.length - 1;
+    if (atEnd && s.manifest.partial && settings.autoplayEnabled && _conversionRunning()) {
+      // Caught up with the narration: wait for the next section instead of stopping.
+      state = s.copyWith(waitingForNext: true);
+      return;
+    }
+    if (!settings.autoplayEnabled || atEnd) {
       await player.pause();
       return;
     }

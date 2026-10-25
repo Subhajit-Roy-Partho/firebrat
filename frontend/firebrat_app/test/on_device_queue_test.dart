@@ -13,6 +13,7 @@ class FakeRunner {
   final started = <String>[];
   final waiting = <String, Completer<String>>{};
   int cancels = 0;
+  int pauses = 0;
 
   Future<String> run(ProviderContainer c, List<String> paths, {String? titleOverride}) {
     final key = titleOverride ?? paths.first;
@@ -20,8 +21,12 @@ class FakeRunner {
     return (waiting[key] = Completer<String>()).future;
   }
 
-  Future<void> cancel(ProviderContainer c) async {
-    cancels++;
+  Future<void> cancel(ProviderContainer c, {bool keepProgress = false}) async {
+    if (keepProgress) {
+      pauses++;
+    } else {
+      cancels++;
+    }
     final last = started.last;
     waiting[last]!.completeError(ConversionCancelled());
   }
@@ -132,6 +137,58 @@ void main() {
     await settle();
     await settle();
     expect(fake2.started, ['Waiting']); // restored and started again
+  });
+
+  test('pausing keeps the book and holds the queue until it is resumed', () async {
+    final fake = FakeRunner();
+    final c = makeContainer(fake);
+    final queue = c.read(onDeviceQueueProvider.notifier);
+    queue.enqueue(['/x/One.pdf', '/x/Two.pdf']);
+    await settle();
+    await queue.pauseCurrent();
+    await settle();
+    expect(fake.pauses, 1);
+    expect(fake.cancels, 0);
+    expect(statuses(c), [QueueStatus.paused, QueueStatus.queued]);
+    expect(fake.started, ['One']); // Two does not start while paused
+    queue.resume(c.read(onDeviceQueueProvider).first.id);
+    await settle();
+    expect(statuses(c), [QueueStatus.running, QueueStatus.queued]);
+    expect(fake.started, ['One', 'One']); // runs again; the converter picks up its saved progress
+    fake.waiting['One']!.complete('one');
+    await settle();
+    expect(fake.started, ['One', 'One', 'Two']);
+  });
+
+  test('a stopped or failed book can be resumed', () async {
+    final fake = FakeRunner();
+    final c = makeContainer(fake);
+    final queue = c.read(onDeviceQueueProvider.notifier);
+    queue.enqueue(['/x/Bad.pdf']);
+    await settle();
+    fake.waiting['Bad']!.completeError(StateError('boom'));
+    await settle();
+    expect(statuses(c), [QueueStatus.failed]);
+    queue.resume(c.read(onDeviceQueueProvider).first.id);
+    await settle();
+    expect(statuses(c), [QueueStatus.running]);
+  });
+
+  test('a paused book survives the app being closed and stays paused', () async {
+    final fake = FakeRunner();
+    final c = makeContainer(fake);
+    final queue = c.read(onDeviceQueueProvider.notifier);
+    queue.enqueue(['/x/Held.pdf']);
+    await settle();
+    await queue.pauseCurrent();
+    await settle();
+    final fake2 = FakeRunner();
+    final second = makeContainer(fake2);
+    second.read(onDeviceQueueProvider);
+    await settle();
+    await settle();
+    expect(statuses(second), [QueueStatus.paused]);
+    expect(fake2.started, isEmpty);
   });
 
   testWidgets('Conversions screen shows the queue, a Stop button and a battery notice', (tester) async {

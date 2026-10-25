@@ -1,9 +1,20 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/book.dart';
+import '../state/library_providers.dart';
 import '../state/on_device_conversion_providers.dart';
+import '../state/reader_providers.dart';
+import 'reader_screen.dart';
 import '../state/on_device_pipeline_run_provider.dart';
 import '../state/on_device_queue_provider.dart';
+
+/// Opens a book that is still being converted, so the sections already
+/// narrated can be played while the rest is made.
+void openPartialBook(BuildContext context, WidgetRef ref, String bookId) {
+  ref.invalidate(readerControllerProvider(bookId));
+  Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReaderScreen(bookId: bookId)));
+}
 
 /// The stages of an on-device conversion, in order, as the pipeline reports them.
 typedef ConversionStep = ({String key, String title, String hint});
@@ -94,6 +105,7 @@ class _ConversionDetailScreenState extends ConsumerState<ConversionDetailScreen>
     final ahead = queue.where((i) => i.status == QueueStatus.queued).toList().indexWhere((i) => i.id == item.id);
     final start = item.startedAt;
     final end = item.finishedAt ?? DateTime.now();
+    final partial = ref.watch(localBooksProvider).value?.where((b) => b.bookId == item.bookId && b.partial).firstOrNull;
 
     String? eta;
     if (running && run?.fraction != null && stage != null) {
@@ -115,6 +127,7 @@ class _ConversionDetailScreenState extends ConsumerState<ConversionDetailScreen>
               leading: switch (item.status) {
                 QueueStatus.running => const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3)),
                 QueueStatus.queued => const Icon(Icons.schedule_rounded),
+                QueueStatus.paused => const Icon(Icons.pause_circle_outline_rounded),
                 QueueStatus.done => const Icon(Icons.check_circle_rounded, color: Colors.green),
                 QueueStatus.failed => Icon(Icons.error_rounded, color: theme.colorScheme.error),
                 QueueStatus.cancelled => const Icon(Icons.stop_circle_outlined),
@@ -122,6 +135,7 @@ class _ConversionDetailScreenState extends ConsumerState<ConversionDetailScreen>
               title: Text(switch (item.status) {
                 QueueStatus.running => 'Converting now',
                 QueueStatus.queued => ahead <= 0 ? 'Next in the queue' : '$ahead ${ahead == 1 ? 'book' : 'books'} ahead of this one',
+                QueueStatus.paused => 'Paused. Your progress is saved.',
                 QueueStatus.done => 'Finished. It is in your library.',
                 QueueStatus.failed => 'Failed',
                 QueueStatus.cancelled => 'Stopped',
@@ -132,6 +146,7 @@ class _ConversionDetailScreenState extends ConsumerState<ConversionDetailScreen>
               ].join(' · ')),
             ),
           ),
+          _Actions(item: item, partial: partial),
           if (item.status == QueueStatus.failed && item.error != null)
             Card(
               color: theme.colorScheme.errorContainer,
@@ -181,11 +196,59 @@ class _ConversionDetailScreenState extends ConsumerState<ConversionDetailScreen>
     if (index == reached) {
       return switch (status) {
         QueueStatus.failed => _StepState.failed,
-        QueueStatus.cancelled => _StepState.stopped,
+        QueueStatus.cancelled || QueueStatus.paused => _StepState.stopped,
         _ => _StepState.current,
       };
     }
     return _StepState.pending;
+  }
+}
+
+/// Pause / resume and "listen to what is ready" for one book.
+class _Actions extends ConsumerWidget {
+  final QueueItem item;
+  final BookSummary? partial;
+  const _Actions({required this.item, required this.partial});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final queue = ref.read(onDeviceQueueProvider.notifier);
+    final ready = partial;
+    final canResume = item.status == QueueStatus.paused ||
+        item.status == QueueStatus.cancelled ||
+        item.status == QueueStatus.failed;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          if (ready != null)
+            FilledButton.icon(
+              key: const Key('listen-ready'),
+              onPressed: () => openPartialBook(context, ref, item.bookId),
+              icon: const Icon(Icons.headphones_rounded),
+              label: Text(ready.sectionsPlanned == null
+                  ? 'Listen to what is ready'
+                  : 'Listen to what is ready (${ready.sectionCount} of ${ready.sectionsPlanned})'),
+            ),
+          if (item.status == QueueStatus.running)
+            OutlinedButton.icon(
+              key: const Key('pause-conversion'),
+              onPressed: queue.pauseCurrent,
+              icon: const Icon(Icons.pause_rounded),
+              label: const Text('Pause'),
+            ),
+          if (canResume)
+            FilledButton.tonalIcon(
+              key: const Key('resume-conversion'),
+              onPressed: () => queue.resume(item.id),
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('Resume'),
+            ),
+        ],
+      ),
+    );
   }
 }
 

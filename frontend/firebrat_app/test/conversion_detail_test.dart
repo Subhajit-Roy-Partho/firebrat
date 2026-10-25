@@ -40,7 +40,7 @@ void main() {
     final fake = _Fake();
     final container = ProviderContainer(overrides: [
       conversionRunnerProvider.overrideWithValue(fake.run),
-      conversionCancellerProvider.overrideWithValue((c) async {}),
+      conversionCancellerProvider.overrideWithValue((c, {bool keepProgress = false}) async {}),
     ]);
     addTearDown(container.dispose);
     await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const MaterialApp(home: ConversionsScreen())));

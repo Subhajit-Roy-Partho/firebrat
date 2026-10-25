@@ -38,6 +38,8 @@ class LibraryRepository {
           sectionCount: m.sections.length,
           sizeBytes: await _dirSize(dir),
           updatedAt: m.generatedAt,
+          partial: m.partial,
+          sectionsPlanned: m.sectionsPlanned,
         ));
       } catch (_) {
         // A partially-written or corrupt local package — skip it rather

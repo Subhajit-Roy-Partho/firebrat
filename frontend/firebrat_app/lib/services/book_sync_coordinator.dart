@@ -43,6 +43,7 @@ class BookSyncCoordinator {
     await _gateRemoteFlush('syncMetadata');
     final records = await metadata.fetchLibrary(strict: true);
     for (final book in local) {
+      if (book.partial) continue; // only finished books are synced
       final existing = records[book.bookId];
       if (existing?['title'] == book.title &&
           existing?['sectionCount'] == book.sectionCount &&
@@ -66,6 +67,9 @@ class BookSyncCoordinator {
     await DriveSyncService.instance.ensureAccess();
     await _gateRemoteFlush('backup:${book.bookId}');
     final dir = await downloads.bookDir(book.bookId);
+    if (book.partial) {
+      throw StateError('This book is still being converted. Back it up once it is finished.');
+    }
     if (!await downloads.isDownloaded(book.bookId)) {
       throw StateError('Download the complete book first.');
     }

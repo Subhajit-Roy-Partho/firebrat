@@ -140,6 +140,11 @@ class Manifest {
   /// server books parse as 'audiobook'.
   final String kind;
 
+  /// True while an on-device conversion is still narrating this book:
+  /// [sections] lists only what is finished so far, out of [sectionsPlanned].
+  final bool partial;
+  final int? sectionsPlanned;
+
   const Manifest({
     required this.bookId,
     required this.title,
@@ -153,6 +158,8 @@ class Manifest {
     required this.tables,
     this.sourcePdfPath,
     this.kind = 'audiobook',
+    this.partial = false,
+    this.sectionsPlanned,
   });
 
   bool get isChapters => kind == 'chapters';
@@ -166,6 +173,8 @@ class Manifest {
         totalDurationMs: json['total_duration_ms'] as int? ?? 0,
         sourcePdfPath: json['source_pdf_path'] as String?,
         kind: json['kind'] as String? ?? 'audiobook',
+        partial: json['partial'] as bool? ?? false,
+        sectionsPlanned: (json['sections_planned'] as num?)?.toInt(),
         sections: (json['sections'] as List? ?? [])
             .map((e) => ManifestSection.fromJson(e as Map<String, dynamic>))
             .toList(),

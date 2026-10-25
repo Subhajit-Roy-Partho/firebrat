@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart' show BackgroundConversionRunner;
+import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart' show BackgroundConversionRunner, sanitizeBookId;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'on_device_pipeline_run_provider.dart';
 
-enum QueueStatus { queued, running, done, failed, cancelled }
+enum QueueStatus { queued, running, paused, done, failed, cancelled }
 
 /// One book waiting for, undergoing, or finished with an on-device conversion.
 class QueueItem {
@@ -54,20 +54,24 @@ class QueueItem {
         events: events ?? this.events,
       );
 
-  Map<String, dynamic> toJson() => {'id': id, 'path': path, 'title': title};
+  /// The library folder this conversion writes to (the pipeline derives it from the title).
+  String get bookId => sanitizeBookId('$title.pdf');
+
+  Map<String, dynamic> toJson() => {'id': id, 'path': path, 'title': title, 'paused': status == QueueStatus.paused};
 }
 
 /// Runs one conversion. Overridable so the queue can be tested without a phone.
 typedef ConversionRunner = Future<String> Function(ProviderContainer container, List<String> paths, {String? titleOverride});
-typedef ConversionCanceller = Future<void> Function(ProviderContainer container);
+typedef ConversionCanceller = Future<void> Function(ProviderContainer container, {bool keepProgress});
 
 final conversionRunnerProvider = Provider<ConversionRunner>((ref) => runOnDeviceConversionIn);
 final conversionCancellerProvider = Provider<ConversionCanceller>((ref) => cancelOnDeviceConversion);
 final unzipChaptersProvider = Provider<Future<List<String>> Function(String)>((ref) => unpackZipChapters);
 
 /// Books waiting for on-device conversion, converted one at a time, in order.
-/// A failed or stopped book never blocks the ones behind it. Waiting books
-/// survive the app being closed (the one that was mid-conversion starts over).
+/// A failed or stopped book never blocks the ones behind it. Waiting and paused
+/// books survive the app being closed or updated; the one that was mid-conversion
+/// carries on from the last section it finished.
 class OnDeviceQueueNotifier extends Notifier<List<QueueItem>> {
   static const _kPending = 'onDeviceQueue.pending';
   bool _pumping = false;
@@ -85,7 +89,12 @@ class OnDeviceQueueNotifier extends Notifier<List<QueueItem>> {
     try {
       final restored = [
         for (final m in jsonDecode(raw) as List)
-          QueueItem(id: m['id'] as String, path: m['path'] as String, title: m['title'] as String),
+          QueueItem(
+            id: m['id'] as String,
+            path: m['path'] as String,
+            title: m['title'] as String,
+            status: m['paused'] == true ? QueueStatus.paused : QueueStatus.queued,
+          ),
       ];
       if (restored.isEmpty || state.any((i) => i.status == QueueStatus.queued || i.status == QueueStatus.running)) return;
       state = [...restored, ...state];
@@ -100,7 +109,10 @@ class OnDeviceQueueNotifier extends Notifier<List<QueueItem>> {
   }
 
   Future<void> _save() async {
-    final pending = [for (final i in state) if (i.status == QueueStatus.queued || i.status == QueueStatus.running) i];
+    final pending = [
+      for (final i in state)
+        if (i.status == QueueStatus.queued || i.status == QueueStatus.running || i.status == QueueStatus.paused) i
+    ];
     final prefs = await SharedPreferences.getInstance();
     if (pending.isEmpty) {
       await prefs.remove(_kPending);
@@ -135,7 +147,10 @@ class OnDeviceQueueNotifier extends Notifier<List<QueueItem>> {
 
   /// Forgets finished entries (done, failed, stopped).
   void clearFinished() {
-    state = [for (final i in state) if (i.status == QueueStatus.queued || i.status == QueueStatus.running) i];
+    state = [
+      for (final i in state)
+        if (i.status == QueueStatus.queued || i.status == QueueStatus.running || i.status == QueueStatus.paused) i
+    ];
   }
 
   /// Stops the book being converted now. The queue carries on with the next one.
@@ -146,8 +161,32 @@ class OnDeviceQueueNotifier extends Notifier<List<QueueItem>> {
     await ref.read(conversionCancellerProvider)(ref.container);
   }
 
+  /// Pauses the book being converted now, and the queue behind it, keeping
+  /// everything finished so far. [resume] carries on from there.
+  Future<void> pauseCurrent() async {
+    final running = state.where((i) => i.status == QueueStatus.running).firstOrNull;
+    if (running == null) return;
+    _update(running.id, QueueStatus.paused);
+    await ref.read(conversionCancellerProvider)(ref.container, keepProgress: true);
+  }
+
+  /// Carries a paused, stopped or failed book on from the last section it
+  /// finished, and lets the queue run again.
+  void resume(String id) {
+    final item = state.where((i) => i.id == id).firstOrNull;
+    if (item == null || item.status == QueueStatus.running || item.status == QueueStatus.queued || item.status == QueueStatus.done) {
+      return;
+    }
+    state = [
+      for (final i in state)
+        if (i.id == id) i.copyWith(status: QueueStatus.queued) else i,
+    ];
+    unawaited(_save());
+    unawaited(_pump());
+  }
+
   void _update(String id, QueueStatus status, {String? error}) {
-    final finished = status != QueueStatus.queued && status != QueueStatus.running;
+    final finished = status != QueueStatus.queued && status != QueueStatus.running && status != QueueStatus.paused;
     final run = ref.read(onDeviceRunProvider);
     state = [
       for (final i in state)
@@ -167,11 +206,15 @@ class OnDeviceQueueNotifier extends Notifier<List<QueueItem>> {
     unawaited(_save());
   }
 
+  QueueStatus? _statusOf(String id) => state.where((i) => i.id == id).firstOrNull?.status;
+
   Future<void> _pump() async {
     if (_pumping) return;
     _pumping = true;
     try {
       while (true) {
+        // A paused queue stays paused until the user resumes it.
+        if (state.any((i) => i.status == QueueStatus.paused)) break;
         final next = state.where((i) => i.status == QueueStatus.queued).firstOrNull;
         if (next == null) break;
         _update(next.id, QueueStatus.running);
@@ -182,11 +225,14 @@ class OnDeviceQueueNotifier extends Notifier<List<QueueItem>> {
           await ref.read(conversionRunnerProvider)(ref.container, paths, titleOverride: next.title);
           _update(next.id, QueueStatus.done);
         } on ConversionCancelled {
-          _update(next.id, QueueStatus.cancelled);
+          if (_statusOf(next.id) != QueueStatus.paused) _update(next.id, QueueStatus.cancelled);
         } catch (e) {
-          // A stop that raced the runner is not a failure.
-          final stopped = state.where((i) => i.id == next.id).firstOrNull?.status == QueueStatus.cancelled;
-          _update(next.id, stopped ? QueueStatus.cancelled : QueueStatus.failed, error: stopped ? null : e.toString());
+          // A stop or pause that raced the runner is not a failure.
+          final current = _statusOf(next.id);
+          final stopped = current == QueueStatus.cancelled || current == QueueStatus.paused;
+          if (current != QueueStatus.paused) {
+            _update(next.id, stopped ? QueueStatus.cancelled : QueueStatus.failed, error: stopped ? null : e.toString());
+          }
         }
       }
     } finally {
