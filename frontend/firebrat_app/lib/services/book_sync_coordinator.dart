@@ -19,29 +19,16 @@ class BookSyncCoordinator {
       [IntegrityService? integrity])
       : integrity = integrity ?? IntegrityService();
 
-  /// Gate a remote flush on a fresh integrity mint.
-  ///
-  /// - Fail-OPEN for local use: never throws for non-retryable mint
-  ///   failures on user-owned paths — local books and pending progress
-  ///   stay intact and the caller proceeds best-effort.
-  /// - Fail-CLOSED for the remote flush itself on transient failures:
-  ///   retryable mint errors (offline, throttled, …) throw [StateError]
-  ///   with [IntegrityService.offlineQueuedMessage] so the UI shows the
-  ///   offline-queued state and retries later instead of dropping work.
+  /// Optional attestation policy; Firebase rules and Drive OAuth authorize
+  /// current sync. No automatic retry queue is created by this operation.
   Future<void> _gateRemoteFlush(String scope) async {
+    if (!integrity.requiredForRemote) return;
     final mint = await integrity.mintForRemote(
       requestHash: IntegrityService.requestHashForString(
-        'drive-flush:$scope:${DateTime.now().millisecondsSinceEpoch}',
-      ),
-    );
-    if (!mint.ok && integrity.shouldQueueOffline(mint)) {
-      throw StateError(IntegrityService.offlineQueuedMessage);
+        'drive-flush:$scope:${DateTime.now().millisecondsSinceEpoch}'));
+    if (!integrity.allowsRemote(mint)) {
+      throw StateError(IntegrityService.userMessageFor(mint));
     }
-    // Non-retryable mint failures (or MISSING_PLUGIN off-Android) proceed
-    // fail-open here: Drive holds user-owned bytes and Firestore rules —
-    // not attestation — authorize these writes until server verification
-    // lands. checkRemote stays available for callers that need strict
-    // fail-closed (conversion submit).
   }
 
   Future<Map<String, Map<String, dynamic>>> syncMetadata(
@@ -53,9 +40,6 @@ class BookSyncCoordinator {
     if (!await metadata.syncEnabled()) {
       throw StateError('Enable metadata sync first.');
     }
-    // Remote metadata flush is integrity-gated: retryable mint failures
-    // surface as offline-queued (fail-closed for the flush, fail-open for
-    // local books which are untouched).
     await _gateRemoteFlush('syncMetadata');
     final records = await metadata.fetchLibrary(strict: true);
     for (final book in local) {
@@ -80,9 +64,6 @@ class BookSyncCoordinator {
 
   Future<void> backup(BookSummary book) async {
     await DriveSyncService.instance.ensureAccess();
-    // Integrity gate for the backup flush path: offline/transient mint
-    // failures queue (throw offline-queued) while local books stay
-    // available — fail-closed flush, fail-open local.
     await _gateRemoteFlush('backup:${book.bookId}');
     final dir = await downloads.bookDir(book.bookId);
     if (!await downloads.isDownloaded(book.bookId)) {

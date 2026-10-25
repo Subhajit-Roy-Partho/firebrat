@@ -8,17 +8,18 @@ void main() {
   const channel = MethodChannel(IntegrityService.channelName);
   final log = <MethodCall>[];
 
-  IntegrityService serviceForHandler(Future<dynamic> Function(MethodCall) handler) {
+  IntegrityService serviceForHandler(
+    Future<dynamic> Function(MethodCall) handler,
+  ) {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, handler);
-    return IntegrityService(channel: channel);
+    return IntegrityService(channel: channel, requiredForRemote: true);
   }
 
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
     log.clear();
-    IntegrityService.devBypassOverride = null;
   });
 
   test('requestStandard returns token on success', () async {
@@ -35,38 +36,47 @@ void main() {
     expect(svc.checkLocal(res), isTrue);
   });
 
-  test('requestStandard maps PlatformException to fail-open local / fail-closed remote', () async {
-    final svc = serviceForHandler((call) async {
-      throw PlatformException(code: 'NETWORK_ERROR', message: 'offline');
-    });
-    final res = await svc.requestStandard(requestHash: 'abc');
-    expect(res.ok, isFalse);
-    expect(res.errorCode, 'NETWORK_ERROR');
-    // Local use stays allowed even when attestation fails.
-    expect(svc.checkLocal(res), isTrue);
-    // Remote calls are denied without a token.
-    expect(svc.checkRemote(res), isFalse);
-  });
+  test(
+    'requestStandard maps PlatformException to fail-open local / fail-closed remote',
+    () async {
+      final svc = serviceForHandler((call) async {
+        throw PlatformException(code: 'NETWORK_ERROR', message: 'offline');
+      });
+      final res = await svc.requestStandard(requestHash: 'abc');
+      expect(res.ok, isFalse);
+      expect(res.errorCode, 'NETWORK_ERROR');
+      // Local use stays allowed even when attestation fails.
+      expect(svc.checkLocal(res), isTrue);
+      // Remote calls are denied without a token.
+      expect(svc.checkRemote(res), isFalse);
+    },
+  );
 
-  test('requestClassic returns token; prepareStandard surfaces error code', () async {
-    final svc = serviceForHandler((call) async {
-      if (call.method == 'prepareStandard') {
-        expect((call.arguments as Map)['cloudProjectNumber'], 123);
-        return null;
-      }
-      return {'token': 'classic-tok'};
-    });
-    expect(await svc.prepareStandard(cloudProjectNumber: 123), isNull);
-    final res = await svc.requestClassic(nonce: 'n');
-    expect(res.ok, isTrue);
-    expect(res.token, 'classic-tok');
-  });
+  test(
+    'requestClassic returns token; prepareStandard surfaces error code',
+    () async {
+      final svc = serviceForHandler((call) async {
+        if (call.method == 'prepareStandard') {
+          expect((call.arguments as Map)['cloudProjectNumber'], 123);
+          return null;
+        }
+        return {'token': 'classic-tok'};
+      });
+      expect(await svc.prepareStandard(cloudProjectNumber: 123), isNull);
+      final res = await svc.requestClassic(nonce: 'n');
+      expect(res.ok, isTrue);
+      expect(res.token, 'classic-tok');
+    },
+  );
 
   test('prepareStandard failure returns code, never throws', () async {
     final svc = serviceForHandler((call) async {
       throw PlatformException(code: 'PLAY_STORE_NOT_FOUND');
     });
-    expect(await svc.prepareStandard(cloudProjectNumber: 1), 'PLAY_STORE_NOT_FOUND');
+    expect(
+      await svc.prepareStandard(cloudProjectNumber: 1),
+      'PLAY_STORE_NOT_FOUND',
+    );
   });
 
   test('verifyRemotely is explicitly unwired', () {
@@ -74,39 +84,38 @@ void main() {
     expect(() => svc.verifyRemotely('tok'), throwsUnimplementedError);
   });
 
-  test('retryable mapping: transient codes queue offline, verdicts do not', () async {
-    for (final code in [
-      'NETWORK_ERROR',
-      'GOOGLE_SERVER_UNAVAILABLE',
-      'CLIENT_TRANSIENT_ERROR',
-      'TOO_MANY_REQUESTS',
-      'CANNOT_BIND_TO_SERVICE',
-      'API_NOT_AVAILABLE',
-    ]) {
-      expect(IntegrityService.isRetryable(code), isTrue, reason: code);
-      final svc = IntegrityService(channel: channel);
-      expect(
-        svc.shouldQueueOffline(
-            IntegrityResult(token: null, errorCode: code)),
-        isTrue,
-        reason: code,
-      );
-    }
-    for (final code in [
-      'PLAY_STORE_NOT_FOUND',
-      'APP_NOT_INSTALLED',
-      'CLOUD_PROJECT_NUMBER_IS_INVALID',
-      'REQUEST_HASH_TOO_LONG',
-      'MISSING_PLUGIN',
-    ]) {
-      expect(IntegrityService.isRetryable(code), isFalse, reason: code);
-    }
-    // Offline-queued UI copy keeps both keywords for the queued state.
-    expect(IntegrityService.offlineQueuedMessage.toLowerCase(),
-        contains('queued'));
-    expect(IntegrityService.offlineQueuedMessage.toLowerCase(),
-        contains('offline'));
-  });
+  test(
+    'retryable mapping: transient codes queue offline, verdicts do not',
+    () async {
+      for (final code in [
+        'NETWORK_ERROR',
+        'GOOGLE_SERVER_UNAVAILABLE',
+        'CLIENT_TRANSIENT_ERROR',
+        'TOO_MANY_REQUESTS',
+        'CANNOT_BIND_TO_SERVICE',
+        'API_NOT_AVAILABLE',
+      ]) {
+        expect(IntegrityService.isRetryable(code), isTrue, reason: code);
+        final svc = IntegrityService(channel: channel);
+        expect(
+          svc.shouldQueueOffline(IntegrityResult(token: null, errorCode: code)),
+          isTrue,
+          reason: code,
+        );
+      }
+      for (final code in [
+        'PLAY_STORE_NOT_FOUND',
+        'APP_NOT_INSTALLED',
+        'CLOUD_PROJECT_NUMBER_IS_INVALID',
+        'REQUEST_HASH_TOO_LONG',
+        'MISSING_PLUGIN',
+      ]) {
+        expect(IntegrityService.isRetryable(code), isFalse, reason: code);
+      }
+      expect(IntegrityService.retryMessage, contains('Nothing was uploaded'));
+      expect(IntegrityService.retryMessage, isNot(contains('queued')));
+    },
+  );
 
   test('mintForRemote recovers once from NOT_PREPARED', () async {
     var requests = 0;
@@ -132,48 +141,54 @@ void main() {
     expect(a.length, 64);
   });
 
-  test('mintForRemote with blank project bypasses NOT_PREPARED in debug',
-      () async {
-    IntegrityService.devBypassOverride = false;
-    try {
-      // Blank project (no dart-define in test) + release mode: raw
-      // NOT_PREPARED stays retryable → offline-queued (fail-closed).
-      final releaseSvc = serviceForHandler((call) async {
-        expect(call.method, 'requestStandard');
-        throw PlatformException(code: 'NOT_PREPARED');
+  test(
+    'explicit required policy rejects an unconfigured project without fake queuing',
+    () async {
+      final service = IntegrityService(
+        channel: channel,
+        requiredForRemote: true,
+      );
+      final result = await service.mintForRemote(requestHash: 'sample');
+      expect(result.errorCode, 'NOT_CONFIGURED');
+      expect(service.allowsRemote(result), isFalse);
+      expect(service.shouldQueueOffline(result), isFalse);
+    },
+  );
+
+  test(
+    'unconfigured production policy keeps authenticated remote features available',
+    () async {
+      var called = false;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            called = true;
+            return null;
+          });
+      final service = IntegrityService(channel: channel);
+      final result = await service.mintForRemote(requestHash: 'sample');
+      expect(result.errorCode, 'NOT_CONFIGURED');
+      expect(called, isFalse);
+      expect(service.allowsRemote(result), isTrue);
+      expect(
+        service.checkRemote(result),
+        isFalse,
+      ); // Never pretend this is attested.
+    },
+  );
+
+  test(
+    'configured preparation error is preserved rather than masked as NOT_PREPARED',
+    () async {
+      final svc = serviceForHandler((call) async {
+        expect(call.method, 'prepareStandard');
+        throw PlatformException(code: 'CLOUD_PROJECT_NUMBER_IS_INVALID');
       });
-      final blocked = await releaseSvc.mintForRemote(requestHash: 'h');
-      expect(blocked.ok, isFalse);
-      expect(blocked.errorCode, 'NOT_PREPARED');
-      expect(IntegrityService.isRetryable(blocked.errorCode), isTrue);
-      expect(releaseSvc.shouldQueueOffline(blocked), isTrue);
-    } finally {
-      IntegrityService.devBypassOverride = null;
-    }
-
-    // Same blank project in debug (default under flutter test):
-    // NOT_PREPARED becomes MISSING_PLUGIN-style dev-bypass —
-    // non-retryable, never offline-queued, local stays fail-open.
-    final debugSvc = serviceForHandler((call) async {
-      expect(call.method, 'requestStandard');
-      throw PlatformException(code: 'NOT_PREPARED');
-    });
-    final bypass = await debugSvc.mintForRemote(requestHash: 'h');
-    expect(bypass.ok, isFalse);
-    expect(bypass.errorCode, 'MISSING_PLUGIN');
-    expect(IntegrityService.isRetryable(bypass.errorCode), isFalse);
-    expect(debugSvc.shouldQueueOffline(bypass), isFalse);
-    expect(debugSvc.checkLocal(bypass), isTrue);
-  });
-
-  test('mintForRemote with blank project still returns real tokens',
-      () async {
-    final svc = serviceForHandler((call) async {
-      expect(call.method, 'requestStandard');
-      return {'token': 'warm-provider-tok'};
-    });
-    final res = await svc.mintForRemote(requestHash: 'h');
-    expect(res.ok, isTrue);
-    expect(res.token, 'warm-provider-tok');
-  });
+      final result = await svc.mintForRemote(
+        requestHash: 'sample',
+        cloudProjectNumber: 123,
+      );
+      expect(result.errorCode, 'CLOUD_PROJECT_NUMBER_IS_INVALID');
+      expect(svc.allowsRemote(result), isFalse);
+    },
+  );
 }

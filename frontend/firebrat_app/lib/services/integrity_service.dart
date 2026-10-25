@@ -21,29 +21,17 @@ class IntegrityResult {
   bool get ok => token != null && token!.isNotEmpty;
 }
 
-/// Play Integrity token path (production-ready minting; no enforcement
-/// beyond caller policy, no server verification yet).
-///
-/// Scope is deliberately narrow:
-/// - Token minting over the `firebrat/integrity` MethodChannel only.
-/// - **No server verification wired yet** — [verifyRemotely] is an explicit
-///   `UnimplementedError` placeholder so nobody mistakes this for enforced
-///   attestation.
-/// - **No launch gating, no playback-path calls.** Playback stays fully
-///   offline-first; attestation (when enforced later) applies to remote/
-///   sensitive calls only.
-///
-/// Policy helpers encode the intended direction:
-/// - [checkLocal]: fail-OPEN — any mint failure still allows local use.
-/// - [checkRemote]: fail-CLOSED — a missing token denies the remote call
-///   (until server verification lands, denial is the caller's decision and
-///   this just reports the missing token).
-/// - [isRetryable]: transient vs permanent mint failures per the Play
-///   Integrity response-code taxonomy (lib-1). Retryable failures mean
-///   "try again later / queue offline"; anything else is fail-closed now.
+/// Optional Play Integrity token minting. This release has no server-side
+/// verification, so ordinary authenticated features do not require a token.
+/// Offline reading never calls this service. Enable requiredForRemote only
+/// with a configured project and a backend that actually verifies tokens.
 class IntegrityService {
-  IntegrityService({MethodChannel? channel})
-      : _channel = channel ?? const MethodChannel('firebrat/integrity');
+  IntegrityService({
+    MethodChannel? channel,
+    this.requiredForRemote = const bool.fromEnvironment(
+      'FIREBRAT_REQUIRE_INTEGRITY',
+    ),
+  }) : _channel = channel ?? const MethodChannel('firebrat/integrity');
 
   @visibleForTesting
   static const String channelName = 'firebrat/integrity';
@@ -66,21 +54,9 @@ class IntegrityService {
   static int? get cloudProjectNumberOrNull =>
       cloudProjectNumber > 0 ? cloudProjectNumber : null;
 
-  /// Debug/dev unsigned fallback. True outside release builds so a debug
-  /// build with no `--dart-define=FIREBRAT_CLOUD_PROJECT_NUMBER` proceeds
-  /// unsigned (MISSING_PLUGIN-style) instead of surfacing `NOT_PREPARED`
-  /// as offline-queued. Release stays fail-closed. Tests override this
-  /// via [devBypassOverride] to simulate both modes (`kReleaseMode` is
-  /// compile-time and always false under `flutter test`).
-  @visibleForTesting
-  static bool? devBypassOverride;
-
-  static bool get devBypassEnabled => devBypassOverride ?? !kReleaseMode;
-
-  /// UI copy for the offline-retryable path. Keep the words "Offline" and
-  /// "queued" in this string — screens match on them for the queued state.
-  static const String offlineQueuedMessage =
-      'Offline — queued and will retry when online.';
+  /// A retry message, not a promise of a persisted background queue.
+  static const String retryMessage =
+      'Device check is temporarily unavailable. Try again when online. Nothing was uploaded.';
 
   /// UI copy for the fail-closed remote path (non-retryable mint failure).
   static const String remoteBlockedMessage =
@@ -100,10 +76,12 @@ class IntegrityService {
     // Channel-level transport states that are also transient/offline-like.
     'NOT_PREPARED',
     'EMPTY_TOKEN',
+    'INTERNAL_ERROR',
+    'INTEGRITY_TOKEN_PROVIDER_INVALID',
   };
 
   /// True when [errorCode] names a transient failure the caller should
-  /// retry later (or surface as [offlineQueuedMessage]) instead of
+  /// retry later (or surface as [retryMessage]) instead of
   /// treating as a hard attestation denial.
   static bool isRetryable(String? errorCode) =>
       errorCode != null && retryableCodes.contains(errorCode);
@@ -111,6 +89,13 @@ class IntegrityService {
   /// True when [result] is a transient failure worth queueing offline.
   bool shouldQueueOffline(IntegrityResult result) =>
       !result.ok && isRetryable(result.errorCode);
+
+  /// Disabled until the chosen backend actually verifies tokens. A minted
+  /// token alone is not an authorization decision. Firebase/server auth stays
+  /// required independently. Never enable this without backend verification.
+  final bool requiredForRemote;
+  bool allowsRemote(IntegrityResult result) =>
+      !requiredForRemote || checkRemote(result);
 
   final MethodChannel _channel;
 
@@ -175,42 +160,27 @@ class IntegrityService {
     }
   }
 
-  /// Production token path for a remote call: warm the provider when a
-  /// cloud project number is configured, mint one standard token bound to
-  /// [requestHash], and recover once from `NOT_PREPARED` by re-preparing
-  /// before giving up. When no project number is configured (debug builds
-  /// without `--dart-define=FIREBRAT_CLOUD_PROJECT_NUMBER`), a
-  /// `NOT_PREPARED` mint becomes a debug dev-bypass (`MISSING_PLUGIN`,
-  /// non-retryable, fail-open local + proceed unsigned) with a telemetry
-  /// log — never offline-queued. Release with no project number stays
-  /// fail-closed (the raw `NOT_PREPARED` is returned, retryable → queued).
-  /// Never throws — failures come back as an [IntegrityResult] with an
-  /// [IntegrityResult.errorCode] the caller maps via
-  /// [isRetryable]/[checkRemote].
+  /// Mint only when a cloud project is configured. Preserve preparation errors
+  /// and retry an invalidated provider once. Missing setup never masquerades
+  /// as a network outage, and does not block the default authenticated path.
   Future<IntegrityResult> mintForRemote({
     required String requestHash,
     int? cloudProjectNumber,
   }) async {
     final project = cloudProjectNumber ?? cloudProjectNumberOrNull;
     if (project == null) {
-      // No warm-up possible without a project number: attempt the mint so
-      // an already-warm provider (or off-Android MISSING_PLUGIN) still
-      // surfaces, then dev-bypass a NOT_PREPARED miss in debug only.
-      final result = await requestStandard(requestHash: requestHash);
-      if (result.ok) return result;
-      if (result.errorCode == 'NOT_PREPARED' && devBypassEnabled) {
-        debugPrint(
-          'Integrity dev-bypass: cloudProjectNumber unconfigured; '
-          'proceeding unsigned (debug only, was NOT_PREPARED).',
-        );
-        return const IntegrityResult(
-            token: null, errorCode: 'MISSING_PLUGIN');
-      }
-      return result;
+      return const IntegrityResult(token: null, errorCode: 'NOT_CONFIGURED');
     }
-    await prepareStandard(cloudProjectNumber: project);
+    final preparationError = await prepareStandard(cloudProjectNumber: project);
+    if (preparationError != null) {
+      return IntegrityResult(token: null, errorCode: preparationError);
+    }
     var result = await requestStandard(requestHash: requestHash);
-    if (!result.ok && result.errorCode == 'NOT_PREPARED') {
+    if (!result.ok &&
+        {
+          'NOT_PREPARED',
+          'INTEGRITY_TOKEN_PROVIDER_INVALID',
+        }.contains(result.errorCode)) {
       // Provider was evicted between warm-up and mint (process restart,
       // binding drop). One re-prepare + re-mint covers the transient case;
       // anything further is fail-closed, not a spin loop.
@@ -230,8 +200,8 @@ class IntegrityService {
   /// retryable codes, fail-closed denial otherwise.
   static String userMessageFor(IntegrityResult result) =>
       shouldQueueOfflineStatic(result)
-          ? offlineQueuedMessage
-          : '${remoteBlockedMessage.split('.').first}. (${result.errorCode ?? 'NO_TOKEN'})';
+      ? retryMessage
+      : '${remoteBlockedMessage.split('.').first}. (${result.errorCode ?? 'NO_TOKEN'})';
 
   @visibleForTesting
   static bool shouldQueueOfflineStatic(IntegrityResult result) =>

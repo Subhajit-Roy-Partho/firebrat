@@ -512,11 +512,7 @@ class LibraryScreen extends ConsumerWidget {
   /// it. Only when storage is set to Drive and sync is enabled — and
   /// failures never fail the download.
   ///
-  /// Integrity policy here is fail-OPEN for local use (the download that
-  /// just landed is untouched) and offline-queued for the remote flush:
-  /// a retryable mint failure skips this best-effort copy so the next
-  /// backup flush retries it, instead of burning Drive quota on a doomed
-  /// request.
+  /// Attestation is optional until configured and verified server-side.
   Future<void> _backupZipToDrive(WidgetRef ref, String bookId, String zipPath) async {
     try {
       final settings = ref.read(conversionModeProvider);
@@ -532,11 +528,8 @@ class LibraryScreen extends ConsumerWidget {
       );
       // Local stays usable no matter what (fail-open local).
       assert(integrity.checkLocal(mint));
-      if (!mint.ok && integrity.shouldQueueOffline(mint)) {
-        // Transient/offline — leave the Drive copy for the next flush.
-        // The offline-queued state is surfaced by the Sync screen; this
-        // silent hook must never fail the download that just succeeded.
-        debugPrint('Drive backup deferred (offline-queued): ${mint.errorCode}');
+      if (!integrity.allowsRemote(mint)) {
+        debugPrint('Drive backup skipped: ${mint.errorCode}');
         return;
       }
       final driveId = await DriveSyncService.instance.uploadBook(bookId: bookId, zipPath: zipPath);

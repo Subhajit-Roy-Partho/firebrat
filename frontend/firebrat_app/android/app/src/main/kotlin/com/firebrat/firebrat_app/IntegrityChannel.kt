@@ -4,6 +4,7 @@ import android.app.Activity
 import com.google.android.play.core.integrity.IntegrityManagerFactory
 import com.google.android.play.core.integrity.IntegrityTokenRequest
 import com.google.android.play.core.integrity.StandardIntegrityManager
+import com.google.android.play.core.integrity.IntegrityServiceException
 import com.google.android.play.core.integrity.StandardIntegrityManager.PrepareIntegrityTokenRequest
 import com.google.android.play.core.integrity.StandardIntegrityManager.StandardIntegrityTokenProvider
 import com.google.android.play.core.integrity.StandardIntegrityManager.StandardIntegrityTokenRequest
@@ -162,25 +163,29 @@ class IntegrityChannel(private val activity: Activity, dartExecutor: DartExecuto
                 val m = e.javaClass.getMethod("getErrorCode")
                 (m.invoke(e) as? Int) ?: return@runCatching null
             }.getOrNull() ?: return "INTERNAL"
+            // Android SDK codes are -1..-19; -100 is INTERNAL_ERROR.
+            // Classic -17 is transient; Standard -17 is a long request hash.
+            if (e is IntegrityServiceException && code == -17) return "CLIENT_TRANSIENT_ERROR"
             return when (code) {
-                -100 -> "API_NOT_AVAILABLE"
-                -101 -> "PLAY_STORE_NOT_FOUND"
-                -102 -> "NETWORK_ERROR"
-                -103 -> "PLAY_STORE_VERSION_OUTDATED"
-                -104 -> "PLAY_SERVICES_NOT_FOUND"
-                -105 -> "PLAY_SERVICES_VERSION_OUTDATED"
-                -106 -> "CANNOT_BIND_TO_SERVICE"
-                -107 -> "NONCE_TOO_SHORT"
-                -108 -> "NONCE_TOO_LONG"
-                -109 -> "NONCE_IS_NOT_BASE64"
-                -110 -> "GOOGLE_SERVER_UNAVAILABLE"
-                -111 -> "PLAY_STORE_ACCOUNT_NOT_FOUND"
-                -112 -> "APP_NOT_INSTALLED"
-                -113 -> "INTEGRITY_TOKEN_PROVIDER_INVALID"
-                -114 -> "CLOUD_PROJECT_NUMBER_IS_INVALID"
-                -115 -> "REQUEST_HASH_TOO_LONG"
-                -116 -> "CLIENT_TRANSIENT_ERROR"
-                -117 -> "TOO_MANY_REQUESTS"
+                -1 -> "API_NOT_AVAILABLE"
+                -2 -> "PLAY_STORE_NOT_FOUND"
+                -3 -> "NETWORK_ERROR"
+                -5 -> "APP_NOT_INSTALLED"
+                -6 -> "PLAY_SERVICES_NOT_FOUND"
+                -7 -> "APP_UID_MISMATCH"
+                -8 -> "TOO_MANY_REQUESTS"
+                -9 -> "CANNOT_BIND_TO_SERVICE"
+                -10 -> "NONCE_TOO_SHORT"
+                -11 -> "NONCE_TOO_LONG"
+                -12 -> "GOOGLE_SERVER_UNAVAILABLE"
+                -13 -> "NONCE_IS_NOT_BASE64"
+                -14 -> "PLAY_STORE_VERSION_OUTDATED"
+                -15 -> "PLAY_SERVICES_VERSION_OUTDATED"
+                -16 -> "CLOUD_PROJECT_NUMBER_IS_INVALID"
+                -17 -> "REQUEST_HASH_TOO_LONG"
+                -18 -> "CLIENT_TRANSIENT_ERROR"
+                -19 -> "INTEGRITY_TOKEN_PROVIDER_INVALID"
+                -100 -> "INTERNAL_ERROR"
                 else -> "INTEGRITY_$code"
             }
         }

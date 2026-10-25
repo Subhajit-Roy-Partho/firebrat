@@ -144,12 +144,8 @@ class ConversionsScreen extends ConsumerWidget {
     final progressNotifier = ref.read(uploadProgressProvider.notifier);
     progressNotifier.set(0.0);
     try {
-      // Remote conversion submit is fail-CLOSED on Play Integrity: mint a
-      // token bound to this upload and deny the submit when attestation
-      // fails. Retryable (offline/transient) failures surface the
-      // offline-queued string instead of a hard error; local library use
-      // stays fail-open throughout. Off-Android (MISSING_PLUGIN) proceeds
-      // unsigned as a dev fallback until the server enforces verification.
+      // Tokens are optional until server verification is configured. Normal
+      // Firebase/server authorization still applies to every upload.
       final integrity = ref.read(integrityServiceProvider);
       final fileName = path.split('/').last;
       final mint = await integrity.mintForRemote(
@@ -157,27 +153,12 @@ class ConversionsScreen extends ConsumerWidget {
           'upload:$fileName:${DateTime.now().millisecondsSinceEpoch}',
         ),
       );
-      if (!mint.ok) {
-        if (integrity.shouldQueueOffline(mint) &&
-            mint.errorCode != 'MISSING_PLUGIN') {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text(IntegrityService.offlineQueuedMessage)),
-            );
-          }
-          return;
+      if (!integrity.allowsRemote(mint)) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(IntegrityService.userMessageFor(mint))));
         }
-        if (mint.errorCode != 'MISSING_PLUGIN' &&
-            !integrity.checkRemote(mint)) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                  content: Text(IntegrityService.userMessageFor(mint))),
-            );
-          }
-          return;
-        }
+        return;
       }
       final api = ref.read(apiClientProvider);
       final job = await api.uploadBook(path,
