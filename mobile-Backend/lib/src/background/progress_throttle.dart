@@ -14,6 +14,7 @@ class ProgressThrottle {
   String? _detail;
   double? _fraction;
   DateTime? _lastEmit;
+  final Set<String> _completedStages = {};
 
   ProgressThrottle({this.minInterval = const Duration(milliseconds: 500), DateTime Function()? now})
       : _now = now ?? DateTime.now;
@@ -21,7 +22,9 @@ class ProgressThrottle {
   bool shouldEmit({required String stage, required String detail, required double fraction}) {
     final now = _now();
     final stageChanged = stage != _stage;
-    final finished = fraction >= 1.0 && _fraction != fraction;
+    // Downloads/pages may reset their local fraction repeatedly within the
+    // same stage. Each 0 -> 1 must not bypass the notification rate limit.
+    final finished = fraction >= 1.0 && !_completedStages.contains(stage);
     final changed = detail != _detail || (fraction - (_fraction ?? -1)).abs() >= 0.005;
     final due = _lastEmit == null || now.difference(_lastEmit!) >= minInterval;
     if (stageChanged || finished || (due && changed)) {
@@ -29,6 +32,7 @@ class ProgressThrottle {
       _detail = detail;
       _fraction = fraction;
       _lastEmit = now;
+      if (fraction >= 1.0) _completedStages.add(stage);
       return true;
     }
     return false;

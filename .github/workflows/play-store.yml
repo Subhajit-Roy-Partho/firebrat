@@ -86,6 +86,10 @@ jobs:
         working-directory: frontend/firebrat_app
         run: python3 tool/check_native_alignment.py build/app/outputs/bundle/release/app-release.aab
 
+      - name: Check ONNX JNI classes survive release shrinking
+        working-directory: frontend/firebrat_app
+        run: python3 tool/check_onnx_classes.py build/app/outputs/bundle/release/app-release.aab
+
       - name: Upload Play bundle
         uses: actions/upload-artifact@v4
         with:

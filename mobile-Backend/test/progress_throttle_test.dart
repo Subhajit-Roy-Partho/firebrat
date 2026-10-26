@@ -26,6 +26,22 @@ void main() {
     expect(throttle.shouldEmit(stage: 'compiling', detail: 'b', fraction: 1.0), isFalse); // nothing changed
   });
 
+  test('repeated per-file completion does not flood notifications', () {
+    var t = DateTime(2026, 1, 1);
+    final throttle = ProgressThrottle(now: () => t);
+    var emitted = 0;
+    for (var i = 0; i < 1000; i++) {
+      t = t.add(const Duration(milliseconds: 1));
+      if (throttle.shouldEmit(stage: 'extracting', detail: 'page $i',
+          fraction: i.isEven ? 0 : 1)) emitted++;
+    }
+    expect(emitted, lessThanOrEqualTo(4));
+    expect(throttle.shouldEmit(stage: 'synthesizing', detail: 'ready',
+        fraction: 0), isTrue);
+    expect(throttle.shouldEmit(stage: 'done', detail: 'complete',
+        fraction: 1), isTrue);
+  });
+
   test('a request knows which book folder it writes into', () {
     const a = ConversionRequest(pdfPath: '/x/My Novel.pdf', booksRootDir: 'b', modelsDir: 'm', llmBaseUrl: '', llmApiKey: '', llmModel: '');
     expect(a.bookId, 'my-novel');

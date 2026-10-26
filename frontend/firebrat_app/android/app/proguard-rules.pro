@@ -9,3 +9,9 @@
 -dontwarn com.google.mlkit.vision.text.devanagari.**
 -dontwarn com.google.mlkit.vision.text.japanese.**
 -dontwarn com.google.mlkit.vision.text.korean.**
+
+# ONNX Runtime resolves TensorInfo and other Java types/members through JNI.
+# R8 cannot see those native lookups; renaming/removing them aborts Kokoro
+# inference in release builds (ClassNotFoundException: ai.onnxruntime.TensorInfo).
+# Required by https://onnxruntime.ai/docs/build/android.html#build-instructions
+-keep class ai.onnxruntime.** { *; }
