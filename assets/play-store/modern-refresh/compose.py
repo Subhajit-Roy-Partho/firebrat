@@ -134,17 +134,17 @@ def feature():
 if __name__ == "__main__":
     for old in os.listdir(OUT):
         os.remove(f"{OUT}/{old}")
-    # The eight Play gallery images, in listing order.
+    # The eight Play gallery images, in listing order (1.7.2 listing).
     card("01-your-library", "Every book gets its own cover", "A beautiful shelf for PDFs, novels and textbooks you can listen to.",
          "library-dark.png", "night")
-    card("02-listen-and-follow", "Literature and textbooks, with pictures in sync", "The sentence being read is highlighted, and its figure stays on screen.",
-         "dev-reader-s1-playing.png", "indigo", dev_w=640)
-    card("03-novel-voices", "A different voice for every character", "Novel mode splits dialogue by speaker and gives each character their own voice, age and temperament.",
+    card("02-listen-while-it-converts", "Listen while it converts", "Open a book that is still converting and play the sections that are ready. It carries on by itself.",
+         "dev-listen-converting.png", "indigo", dev_w=650)
+    card("03-pause-and-resume", "Pause and pick up later", "Pause a long conversion any time. Progress is saved and it resumes after the last finished section.",
+         "dev-pause-resume.png", "ocean", dev_w=650)
+    card("04-cast-and-voices", "See who is speaking", "Cast & voices lists every speaker in a novel, their traits and the voice they were given.",
+         "dev-cast-voices.png", "rose", dev_w=650)
+    card("05-novel-voices", "A different voice for every character", "Novel mode splits dialogue by speaker and gives each character their own voice, age and temperament.",
          "dev-novel-voices.png", "violet", dev_w=650)
-    card("04-two-modes", "Two modes: novels and illustrated books", "Novel mode keeps the prose verbatim with character voices. Illustrated mode keeps figures, tables and formulas.",
-         "dev-modes-novel.png", "rose", dev_w=650)
-    card("05-source-page", "See the original page, always", "Open the source PDF at the exact page being read, for figures, tables and formulas.",
-         "dev-source-pdf.png", "ocean")
     card("06-free-cloud-llm", "Faster with a free cloud LLM", "Use a free key from OpenRouter, Groq or Google AI Studio instead of the on-device model.",
          "dev-cloud-llm-top.png", "indigo", dev_w=650)
     card("07-private-offline", "Or keep it private and offline", "Convert on your phone with a natural neural voice. No account, no server, nothing leaves the device.",
@@ -152,6 +152,14 @@ if __name__ == "__main__":
     card("08-drive-sync", "Back up and sync with Google Drive", "Your books go to your own Drive and onto your other devices. Firebrat sees only its own files.",
          "dev-guide-drive.png", "night", dev_w=700)
     # Extras kept for the website and future listings (not part of the eight).
+    card("extra-listen-and-follow", "Literature and textbooks, with pictures in sync", "The sentence being read is highlighted, and its figure stays on screen.",
+         "dev-reader-s1-playing.png", "indigo", dev_w=640)
+    card("extra-two-modes", "Two modes: novels and illustrated books", "Novel mode keeps the prose verbatim with character voices. Illustrated mode keeps figures, tables and formulas.",
+         "dev-modes-novel.png", "rose", dev_w=650)
+    card("extra-source-page", "See the original page, always", "Open the source PDF at the exact page being read, for figures, tables and formulas.",
+         "dev-source-pdf.png", "ocean")
+    card("extra-keeps-going", "It carries on by itself", "At the last ready section playback waits, then continues when the next one finishes.",
+         "dev-listen-waiting.png", "teal", dev_w=650)
     card("extra-test-your-llm", "Load models, test, go", "Pull the model list from your provider and test the key in one tap.",
          "dev-llm-test.png", "ocean", crop_box=(0, 120, 1080, 1500), dev_w=900)
     card("extra-light-and-dark", "Easy on the eyes, day or night", "Light, dark or match your phone, with adjustable text size.",

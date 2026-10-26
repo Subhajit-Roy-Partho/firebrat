@@ -9,7 +9,6 @@ Voiceless, music-free tutorial of the Android app (v1.7.2), usable as a YouTube 
 | `chapters.txt` | YouTube chapter list, paste into the description (starts at 0:00, every chapter is 10 s or longer) |
 | `captions.srt` | All on-screen captions and chapter-card text, timed to the full video (upload as subtitles) |
 | `thumbnail.png` | 1280x720 YouTube thumbnail |
-| `play-listing-1.7.2/` | Six 1080x1920 gallery images for the 1.7.2 listing update (see below) |
 | `source/` | Scripts that built everything (Pillow + ffmpeg). They read the raw phone recordings from a scratch folder that is not kept in the repo |
 
 Style: one dark gradient canvas, phone framed in the middle, chapter label on top, lower-third caption below the phone (so captions never cover the UI), white tap indicators come from Android's "show touches" in the recording.
@@ -53,9 +52,9 @@ Part 3, advanced topics (3.1 voice overrides: Pixel still + example card; 3.2 we
 - **Stills from older builds** (modes, voice overrides, model pick, on-device settings, larger library shelf): fine for now, replace with 1.7.2 captures when convenient.
 - Playback moving into a freshly finished section while converting: re-record once the conversion is further along.
 
-## Play listing images (`play-listing-1.7.2/`)
+## Play listing images
 
-Six gallery images built from the real 1.7.2 recording frames (listen while converting, waits and continues, pause and resume, Cast & voices, covers, free cloud LLM with placeholder key). They sit here, not in `assets/play-store/`, so no tracked file was touched. Move them (or fold them into `compose.py`) when the 1.7.2 listing is prepared. The Play data-safety and privacy wording notes in `assets/play-store/modern-refresh/README.md` still apply.
+The 1.7.2 gallery lives with the other listing assets: `assets/play-store/modern-refresh/exports/` (`01` to `08`, listing order) built by `compose.py` from real 1.7.2 screenshots in `sources/` (listen while it converts, pause and resume, Cast & voices). The video build scripts in `source/` are separate.
 
 ## YouTube description starter
 

@@ -3,7 +3,7 @@ Free your eyes. Let the story speak.
 Turn your own PDFs and DRM-free EPUB, MOBI and AZW ebooks into narrated listening. Take a novel on a walk, or follow a technical chapter with its pictures beside the words. Firebrat brings the page and the voice together, so you choose how to spend time with your books.
 
 PRESS PLAY. STAY IN THE STORY.
-Listen to downloaded books offline. Follow the spoken sentence as it highlights, change speed, move between sections and keep listening in the background. Every book gets its own cover on a smooth, modern shelf, and the cover appears on your lock screen and notification while you listen. Open the original PDF page whenever you want a closer look.
+Listen to downloaded books offline. Follow the spoken sentence as it highlights, change speed, move between sections and keep listening in the background. Every book gets its own cover on a smooth, modern shelf, and the cover appears on your lock screen and notification while you listen. Open the original PDF page whenever you want a closer look. Start listening before a book is finished: open it while it is still converting and playback carries on as more sections are ready. Pause and resume long conversions without losing progress.
 
 TWO MODES FOR TWO KINDS OF BOOKS
 • Novel / characters: the prose is kept word for word, dialogue is split by speaker, and each named character gets their own voice. Beyond male and female, set an age (child, young, adult, elder) and a temperament (calm, cheerful, stern, gruff, gentle, energetic, mysterious) and the voice changes to match. Turn on web research and Firebrat looks the book up on Wikipedia and has your LLM describe each character for you; only the book title and character names are sent, never the book's text.
