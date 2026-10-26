@@ -45,7 +45,44 @@
       "duration_seconds": 9.716666666666667,
       "finite": true,
       "peak": 0.6010617017745972
+    },
+    {
+      "provider": "cpu",
+      "threads": 4,
+      "trial": 0,
+      "setup_ms": 1386,
+      "generation_ms": 9137,
+      "samples": 233200,
+      "duration_seconds": 9.716666666666667,
+      "finite": true,
+      "peak": 0.6010617017745972
+    },
+    {
+      "provider": "cpu",
+      "threads": 4,
+      "trial": 1,
+      "setup_ms": 1386,
+      "generation_ms": 8933,
+      "samples": 233200,
+      "duration_seconds": 9.716666666666667,
+      "finite": true,
+      "peak": 0.6010617017745972
     }
   ],
-  "nnapi_effective_provider": "CPU fallback; NNAPI session creation failed"
+  "nnapi_effective_provider": "CPU fallback; NNAPI session creation failed",
+  "online_cpus": 8,
+  "cpu_groups": [
+    {
+      "cores": 4,
+      "max_khz": 1950000
+    },
+    {
+      "cores": 3,
+      "max_khz": 2600000
+    },
+    {
+      "cores": 1,
+      "max_khz": 3105000
+    }
+  ]
 }
