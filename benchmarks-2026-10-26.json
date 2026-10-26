@@ -1,0 +1,51 @@
+{
+  "device": "Pixel 9a",
+  "date": "2026-10-26",
+  "results": [
+    {
+      "provider": "cpu",
+      "threads": 2,
+      "trial": 0,
+      "setup_ms": 1210,
+      "generation_ms": 10334,
+      "samples": 233200,
+      "duration_seconds": 9.716666666666667,
+      "finite": true,
+      "peak": 0.6010617017745972
+    },
+    {
+      "provider": "cpu",
+      "threads": 2,
+      "trial": 1,
+      "setup_ms": 1210,
+      "generation_ms": 10430,
+      "samples": 233200,
+      "duration_seconds": 9.716666666666667,
+      "finite": true,
+      "peak": 0.6010617017745972
+    },
+    {
+      "provider": "nnapi",
+      "threads": 2,
+      "trial": 0,
+      "setup_ms": 2143,
+      "generation_ms": 13092,
+      "samples": 233200,
+      "duration_seconds": 9.716666666666667,
+      "finite": true,
+      "peak": 0.6010617017745972
+    },
+    {
+      "provider": "nnapi",
+      "threads": 2,
+      "trial": 1,
+      "setup_ms": 2143,
+      "generation_ms": 17008,
+      "samples": 233200,
+      "duration_seconds": 9.716666666666667,
+      "finite": true,
+      "peak": 0.6010617017745972
+    }
+  ],
+  "nnapi_effective_provider": "CPU fallback; NNAPI session creation failed"
+}
