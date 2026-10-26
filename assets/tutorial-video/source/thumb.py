@@ -1,0 +1,31 @@
+import sys; sys.path.insert(0,'.')
+from lib import *
+TW,TH=1280,720
+bg=gradient(TW,TH)
+d=ImageDraw.Draw(bg)
+# phone from the real Cast & voices screen
+run(f'ffmpeg -v error -y -ss 9.0 -i {R}/raw/cast.mp4 -frames:v 1 {B}/png/castframe.png')
+ph=Image.open(f'{B}/png/castframe.png').convert('RGB').crop((0,118,1080,2424))
+ph=ph.resize((int(ph.width*600/ph.height),600),Image.LANCZOS)
+m=Image.new('L',ph.size,0); ImageDraw.Draw(m).rounded_rectangle((0,0)+ph.size,34,fill=255)
+x0,y0=970,80
+d.rounded_rectangle((x0-9,y0-9,x0+ph.width+9,y0+ph.height+9),42,outline=(88,80,150,255),width=9)
+bg.paste(ph.convert('RGBA'),(x0,y0),m)
+# second phone: library with real covers (illustrative shelf)
+lib=Image.open(SRC+'/library-dark.png').convert('RGB').crop((0,100,1080,2300))
+lib=lib.resize((int(lib.width*520/lib.height),520),Image.LANCZOS)
+m2=Image.new('L',lib.size,0); ImageDraw.Draw(m2).rounded_rectangle((0,0)+lib.size,30,fill=255)
+x1,y1=668,150
+d.rounded_rectangle((x1-8,y1-8,x1+lib.width+8,y1+lib.height+8),38,outline=(88,80,150,255),width=8)
+bg.paste(lib.convert('RGBA'),(x1,y1),m2)
+ic=Image.open(REPO+'/site/assets/brand-512.png').convert('RGBA').resize((120,120),Image.LANCZOS)
+mi=Image.new('L',(120,120),0); ImageDraw.Draw(mi).rounded_rectangle((0,0,120,120),28,fill=255)
+bg.paste(ic,(60,70),mi)
+d.text((200,86),'Firebrat',font=font(HEAVY,84),fill=(255,255,255,255))
+d.text((60,250),'Audiobooks from',font=font(HEAVY,58),fill=(255,255,255,255))
+d.text((60,318),'your own books',font=font(HEAVY,58),fill=(255,255,255,255))
+d.text((60,425),'Full app tutorial',font=font(DEMI,44),fill=ACCENT+(255,))
+d.text((60,485),'Free LLM key  ·  character voices',font=font(REG,34),fill=MUTED+(255,))
+d.text((60,530),'Queue  ·  Drive backup  ·  Privacy',font=font(REG,34),fill=MUTED+(255,))
+bg.convert('RGB').save(R+'/build/out/thumbnail.png')
+print('ok')

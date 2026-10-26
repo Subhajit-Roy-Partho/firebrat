@@ -1,0 +1,440 @@
+1
+00:00:00,200 --> 00:00:05,800
+Firebrat — Turn PDFs and ebooks into narrated audiobooks. Private by default.
+
+2
+00:00:06,200 --> 00:00:10,000
+Feature tour — From the first launch to your first listen.
+
+3
+00:00:10,400 --> 00:00:12,600
+First-run guide — A 10-page tour opens on first launch.
+
+4
+00:00:12,800 --> 00:00:14,967
+Open the menu, then App guide
+
+5
+00:00:15,133 --> 00:00:18,300
+The guide opens by itself on first launch. Reopen it any time
+
+6
+00:00:18,300 --> 00:00:22,133
+Library, layout and theme
+
+7
+00:00:22,133 --> 00:00:24,300
+Adding books, the queue and keeping it running
+
+8
+00:00:24,300 --> 00:00:26,800
+Reading: section bar, cast & voices, focus mode
+
+9
+00:00:26,800 --> 00:00:30,300
+Listening: play, speed and autoplay
+
+10
+00:00:30,300 --> 00:00:32,633
+Three modes: Offline, Server or On-device
+
+11
+00:00:32,633 --> 00:00:34,967
+Which on-device model suits your phone
+
+12
+00:00:34,967 --> 00:00:38,300
+Faster with a free cloud LLM
+
+13
+00:00:38,300 --> 00:00:40,800
+Google Drive sync
+
+14
+00:00:40,800 --> 00:00:44,633
+Settings, sync and privacy live in the menu
+
+15
+00:00:44,833 --> 00:00:47,033
+Your library and cover art — Every book gets a cover.
+
+16
+00:00:47,233 --> 00:00:49,833
+Your library: every book has a cover
+
+17
+00:00:50,033 --> 00:00:52,433
+Ebooks keep their own cover. Other books get a generated one
+
+18
+00:00:52,533 --> 00:00:54,833
+A larger shelf (illustrative sample titles)
+
+19
+00:00:55,033 --> 00:00:57,233
+Open a book and listen — Play, speed, sections, focus mode.
+
+20
+00:00:57,633 --> 00:00:59,133
+Tap a book to open it
+
+21
+00:00:59,433 --> 00:01:02,233
+Illustrated mode: pictures stay in sync with the text
+
+22
+00:01:02,233 --> 00:01:07,033
+Press play: the spoken sentence is highlighted
+
+23
+00:01:07,233 --> 00:01:11,233
+Speed chip: 0.75× to 2×
+
+24
+00:01:11,433 --> 00:01:14,833
+Previous / next segment
+
+25
+00:01:15,033 --> 00:01:19,233
+Section bar: previous and next section
+
+26
+00:01:20,233 --> 00:01:24,833
+Menu: jump to any section
+
+27
+00:01:25,433 --> 00:01:29,433
+Text size slider
+
+28
+00:01:29,633 --> 00:01:35,033
+Focus mode: just the picture
+
+29
+00:01:35,633 --> 00:01:41,633
+Source page: the original PDF page
+
+30
+00:01:41,833 --> 00:01:45,233
+Audio keeps playing with the screen off
+
+31
+00:01:45,533 --> 00:01:49,633
+Cover art on your lock screen — While you listen, the book cover appears on the lock screen and in the notification, and playback keeps going with the screen off.
+
+32
+00:01:50,033 --> 00:01:52,233
+Import or convert a book — PDF, EPUB, MOBI, AZW or a finished package.
+
+33
+00:01:52,633 --> 00:02:00,633
+Add a book
+
+34
+00:02:01,033 --> 00:02:03,233
+Novel mode vs Illustrated mode — Choose the book type per conversion.
+
+35
+00:02:03,633 --> 00:02:08,633
+Menu › Conversion settings › Book type
+
+36
+00:02:08,833 --> 00:02:13,133
+Illustrated / technical: figures, tables and formulas stay on screen
+
+37
+00:02:13,333 --> 00:02:18,133
+Novel / characters: prose kept word for word, each speaker gets a voice
+
+38
+00:02:18,333 --> 00:02:20,533
+Cast & voices — See who speaks and how they sound.
+
+39
+00:02:20,933 --> 00:02:24,333
+In a novel, tap the people icon for Cast & voices
+
+40
+00:02:24,533 --> 00:02:28,533
+25 speakers found. 29% of the dialogue has a named speaker
+
+41
+00:02:28,733 --> 00:02:32,533
+Web research used: some characters described from Wikipedia
+
+42
+00:02:32,733 --> 00:02:40,133
+Each speaker: lines, traits and the voice they were given
+
+43
+00:02:40,333 --> 00:02:43,133
+Back in the reader
+
+44
+00:02:43,333 --> 00:02:45,533
+The conversion queue — Several books, Stop, and battery.
+
+45
+00:02:45,933 --> 00:02:48,733
+Conversions: books convert one after another
+
+46
+00:02:48,933 --> 00:02:52,133
+Stop ends the current book and the next one starts
+
+47
+00:02:52,333 --> 00:02:57,933
+Long books: keep it running
+
+48
+00:02:58,333 --> 00:03:00,533
+Pause and resume — New in 1.7.2.
+
+49
+00:03:00,933 --> 00:03:03,733
+The banner has Pause and Stop
+
+50
+00:03:03,933 --> 00:03:06,933
+Every queue row has pause and stop icons too
+
+51
+00:03:07,333 --> 00:03:11,533
+Paused. Progress is saved. Tap Resume to carry on
+
+52
+00:03:11,658 --> 00:03:23,008
+Resume re-reads the PDF text layer (sped up)
+
+53
+00:03:23,208 --> 00:03:28,008
+Then it carries on: “resuming after section 6 of 463”
+
+54
+00:03:28,208 --> 00:03:32,608
+Every finished section is kept
+
+55
+00:03:32,800 --> 00:03:35,000
+Listen while it converts — New in 1.7.2.
+
+56
+00:03:35,400 --> 00:03:38,200
+A hourglass badge marks a book that is still converting
+
+57
+00:03:39,000 --> 00:03:44,800
+Open it any time: “Still converting: 6 of 463 sections ready”
+
+58
+00:03:45,000 --> 00:03:50,400
+Play what is ready while the rest converts
+
+59
+00:03:50,600 --> 00:03:59,300
+At the last ready section: “Waiting for the next section… Playback continues by itself.”
+
+60
+00:03:59,500 --> 00:04:03,900
+The menu — Avatar, guide and settings.
+
+61
+00:04:04,200 --> 00:04:06,700
+Your avatar and sign-in status sit at the top (account name blurred)
+
+62
+00:04:06,800 --> 00:04:09,500
+Library, Conversions, settings, Sync & backup, App guide
+
+63
+00:04:09,900 --> 00:04:12,100
+Drive backup and sync — Where to find them.
+
+64
+00:04:12,400 --> 00:04:14,600
+Menu › Sync & backup
+
+65
+00:04:14,800 --> 00:04:20,200
+Reading position follows your Google account. Books stay on your phone or in your own Drive
+
+66
+00:04:20,300 --> 00:04:23,000
+Conversion settings › Get finished books from where? › My Google Drive
+
+67
+00:04:23,200 --> 00:04:26,000
+Free LLM key from OpenRouter — Get a key, paste it into Firebrat, test it.
+
+68
+00:04:26,400 --> 00:04:28,600
+The in-app guide — Conversion settings › Cloud LLM.
+
+69
+00:04:28,900 --> 00:04:32,200
+Menu › Conversion settings
+
+70
+00:04:32,400 --> 00:04:35,000
+Cloud LLM › How to get a free API key
+
+71
+00:04:35,200 --> 00:04:40,600
+OpenRouter is recommended. Free models end in :free
+
+72
+00:04:40,800 --> 00:04:47,600
+Groq and Google AI Studio work the same way: URL, key, model
+
+73
+00:04:47,800 --> 00:04:52,200
+“Use this URL” fills in the address for you
+
+74
+00:04:52,400 --> 00:04:54,600
+Create the key on OpenRouter — Sign up, Keys › Create key, copy.
+
+75
+00:05:11,800 --> 00:05:13,1000
+Paste, load models, test — URL, key, Load models, Test connection.
+
+76
+00:05:14,300 --> 00:05:17,400
+Back in Conversion settings › Cloud LLM
+
+77
+00:05:17,600 --> 00:05:19,600
+LLM URL: https://openrouter.ai/api/v1
+
+78
+00:05:19,600 --> 00:05:21,800
+API key: paste yours (placeholder shown)
+
+79
+00:05:21,900 --> 00:05:26,000
+Load models: 467 found, 17 free
+
+80
+00:05:26,200 --> 00:05:30,500
+Pick a free model: type “free” to search the list
+
+81
+00:05:30,600 --> 00:05:31,900
+Test connection
+
+82
+00:05:32,000 --> 00:05:36,700
+Connected: the free model answered
+
+83
+00:05:36,900 --> 00:05:42,500
+Good to know
+
+84
+00:05:42,900 --> 00:05:45,700
+Advanced topics — Short chapters you can jump to.
+
+85
+00:05:46,100 --> 00:05:48,300
+Character voice overrides — Voice names and trait words.
+
+86
+00:05:48,700 --> 00:05:51,300
+Conversion settings › Character voice overrides
+
+87
+00:05:51,400 --> 00:05:54,000
+One character per line: Name=Voice, Name=traits, or both
+
+88
+00:05:54,200 --> 00:06:01,800
+Examples — Voices: Default, Bella, Nicole, Sarah, Adam, Michael. Traits: child, young, adult, elder; calm, cheerful, stern, gruff, gentle, energetic, mysterious; male, female.
+
+89
+00:06:02,200 --> 00:06:04,400
+Automatic web research — Only the title and names are sent.
+
+90
+00:06:04,700 --> 00:06:10,200
+“Research characters online”: the book is looked up on Wikipedia
+
+91
+00:06:10,300 --> 00:06:16,200
+Cast & voices shows what the research found and missed
+
+92
+00:06:16,400 --> 00:06:21,500
+What is sent
+
+93
+00:06:21,900 --> 00:06:24,100
+Queue, background and battery — Keep long conversions running.
+
+94
+00:06:24,400 --> 00:06:27,500
+Adding books › Queue several books › Keep it running
+
+95
+00:06:27,700 --> 00:06:33,900
+One book at a time. Add more while one converts
+
+96
+00:06:34,100 --> 00:06:36,300
+Cloud for all vs on-device LLM — Speed against privacy.
+
+97
+00:06:36,700 --> 00:06:40,900
+Allow cloud helper  ·  Use the cloud LLM for every passage
+
+98
+00:06:41,100 --> 00:06:48,700
+Three ways to run
+
+99
+00:06:49,100 --> 00:06:51,300
+Ebooks and book covers — EPUB, MOBI, AZW and AZW3.
+
+100
+00:06:51,700 --> 00:06:59,300
+Ebooks
+
+101
+00:06:59,700 --> 00:07:01,900
+Pause, resume and partial listening — New in 1.7.2.
+
+102
+00:07:02,300 --> 00:07:06,500
+Pause: progress is saved
+
+103
+00:07:16,500 --> 00:07:24,300
+Listen to the finished sections while the book converts
+
+104
+00:07:24,500 --> 00:07:26,700
+Google Drive private backup — Only files Firebrat creates.
+
+105
+00:07:27,000 --> 00:07:29,700
+Back up finished books to your own Drive
+
+106
+00:07:29,900 --> 00:07:35,500
+Private by design
+
+107
+00:07:35,900 --> 00:07:38,100
+Privacy and offline-first — You decide what leaves the phone.
+
+108
+00:07:38,500 --> 00:07:43,300
+On-device model and offline narrator voice: no account, no server
+
+109
+00:07:43,500 --> 00:07:51,100
+Your choices
+
+110
+00:07:51,500 --> 00:07:58,100
+Thanks for watching — Guide and downloads: subhajit-roy-partho.github.io/firebrat
+
