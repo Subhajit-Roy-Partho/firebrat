@@ -1,0 +1,108 @@
+1
+00:00:00,000 --> 00:00:02,311
+Here are three ways to connect a free tier
+
+2
+00:00:02,311 --> 00:00:06,522
+language model to Firebrat. Pick just one provider.
+
+3
+00:00:06,533 --> 00:00:10,689
+On OpenRouter, sign in, open API Keys, and choose
+
+4
+00:00:10,689 --> 00:00:12,533
+New Key.
+
+5
+00:00:12,533 --> 00:00:15,822
+Name it Firebrat. Choose an expiration and a spending
+
+6
+00:00:15,822 --> 00:00:19,000
+limit that suits you, then create the key. Copy
+
+7
+00:00:19,000 --> 00:00:22,533
+it privately. In Firebrat, choose a free model, such
+
+8
+00:00:22,533 --> 00:00:25,456
+as OpenRouter slash free.
+
+9
+00:00:25,467 --> 00:00:29,511
+For Gemini, open Google AI Studio and choose Get
+
+10
+00:00:29,511 --> 00:00:33,678
+API key. Check that your project shows Free tier.
+
+11
+00:00:33,678 --> 00:00:37,967
+Choose Create API key. Name it Firebrat, select a
+
+12
+00:00:37,967 --> 00:00:40,700
+project you own, and create the key. If your
+
+13
+00:00:40,700 --> 00:00:43,967
+project is missing, import it first. Copy the key
+
+14
+00:00:43,967 --> 00:00:45,800
+privately.
+
+15
+00:00:45,811 --> 00:00:49,967
+On GroqCloud, sign in and open API Keys. Choose
+
+16
+00:00:49,967 --> 00:00:52,511
+Create API Key.
+
+17
+00:00:52,511 --> 00:00:56,289
+Enter Firebrat as the display name, choose an expiration,
+
+18
+00:00:56,289 --> 00:00:59,311
+then submit. Copy your new key. You do not
+
+19
+00:00:59,311 --> 00:01:02,411
+need to upgrade the plan for this walkthrough.
+
+20
+00:01:02,411 --> 00:01:05,922
+In Firebrat's conversion settings, paste the matching base address
+
+21
+00:01:05,922 --> 00:01:09,500
+and your key. Load models, choose an available text
+
+22
+00:01:09,500 --> 00:01:12,900
+model, then test the connection. Use the addresses in
+
+23
+00:01:12,900 --> 00:01:14,889
+the description.
+
+24
+00:01:14,889 --> 00:01:18,867
+Free tiers have usage limits, regional restrictions, and provider
+
+25
+00:01:18,867 --> 00:01:22,956
+data policies. Never share your key. These providers process
+
+26
+00:01:22,956 --> 00:01:27,422
+language requests; Firebrat's narration can still run locally. Fully
+
+27
+00:01:27,422 --> 00:01:30,744
+offline conversion needs no cloud key.
+

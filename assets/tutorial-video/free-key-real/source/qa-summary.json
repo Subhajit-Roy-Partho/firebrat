@@ -1,0 +1,20 @@
+{
+  "local_transcription": "Whisper base.en, CPU int8, VAD; brand spelling normalized for comparison",
+  "source_match_ratio": {
+    "connect": 0.967,
+    "google-create": 0.966,
+    "google-keys": 1.0,
+    "groq-create": 0.981,
+    "groq-keys": 1.0,
+    "intro": 1.0,
+    "openrouter-create": 1.0,
+    "openrouter-keys": 1.0,
+    "privacy": 0.955
+  },
+  "full_decode": "passed",
+  "video": "1080x1920, H264, 30 fps",
+  "audio": "AAC, 48 kHz, stereo",
+  "duration_seconds": 90.855,
+  "privacy": "Only cropped/redacted website captures; no full keys or personal account identifiers in export",
+  "timing": "Source captions aligned to local ASR word anchors; 0.9x narration speed"
+}

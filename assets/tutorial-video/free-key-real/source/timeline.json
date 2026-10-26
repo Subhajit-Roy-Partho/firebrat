@@ -1,0 +1,50 @@
+{
+  "duration": 90.755583,
+  "scenes": [
+    {
+      "id": "intro",
+      "start": 0,
+      "duration": 6.533333
+    },
+    {
+      "id": "openrouter-keys",
+      "start": 6.533333,
+      "duration": 6.0
+    },
+    {
+      "id": "openrouter-create",
+      "start": 12.533332999999999,
+      "duration": 12.933333
+    },
+    {
+      "id": "google-keys",
+      "start": 25.466665999999996,
+      "duration": 8.211125
+    },
+    {
+      "id": "google-create",
+      "start": 33.677791,
+      "duration": 12.133333
+    },
+    {
+      "id": "groq-keys",
+      "start": 45.811124,
+      "duration": 6.7
+    },
+    {
+      "id": "groq-create",
+      "start": 52.511124,
+      "duration": 9.9
+    },
+    {
+      "id": "connect",
+      "start": 62.411124,
+      "duration": 12.477792
+    },
+    {
+      "id": "privacy",
+      "start": 74.888916,
+      "duration": 15.866667
+    }
+  ]
+}

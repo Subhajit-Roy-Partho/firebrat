@@ -1,0 +1,11 @@
+[
+{"id":"intro","title":"A real API-key walkthrough","label":"CHOOSE ONE PROVIDER","text":"Here are three ways to connect a free tier language model to Firebrat. Pick just one provider."},
+{"id":"openrouter-keys","title":"1 / OpenRouter","label":"openrouter.ai → API Keys","text":"On Open Router, sign in, open API Keys, and choose New Key."},
+{"id":"openrouter-create","title":"Name your key","label":"New Key → Firebrat → Create","text":"Name it Firebrat. Choose an expiration and a spending limit that suits you, then create the key. Copy it privately. In Firebrat, choose a free model, such as Open Router slash free."},
+{"id":"google-keys","title":"2 / Google AI Studio","label":"aistudio.google.com → Get API key","text":"For Gemini, open Google A I Studio and choose Get API key. Check that your project shows Free tier."},
+{"id":"google-create","title":"Choose your own project","label":"Create API key → Name → Project","text":"Choose Create API key. Name it Firebrat, select a project you own, and create the key. If your project is missing, import it first. Copy the key privately."},
+{"id":"groq-keys","title":"3 / GroqCloud","label":"console.groq.com → API Keys","text":"On Groq Cloud, sign in and open API Keys. Choose Create API Key."},
+{"id":"groq-create","title":"Create your Groq key","label":"Display Name → Expiration → Submit","text":"Enter Firebrat as the display name, choose an expiration, then submit. Copy your new key. You do not need to upgrade the plan for this walkthrough."},
+{"id":"connect","title":"Finish in Firebrat","label":"Conversion settings → LLM","text":"In Firebrat's conversion settings, paste the matching base address and your key. Load models, choose an available text model, then test the connection. Use the addresses in the description."},
+{"id":"privacy","title":"Free tier ≠ unlimited","label":"LIMITS · PRIVACY · KEEP KEYS SECRET","text":"Free tiers have usage limits, regional restrictions, and provider data policies. Never share your key. These providers process language requests; Firebrat's narration can still run locally. Fully offline conversion needs no cloud key."}
+]
