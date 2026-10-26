@@ -11,6 +11,8 @@ Replacement for the illustrated “Get a FREE LLM API Key in 30 Seconds” Short
 - `source/script.json` is the spoken script. `source/render.py` composes the checked clips and real-site captures. Local audio inputs and QA timing results are expected under `tmp/key-tutorial/`.
 - `youtube-metadata.md` contains setup links, the exact provider base addresses, privacy notes and official references. Free tiers are subject to model availability, quotas, eligibility and provider policies; this video does not promise unlimited free inference.
 
-New upload: https://youtube.com/shorts/Mw7brWr5ZnU (publication status must be verified in Studio).
+Published replacement: https://youtube.com/shorts/Mw7brWr5ZnU — verified public in YouTube Studio on 26 October 2026. English subtitles attached; copyright and Community Guidelines checks reported no issues.
 
 Publish the new upload before setting the old public Short to Unlisted. Preserve its comments, view history and old URL. YouTube uploads use a new video ID; the old video file cannot be swapped in place.
+
+The superseded public Short (`OijfbSmXhWg`) was verified saved as Unlisted, with the replacement link prepended to its description. No video was deleted.

@@ -16,5 +16,13 @@
   "audio": "AAC, 48 kHz, stereo",
   "duration_seconds": 90.855,
   "privacy": "Only cropped/redacted website captures; no full keys or personal account identifiers in export",
-  "timing": "Source captions aligned to local ASR word anchors; 0.9x narration speed"
+  "timing": "Source captions aligned to local ASR word anchors; 0.9x narration speed",
+  "integrated_loudness_lufs": -15.86,
+  "true_peak_dbtp": -1.36,
+  "youtube_url": "https://youtube.com/shorts/Mw7brWr5ZnU",
+  "youtube_checks": "No copyright or Community Guidelines issues reported",
+  "youtube_visibility": "Public",
+  "superseded_video": "OijfbSmXhWg",
+  "superseded_visibility": "Unlisted",
+  "subtitle_cues": 27
 }
