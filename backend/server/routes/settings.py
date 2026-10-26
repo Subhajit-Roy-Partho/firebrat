@@ -176,6 +176,10 @@ def get_settings():
         "gpu": _gpu_info(),
         "max_concurrent_jobs": config.MAX_CONCURRENT_JOBS,
         "auth": "firebase (mutations need a user; reads are open)",
+        "conversion_capabilities": {
+            "ebooks": config.CONVERTER_SUPPORTS_EBOOKS,
+            "character_traits": config.CONVERTER_SUPPORTS_CHARACTER_TRAITS,
+        },
     }
 
 

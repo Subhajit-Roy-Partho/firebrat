@@ -1,11 +1,25 @@
 // Firebrat server web UI — vanilla JS, no build step. Talks only to this
 // same origin (same scheme/host/port), so no CORS configuration is needed.
-let idToken = null;
+// Keep the Firebase User, not a token snapshot. ID tokens expire after about
+// an hour; the SDK refreshes them when getIdToken() is called for a request.
+let signedInUser = null;
 
 async function authedFetch(path, opts = {}) {
-  const headers = Object.assign({}, opts.headers || {});
-  if (idToken) headers['Authorization'] = 'Bearer ' + idToken;
-  const res = await fetch(path, Object.assign({}, opts, { headers }));
+  const user = signedInUser;
+  async function send(forceRefresh) {
+    const headers = Object.assign({}, opts.headers || {});
+    if (user) {
+      const token = await user.getIdToken(forceRefresh);
+      headers['Authorization'] = 'Bearer ' + token;
+    }
+    return fetch(path, Object.assign({}, opts, { headers }));
+  }
+  let res = await send(false);
+  // A 401 is rejected by the server's auth dependency before any mutation.
+  // Retry once with a forced refresh, never on a timeout or other failure.
+  if (res.status === 401 && user && signedInUser === user) {
+    res = await send(true);
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(res.status + ' ' + text.slice(0, 200));
@@ -24,12 +38,12 @@ async function initAuth() {
     firebase.initializeApp(cfg);
     firebase.auth().onAuthStateChanged(async (user) => {
       if (user) {
-        idToken = await user.getIdToken();
+        signedInUser = user;
         whoami.textContent = 'Signed in as ' + (user.email || user.uid);
         signin.hidden = true;
         signout.hidden = false;
       } else {
-        idToken = null;
+        signedInUser = null;
         whoami.textContent = 'Not signed in (reads work; uploads need sign-in)';
         signin.hidden = false;
         signout.hidden = true;
@@ -111,11 +125,7 @@ document.getElementById('upload').addEventListener('submit', async (e) => {
   fd.append('chunk_pages', document.getElementById('chunk_pages').value || '0');
   msg.textContent = 'uploading ' + file.name + ' …';
   try {
-    const headers = {};
-    if (idToken) headers['Authorization'] = 'Bearer ' + idToken;
-    const res = await fetch('/books/upload', { method: 'POST', headers, body: fd });
-    if (!res.ok) throw new Error(res.status + ' ' + (await res.text()).slice(0, 200));
-    const job = await res.json();
+    const job = await authedFetch('/books/upload', { method: 'POST', body: fd });
     msg.textContent = 'queued as ' + job.job_id + ' — watch it below.';
     loadJobs();
   } catch (err) {
@@ -126,6 +136,10 @@ document.getElementById('upload').addEventListener('submit', async (e) => {
 // ── Jobs (poll; several can convert at once up to worker count) ──
 async function loadJobs() {
   const tbody = document.querySelector('#jobs tbody');
+  if (!signedInUser) {
+    tbody.innerHTML = '<tr><td colspan="5" class="muted">sign in to see the conversion queue</td></tr>';
+    return;
+  }
   try {
     const jobs = await authedFetch('/jobs');
     tbody.innerHTML = jobs.length ? '' : '<tr><td colspan="5" class="muted">no jobs (sign in to see the queue)</td></tr>';

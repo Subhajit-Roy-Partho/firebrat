@@ -111,6 +111,15 @@ entry), the full `presets` table (repo + VRAM notes), `gpu` presence,
 shim (re)starts — restart the container or `llm_server.py` for new
 weights. Uploads that omit provider/chunk inherit these defaults.
 
+`conversion_capabilities` reports whether the deployed conversion engine
+supports ebooks and novel character traits/research. Both default to enabled
+for the current engine. When preserving an older customized converter during
+an API upgrade, set `FIREBRAT_CONVERTER_SUPPORTS_EBOOKS=false` and/or
+`FIREBRAT_CONVERTER_SUPPORTS_CHARACTER_TRAITS=false`. Unsupported uploads are
+rejected with an actionable 501 before files are stored or jobs are queued;
+ordinary PDF/ZIP conversion remains available. Update the converter before
+enabling these capabilities again.
+
 ## `GET /firebase-config`
 
 Public Firebase web config (`apiKey`, `authDomain`, `projectId`) for the
@@ -123,6 +132,9 @@ workers, settings form, multi-PDF upload with per-book provider + chunk
 options, live job table with retry/resume, book shelf with download +
 delete. Same-origin fetch, Firebase compat SDK for sign-in; reads work
 anonymous, mutations send the ID token.
+The web client obtains a current Firebase token for each request and retries
+an authentication rejection once after forcing refresh. It never retries a
+mutation merely because of a timeout, server error, or denied account.
 The last N lines of that job's raw `convert.py` stdout/stderr, for debugging a failure beyond what `error` summarizes. `{"lines": ["...", "..."]}`.
 
 ## Error shape

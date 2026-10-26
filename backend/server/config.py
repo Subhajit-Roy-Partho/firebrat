@@ -39,6 +39,12 @@ CONVERT_SCRIPT = os.path.join(_BACKEND_DIR, "convert.py")
 # server, which is correct inside a single-env container; on the dev
 # cluster's split conda envs this must point at the extract env's python.
 CONVERT_PY = os.environ.get("FIREBRAT_CONVERT_PY", sys.executable)
+# Operators may upgrade the API before a customized conversion engine. Keep
+# unsupported newer inputs out of its queue instead of accepting doomed jobs.
+CONVERTER_SUPPORTS_EBOOKS = os.environ.get(
+    "FIREBRAT_CONVERTER_SUPPORTS_EBOOKS", "true").strip().lower() not in {"0", "false", "no"}
+CONVERTER_SUPPORTS_CHARACTER_TRAITS = os.environ.get(
+    "FIREBRAT_CONVERTER_SUPPORTS_CHARACTER_TRAITS", "true").strip().lower() not in {"0", "false", "no"}
 # How many conversions run at once (extra uploads wait in the queue).
 # Conversion is memory/GPU heavy (see AGENTS.md's 6GB cgroup note: each
 # running job holds several GB of RAM plus GPU memory), so the default is

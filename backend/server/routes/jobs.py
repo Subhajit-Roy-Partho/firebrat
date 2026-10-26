@@ -61,6 +61,11 @@ async def upload_book(
 ):
     if content_mode not in ("illustrated", "novel"):
         raise HTTPException(status_code=422, detail="content_mode must be illustrated or novel")
+    if (content_mode == "novel" and (research_characters or character_traits.strip())
+            and not config.CONVERTER_SUPPORTS_CHARACTER_TRAITS):
+        raise HTTPException(status_code=501, detail=(
+            "This server's conversion engine has not been upgraded for character research or traits. "
+            "Turn off research and custom traits, or update the server converter."))
     # Novel casting options: one "Name=traits" per line (ages/temperaments/
     # genders only; validated so a typo is a 422, not a silently ignored line).
     traits_lines = []
@@ -78,6 +83,10 @@ async def upload_book(
     is_ebook_upload = ebook_mod.is_ebook(lname)
     if not file.filename or (not is_pdf and not is_zip and not is_ebook_upload):
         raise HTTPException(status_code=400, detail="only .pdf, .zip (of PDFs), .epub, .mobi, .azw or .azw3 uploads are accepted")
+    if is_ebook_upload and not config.CONVERTER_SUPPORTS_EBOOKS:
+        raise HTTPException(status_code=501, detail=(
+            "This server's conversion engine has not been upgraded for ebooks. "
+            "Upload a PDF or ZIP of PDFs, or update the server converter."))
 
     os.makedirs(config.UPLOAD_DIR, exist_ok=True)
     book_id = sanitize_book_id(file.filename)
