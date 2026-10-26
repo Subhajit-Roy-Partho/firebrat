@@ -83,7 +83,6 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.firebrat.firebrat_app
           releaseFiles: play-artifact/app-release.aab
-          track: alpha
+          tracks: alpha
           status: ${{ inputs.release_status }}
           whatsNewDirectory: frontend/firebrat_app/distribution/whatsnew
-          changesNotSentForReview: ${{ inputs.release_status == 'draft' }}

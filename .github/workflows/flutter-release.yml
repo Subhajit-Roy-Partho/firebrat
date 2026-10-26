@@ -149,10 +149,9 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.firebrat.firebrat_app
           releaseFiles: frontend/firebrat_app/build/app/outputs/bundle/release/app-release.aab
-          track: alpha
+          tracks: alpha
           status: ${{ inputs.play_status }}
           whatsNewDirectory: frontend/firebrat_app/distribution/whatsnew
-          changesNotSentForReview: ${{ inputs.play_status == 'draft' }}
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
