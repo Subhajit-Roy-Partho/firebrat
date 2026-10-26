@@ -182,6 +182,8 @@ Beyond the reader itself, the app has:
 
 ## Offline Android benchmarks and correctness
 
+Latest [published device results](https://subhajit-roy-partho.github.io/firebrat/benchmarks.html): Kokoro CPU/NNAPI attempt, conversion resume verification, and earlier language-model and illustrated-book measurements (26 October 2026). NNAPI failed to initialize Kokoro on the Pixel 9a and fell back to CPU; no speech GPU speedup is claimed.
+
 ### Illustrated review sample verification (23 October 2026)
 
 A three-page public-domain *The Tale of Peter Rabbit* excerpt was converted on
