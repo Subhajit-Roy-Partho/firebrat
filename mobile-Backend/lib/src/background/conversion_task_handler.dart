@@ -50,6 +50,7 @@ class MobileConversionTaskHandler extends TaskHandler {
         allowCloudFallback: request.allowCloudFallback,
         cloudForAll: request.cloudForAll,
         researchCharacters: request.researchCharacters,
+        localCharacterResearch: request.localCharacterResearch,
         contentMode: request.contentMode == 'novel'
             ? BookContentMode.novel
             : BookContentMode.illustrated,
@@ -62,6 +63,8 @@ class MobileConversionTaskHandler extends TaskHandler {
             ? OnDeviceVoiceEngine.kokoroOnnx
             : OnDeviceVoiceEngine.stockTts,
         kokoroVoice: request.kokoroVoice,
+        kokoroAcceleration: request.kokoroAcceleration,
+        kokoroCpuThreads: request.kokoroCpuThreads,
         maleVoice: request.maleVoice, femaleVoice: request.femaleVoice, characterVoices: request.characterVoices,
       ),
       onProgress: (p) {

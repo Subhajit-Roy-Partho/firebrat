@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
+import '../widgets/kokoro_model_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart';
@@ -331,7 +333,7 @@ class _ConversionSettingsScreenState
             // and character research (title and names only, automatic in novels).
             if (settings.allowCloudFallback ||
                 (settings.contentMode == 'novel' &&
-                    settings.researchCharacters)) ...[
+                    settings.researchCharacters && !settings.localCharacterResearch)) ...[
               if (settings.allowCloudFallback)
                 SwitchListTile(
                   title: const Text('Use the cloud LLM for every passage'),
@@ -398,7 +400,7 @@ class _ConversionSettingsScreenState
               ),
               const SizedBox(height: 24),
             ],
-            if (!(settings.allowCloudFallback && settings.cloudForAll)) ...[
+            if (!(settings.allowCloudFallback && settings.cloudForAll) || settings.localCharacterResearch) ...[
               _SectionTitle('3 · Local LLM (fully offline)'),
               const _HelpText(
                 'Weights download straight from Hugging Face. Leaving this screen never stops a download — '
@@ -888,6 +890,34 @@ class _LocalModelPickerState extends ConsumerState<_LocalModelPicker> {
             label: Text('Downloaded'),
           ),
         ],
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: dl?.downloading == true ? null : () async {
+            try {
+              final picked = await FilePicker.pickFiles(type: FileType.custom,
+                  allowedExtensions: ['gguf']);
+              if (picked.isEmpty) return;
+              final file = picked.single;
+              if (file.path == null) throw StateError('The selected file could not be read.');
+              await ref.read(modelDownloadProvider.notifier).importModel(selected,
+                  path: file.path!, pickedName: file.name);
+              await _refreshDownloaded();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Local model imported and validated.')));
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Model import failed: $e')));
+              }
+            }
+          },
+          icon: const Icon(Icons.file_open_outlined),
+          label: const Text('Import downloaded GGUF'),
+        ),
+        Text('Select exactly ${selected.fileName}. Only this catalog Q4_K_M model is supported; other models, quantizations and incomplete files are rejected.',
+            style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 12),
         Text(
           'Device acceleration',
@@ -959,6 +989,8 @@ class _VoicePicker extends StatelessWidget {
           ),
         ),
         if (settings.isKokoroVoice) ...[
+          KokoroModelControls(settings: settings, notifier: notifier),
+          const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             isExpanded: true,
             initialValue: kKokoroVoices.contains(settings.kokoroVoice)
@@ -989,6 +1021,13 @@ class _VoicePicker extends StatelessWidget {
             const _HelpText(
               'Automatic casting uses he/she evidence in the book, never names alone. Conflicting or missing evidence keeps the narrator. Override any named character below; voice casting does not establish a person’s gender.',
             ),
+            if (settings.mode == ConversionModePref.onDevice)
+              SwitchListTile(
+                title: const Text('Analyze characters with the local model'),
+                subtitle: const Text('Optional. Uses the selected downloaded GGUF and GPU setting to read book excerpts. No Wikipedia or API requests; unsupported traits stay unknown. It adds conversion time and memory use. Online research is skipped while this is on.'),
+                value: settings.localCharacterResearch,
+                onChanged: notifier.setLocalCharacterResearch,
+              ),
             SwitchListTile(
               title: const Text('Research characters online (automatic)'),
               subtitle: Text(
@@ -1001,7 +1040,7 @@ class _VoicePicker extends StatelessWidget {
                     : 'On. Each novel is looked up on Wikipedia and your LLM describes every character\'s age and temperament, so characters get different speed, pitch and voice. Only the title and character names are sent, never the book\'s text.',
               ),
               value: settings.researchCharacters,
-              onChanged: notifier.setResearchCharacters,
+              onChanged: settings.mode == ConversionModePref.onDevice && settings.localCharacterResearch ? null : notifier.setResearchCharacters,
             ),
             for (final male in [true, false]) ...[
               const SizedBox(height: 12),

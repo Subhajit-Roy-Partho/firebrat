@@ -12,6 +12,7 @@ import '../extraction/page_visuals.dart';
 import '../extraction/ocr_fallback.dart';
 import '../llm/llm_endpoint.dart';
 import '../novel/character_research.dart';
+import '../novel/local_character_research.dart';
 import '../novel/character_traits.dart';
 import '../novel/novel_analyzer.dart';
 import '../models/compiled_models.dart';
@@ -166,15 +167,15 @@ class MobileConversionPipeline {
     // A book being resumed keeps the cast it was already narrated with, so a
     // second web lookup can never change a voice halfway through.
     final resuming = await File('$bookDir/$_checkpointName').exists();
-    final researchCache = File('$bookDir/research_cache.json');
+    final researchCache = File('$bookDir/${settings.localCharacterResearch ? 'local_research_cache.json' : 'research_cache.json'}');
     CharacterResearchResult? cachedResearch;
     if (resuming && await researchCache.exists()) {
       try {
         final j = jsonDecode(await researchCache.readAsString()) as Map<String, dynamic>;
         cachedResearch = CharacterResearchResult({
           for (final e in (j['traits'] as Map).entries)
-            e.key as String: CharacterTraits.fromJson(e.value as Map, source: 'web'),
-        }, sources: (j['sources'] as List).cast<String>(), missing: (j['missing'] as List).cast<String>());
+            e.key as String: CharacterTraits.fromJson(e.value as Map, source: settings.localCharacterResearch ? 'local_book' : 'web'),
+        }, sources: (j['sources'] as List).cast<String>(), missing: (j['missing'] as List).cast<String>(), source: (j['source'] as String?) ?? 'Wikipedia');
       } catch (_) {
         cachedResearch = null;
       }
@@ -183,6 +184,33 @@ class MobileConversionPipeline {
       researchReport = cachedResearch.toJson();
       novelPlan = novelPlan.withResearch(cachedResearch.traits);
       _report('extracting', 'reusing the cast from the earlier run (${cachedResearch.traits.length} characters)', 0.76);
+    } else if (novelPlan != null && settings.localCharacterResearch) {
+      final local = OnDeviceCompiler(model: findOnDeviceLlmModel(settings.onDeviceLlmModelId),
+          gpuLayers: settings.onDeviceGpuLayers);
+      try {
+        await local.ensureReady(modelsDir: '$modelsDir/llm', allowDownload: false,
+            onProgress: (_, status) => _report('extracting', status, 0.72));
+        final result = await LocalCharacterResearcher(generate: (system, prompt) =>
+            local.generateText(systemPrompt: system, userMessage: prompt,
+                maxTokens: 700, label: 'local character research')).research(
+          pages: extraction.pages, names: [for (final c in novelPlan.characters) c.name],
+          onProgress: (status) => _report('extracting', status, 0.73));
+        researchReport = result.toJson();
+        if (result.traits.isNotEmpty) {
+          novelPlan = novelPlan.withResearch(result.traits);
+          await researchCache.writeAsString(jsonEncode({
+            'traits': {for (final e in result.traits.entries) e.key: e.value.toJson()},
+            'source': result.source, 'sources': result.sources, 'missing': result.missing,
+          }));
+        }
+        _report('extracting', 'local evidence described ${result.traits.length} characters; '
+            '${result.missing.length} keep unknown traits', 0.76);
+      } catch (e) {
+        _report('extracting', 'local character research skipped: $e', 0.76);
+      } finally {
+        // Never retain the LLM/GPU allocation while Kokoro starts.
+        await local.dispose();
+      }
     } else if (novelPlan != null && settings.researchCharacters) {
       if (settings.llmBaseUrl.trim().isEmpty || settings.llmApiKey.trim().isEmpty || settings.llmModel.trim().isEmpty) {
         _report('extracting', 'character research skipped: add an LLM URL, key and model in Conversion settings', 0.72);
@@ -201,6 +229,7 @@ class MobileConversionPipeline {
           await researchCache.writeAsString(jsonEncode({
             'traits': {for (final e in result.traits.entries) e.key: e.value.toJson()},
             'sources': result.sources,
+            'source': result.source,
             'missing': result.missing,
           }));
           novelPlan = novelPlan.withResearch(result.traits);
@@ -288,7 +317,7 @@ class MobileConversionPipeline {
     final NarrationEngine tts;
     final String narratorEngineName;
     if (settings.voiceEngine == OnDeviceVoiceEngine.kokoroOnnx) {
-      final kokoro = KokoroTtsEngine(voice: settings.kokoroVoice, maleVoice: settings.maleVoice, femaleVoice: settings.femaleVoice, novelPlan: novelPlan);
+      final kokoro = KokoroTtsEngine(voice: settings.kokoroVoice, acceleration: settings.kokoroAcceleration, cpuThreads: settings.kokoroCpuThreads, maleVoice: settings.maleVoice, femaleVoice: settings.femaleVoice, novelPlan: novelPlan);
       await kokoro.ensureReady(
         onProgress: (progress, status) => _report('synthesizing', status, progress),
       );
@@ -438,7 +467,7 @@ class MobileConversionPipeline {
 
     await writeManifest(partial: false);
     // Finished: nothing left to resume.
-    for (final name in [_checkpointName, 'research_cache.json']) {
+    for (final name in [_checkpointName, 'research_cache.json', 'local_research_cache.json']) {
       try {
         await File('$bookDir/$name').delete();
       } catch (_) {}

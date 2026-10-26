@@ -49,6 +49,8 @@ class OnDeviceModeSettings {
   /// temperament, so characters get distinct voices. Sends the book title and
   /// character names, never the book's text.
   final bool researchCharacters;
+  /// Opt-in grounded character enrichment using the selected local GGUF only.
+  final bool localCharacterResearch;
   final BookContentMode contentMode;
   final String llmBaseUrl;
   final String llmApiKey;
@@ -74,6 +76,8 @@ class OnDeviceModeSettings {
   /// Kokoro preset voice name (see `tts/kokoro_tts_engine.dart`'s
   /// `kKokoroVoices`), only used when [voiceEngine] is `kokoroOnnx`.
   final String kokoroVoice;
+  final String kokoroAcceleration;
+  final int kokoroCpuThreads;
   final String maleVoice;
   final String femaleVoice;
   final Map<String, String> characterVoices;
@@ -82,6 +86,7 @@ class OnDeviceModeSettings {
     this.allowCloudFallback = false,
     this.cloudForAll = false,
     this.researchCharacters = true,
+    this.localCharacterResearch = false,
     this.contentMode = BookContentMode.illustrated,
     this.llmBaseUrl = '',
     this.llmApiKey = '',
@@ -90,6 +95,8 @@ class OnDeviceModeSettings {
     this.onDeviceGpuLayers = 0,
     this.voiceEngine = OnDeviceVoiceEngine.kokoroOnnx,
     this.kokoroVoice = 'Bella',
+    this.kokoroAcceleration = 'cpu',
+    this.kokoroCpuThreads = 2,
     this.maleVoice = 'Adam',
     this.femaleVoice = 'Sarah',
     this.characterVoices = const {},

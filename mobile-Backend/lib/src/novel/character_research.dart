@@ -7,16 +7,17 @@ class CharacterResearchResult {
   final Map<String, CharacterTraits> traits;
   final List<String> sources; // Wikipedia article titles used
   final List<String> missing; // characters the LLM could not describe
+  final String source;
   final String? skipped; // why nothing was applied, in plain words
 
-  const CharacterResearchResult(this.traits, {this.sources = const [], this.missing = const [], this.skipped});
+  const CharacterResearchResult(this.traits, {this.sources = const [], this.missing = const [], this.skipped, this.source = 'Wikipedia'});
 
   String? get sourceTitle => sources.isEmpty ? null : sources.join(' + ');
 
   Map<String, dynamic> toJson() => {
         'status': skipped == null ? 'applied' : 'skipped',
         if (skipped != null) 'reason': skipped,
-        'source': 'Wikipedia',
+        'source': source,
         'articles': sources,
         'described': traits.length,
         if (missing.isNotEmpty) 'not_described': missing,

@@ -72,6 +72,42 @@ class ModelDownloadNotifier extends Notifier<Map<String, ModelDownloadState>> {
         }));
   }
 
+  /// Imports and downloads cannot replace the same model slot together.
+  Future<String> importModel(OnDeviceLlmModel model, {required String path, required String pickedName}) {
+    if (_inFlight.containsKey(model.id)) throw StateError('Pause the model transfer before importing.');
+    final future = _runImport(model, path, pickedName).whenComplete(() {
+      _inFlight.remove(model.id); _tokens.remove(model.id);
+    });
+    _inFlight[model.id] = future; return future;
+  }
+
+  Future<String> _runImport(OnDeviceLlmModel model, String path, String pickedName) async {
+    final token = CancelToken(); _tokens[model.id] = token;
+    _set(model.id, const ModelDownloadState(fraction: null, receivedBytes: 0,
+        totalBytes: null, status: 'validating local GGUF', downloading: true, downloaded: false));
+    final keepAlive = await DownloadKeepAlive.acquire('import model ${model.id}');
+    var last = DateTime.fromMillisecondsSinceEpoch(0);
+    try {
+      final result = await ModelImporter().importFile(sourcePath: path, pickedName: pickedName,
+          model: model, modelsDir: '${await modelsDir()}/llm', cancelToken: token,
+          onBytes: (received, total) {
+            final now = DateTime.now();
+            if (received != total && now.difference(last).inMilliseconds < 250) return;
+            last = now;
+            _set(model.id, ModelDownloadState(fraction: received / total,
+                receivedBytes: received, totalBytes: total, status: 'importing local GGUF',
+                downloading: true, downloaded: false));
+          });
+      _set(model.id, ModelDownloadState(fraction: 1, receivedBytes: model.approxSizeBytes,
+          totalBytes: model.approxSizeBytes, status: 'imported', downloading: false, downloaded: true));
+      return result;
+    } catch (_) {
+      _set(model.id, const ModelDownloadState(fraction: null, receivedBytes: 0,
+          totalBytes: null, status: 'import not completed', downloading: false, downloaded: false));
+      rethrow;
+    } finally { await keepAlive.release(); }
+  }
+
   /// Pause = cancel the stream, keep the `.part` file. Tapping download
   /// again resumes from it ( Range). Never deletes progress.
   void pauseDownload(String modelId) {

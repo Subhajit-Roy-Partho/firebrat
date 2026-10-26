@@ -22,6 +22,8 @@ class ConversionModeSettings {
   final bool allowCloudFallback;
   final bool cloudForAll;
   final bool researchCharacters;
+  /// Opt-in grounded character enrichment using the selected local GGUF only.
+  final bool localCharacterResearch;
   final String onDeviceLlmUrl;
   final String onDeviceLlmApiKey;
   final String onDeviceLlmModel;
@@ -44,6 +46,8 @@ class ConversionModeSettings {
   final String voiceEngine;
   /// Kokoro preset voice name (kKokoroVoices), only used for kokoroOnnx.
   final String kokoroVoice;
+  final String kokoroAcceleration;
+  final int kokoroCpuThreads;
   final String maleVoice;
   final String femaleVoice;
   final Map<String, String> characterVoices;
@@ -56,6 +60,7 @@ class ConversionModeSettings {
     this.allowCloudFallback = false,
     this.cloudForAll = false,
     this.researchCharacters = true,
+    this.localCharacterResearch = false,
     this.onDeviceLlmUrl = '',
     this.onDeviceLlmApiKey = '',
     this.onDeviceLlmModel = '',
@@ -67,6 +72,8 @@ class ConversionModeSettings {
     this.onDeviceGpuLayers = 0,
     this.voiceEngine = 'kokoroOnnx',
     this.kokoroVoice = 'Bella',
+    this.kokoroAcceleration = 'cpu',
+    this.kokoroCpuThreads = 2,
     this.maleVoice = 'Adam',
     this.femaleVoice = 'Sarah',
     this.characterVoices = const {},
@@ -80,6 +87,7 @@ class ConversionModeSettings {
     bool? allowCloudFallback,
     bool? cloudForAll,
     bool? researchCharacters,
+    bool? localCharacterResearch,
     String? onDeviceLlmUrl,
     String? onDeviceLlmApiKey,
     String? onDeviceLlmModel,
@@ -91,6 +99,8 @@ class ConversionModeSettings {
     int? onDeviceGpuLayers,
     String? voiceEngine,
     String? kokoroVoice,
+    String? kokoroAcceleration,
+    int? kokoroCpuThreads,
     String? maleVoice, String? femaleVoice, Map<String, String>? characterVoices,
   }) =>
       ConversionModeSettings(
@@ -101,6 +111,7 @@ class ConversionModeSettings {
         allowCloudFallback: allowCloudFallback ?? this.allowCloudFallback,
         cloudForAll: cloudForAll ?? this.cloudForAll,
         researchCharacters: researchCharacters ?? this.researchCharacters,
+        localCharacterResearch: localCharacterResearch ?? this.localCharacterResearch,
         onDeviceLlmUrl: onDeviceLlmUrl ?? this.onDeviceLlmUrl,
         onDeviceLlmApiKey: onDeviceLlmApiKey ?? this.onDeviceLlmApiKey,
         onDeviceLlmModel: onDeviceLlmModel ?? this.onDeviceLlmModel,
@@ -112,6 +123,8 @@ class ConversionModeSettings {
         onDeviceGpuLayers: onDeviceGpuLayers ?? this.onDeviceGpuLayers,
         voiceEngine: voiceEngine ?? this.voiceEngine,
         kokoroVoice: kokoroVoice ?? this.kokoroVoice,
+        kokoroAcceleration: kokoroAcceleration ?? this.kokoroAcceleration,
+        kokoroCpuThreads: kokoroCpuThreads ?? this.kokoroCpuThreads,
         maleVoice: maleVoice ?? this.maleVoice, femaleVoice: femaleVoice ?? this.femaleVoice,
         characterVoices: characterVoices ?? this.characterVoices,
       );
@@ -158,6 +171,7 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
       allowCloudFallback: prefs.getBool('conversion.allowCloudFallback') ?? false,
       cloudForAll: prefs.getBool('conversion.cloudForAll') ?? false,
       researchCharacters: prefs.getBool('conversion.researchCharacters') ?? true,
+      localCharacterResearch: prefs.getBool('conversion.localCharacterResearch') ?? false,
       onDeviceLlmUrl: prefs.getString(_kLlmUrl) ?? '',
       onDeviceLlmApiKey: prefs.getString(_kLlmKey) ?? '',
       onDeviceLlmModel: prefs.getString(_kLlmModel) ?? '',
@@ -169,6 +183,8 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
       onDeviceGpuLayers: prefs.getInt(_kGpuLayers) ?? 0,
       voiceEngine: prefs.getString(_kVoiceEngine) ?? 'kokoroOnnx',
       kokoroVoice: prefs.getString(_kKokoroVoice) ?? 'Bella',
+      kokoroAcceleration: prefs.getString('conversion.kokoroAcceleration') ?? 'cpu',
+      kokoroCpuThreads: (prefs.getInt('conversion.kokoroCpuThreads') ?? 2).clamp(1, 4),
       maleVoice: prefs.getString('conversion.maleVoice') ?? 'Adam',
       femaleVoice: prefs.getString('conversion.femaleVoice') ?? 'Sarah',
       characterVoices: Map<String, String>.from(jsonDecode(prefs.getString('conversion.characterVoices') ?? '{}') as Map),
@@ -184,6 +200,23 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
   Future<void> setAllowCloudFallback(bool enabled) async {
     state = state.copyWith(allowCloudFallback: enabled);
     await (await SharedPreferences.getInstance()).setBool('conversion.allowCloudFallback', enabled);
+  }
+
+  Future<void> setKokoroAcceleration(String value) async {
+    if (value != 'cpu' && value != 'nnapi') throw ArgumentError.value(value);
+    state = state.copyWith(kokoroAcceleration: value);
+    await (await SharedPreferences.getInstance()).setString('conversion.kokoroAcceleration', value);
+  }
+
+  Future<void> setKokoroCpuThreads(int value) async {
+    final threads = value.clamp(1, 4);
+    state = state.copyWith(kokoroCpuThreads: threads);
+    await (await SharedPreferences.getInstance()).setInt('conversion.kokoroCpuThreads', threads);
+  }
+
+  Future<void> setLocalCharacterResearch(bool enabled) async {
+    state = state.copyWith(localCharacterResearch: enabled);
+    await (await SharedPreferences.getInstance()).setBool('conversion.localCharacterResearch', enabled);
   }
 
   Future<void> setResearchCharacters(bool enabled) async {

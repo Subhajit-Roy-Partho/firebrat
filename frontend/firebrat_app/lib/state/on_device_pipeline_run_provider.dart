@@ -201,6 +201,7 @@ Future<String> runOnDeviceConversionIn(ProviderContainer container, List<String>
     allowCloudFallback: settings.allowCloudFallback,
     cloudForAll: settings.cloudForAll,
     researchCharacters: settings.researchCharacters,
+        localCharacterResearch: settings.localCharacterResearch,
     llmBaseUrl: settings.onDeviceLlmUrl,
     llmApiKey: settings.onDeviceLlmApiKey,
     llmModel: settings.onDeviceLlmModel,
@@ -211,6 +212,8 @@ Future<String> runOnDeviceConversionIn(ProviderContainer container, List<String>
     onDeviceGpuLayers: settings.onDeviceGpuLayers,
     voiceEngine: settings.voiceEngine,
     kokoroVoice: settings.kokoroVoice,
+        kokoroAcceleration: settings.kokoroAcceleration,
+        kokoroCpuThreads: settings.kokoroCpuThreads,
         maleVoice: settings.maleVoice, femaleVoice: settings.femaleVoice, characterVoices: settings.characterVoices,
   );
   final result = await BackgroundConversionRunner.start(request);

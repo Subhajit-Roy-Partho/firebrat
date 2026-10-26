@@ -21,6 +21,8 @@ class ConversionRequest {
   final bool allowCloudFallback;
   final bool cloudForAll;
   final bool researchCharacters;
+  /// Opt-in grounded character enrichment using the selected local GGUF only.
+  final bool localCharacterResearch;
   final String contentMode;
   final String llmBaseUrl;
   final String llmApiKey;
@@ -29,6 +31,8 @@ class ConversionRequest {
   final int onDeviceGpuLayers;
   final String voiceEngine;
   final String kokoroVoice;
+  final String kokoroAcceleration;
+  final int kokoroCpuThreads;
   final String maleVoice;
   final String femaleVoice;
   final Map<String, String> characterVoices;
@@ -42,6 +46,7 @@ class ConversionRequest {
     this.allowCloudFallback = false,
     this.cloudForAll = false,
     this.researchCharacters = true,
+    this.localCharacterResearch = false,
     this.contentMode = 'illustrated',
     required this.llmBaseUrl,
     required this.llmApiKey,
@@ -50,6 +55,8 @@ class ConversionRequest {
     this.onDeviceGpuLayers = 0,
     this.voiceEngine = 'kokoroOnnx',
     this.kokoroVoice = 'Bella',
+    this.kokoroAcceleration = 'cpu',
+    this.kokoroCpuThreads = 2,
     this.maleVoice = 'Adam',
     this.femaleVoice = 'Sarah',
     this.characterVoices = const {},
@@ -74,6 +81,7 @@ class ConversionRequest {
     'allowCloudFallback': allowCloudFallback,
     'cloudForAll': cloudForAll,
     'researchCharacters': researchCharacters,
+    'localCharacterResearch': localCharacterResearch,
     'contentMode': contentMode,
     'llmBaseUrl': llmBaseUrl,
     'llmApiKey': llmApiKey,
@@ -82,6 +90,8 @@ class ConversionRequest {
     'onDeviceGpuLayers': onDeviceGpuLayers,
     'voiceEngine': voiceEngine,
     'kokoroVoice': kokoroVoice,
+    'kokoroAcceleration': kokoroAcceleration,
+    'kokoroCpuThreads': kokoroCpuThreads,
     'maleVoice': maleVoice, 'femaleVoice': femaleVoice, 'characterVoices': characterVoices,
   };
 
@@ -95,6 +105,7 @@ class ConversionRequest {
         allowCloudFallback: json['allowCloudFallback'] as bool? ?? false,
         cloudForAll: json['cloudForAll'] as bool? ?? false,
         researchCharacters: json['researchCharacters'] as bool? ?? true,
+        localCharacterResearch: json['localCharacterResearch'] as bool? ?? false,
         contentMode: json['contentMode'] as String? ?? 'illustrated',
         llmBaseUrl: json['llmBaseUrl'] as String,
         llmApiKey: json['llmApiKey'] as String,
@@ -103,6 +114,8 @@ class ConversionRequest {
         onDeviceGpuLayers: json['onDeviceGpuLayers'] as int? ?? 0,
         voiceEngine: json['voiceEngine'] as String? ?? 'kokoroOnnx',
         kokoroVoice: json['kokoroVoice'] as String? ?? 'Bella',
+        kokoroAcceleration: json['kokoroAcceleration'] as String? ?? 'cpu',
+        kokoroCpuThreads: (json['kokoroCpuThreads'] as int? ?? 2).clamp(1, 4),
         maleVoice: json['maleVoice'] as String? ?? 'Adam',
         femaleVoice: json['femaleVoice'] as String? ?? 'Sarah',
         characterVoices: Map<String, String>.from(json['characterVoices'] as Map? ?? {}),

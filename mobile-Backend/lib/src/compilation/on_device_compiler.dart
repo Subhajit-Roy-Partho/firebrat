@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:isolate';
+import 'dart:io';
 import 'package:llama_cpp_dart/llama_cpp_dart.dart';
 import '../models/compiled_models.dart';
 import '../models/raw_page.dart';
@@ -65,10 +66,19 @@ class OnDeviceCompiler {
   Future<void> ensureReady({
     required String modelsDir,
     ModelDownloadProgress? onProgress,
+    bool allowDownload = true,
   }) async {
     if (_worker != null) return;
     _progress = onProgress;
-    final path = await _downloader.ensureDownloaded(model, modelsDir, onProgress: onProgress);
+    final path = '$modelsDir/${model.fileName}';
+    if (!allowDownload) {
+      final file = File(path);
+      if (!await file.exists() || ((await file.length()) - model.approxSizeBytes).abs() >= model.approxSizeBytes * 0.02) {
+        throw OnDeviceCompilerException('Download or import ${model.displayName} before local character research.');
+      }
+    } else {
+      await _downloader.ensureDownloaded(model, modelsDir, onProgress: onProgress);
+    }
     final ready = Completer<SendPort>();
     final replies = _replies = ReceivePort();
     replies.listen((dynamic message) {
@@ -108,18 +118,29 @@ class OnDeviceCompiler {
       chunk.chunkIdx,
       chunk.pages.map((p) => (pageIdx: p.pageIdx, text: p.text)).toList(),
     );
-    final prompt = formatOnDevicePrompt(model.promptFormat, buildSystemPrompt(),
-        model.id.startsWith('qwen3-') ? '$userMessage\n/no_think' : userMessage);
-
-    final result = Map<String, dynamic>.from(await _request({
-      'command': 'generate', 'prompt': prompt, 'chunk': chunk.chunkIdx + 1}) as Map);
-    final response = result.remove('text') as String;
-    lastGenerationStats = result;
-    lastRawResponse = response;
+    final response = await generateText(systemPrompt: buildSystemPrompt(), userMessage: userMessage,
+        label: 'chunk ${chunk.chunkIdx + 1}', maxTokens: 2400);
     if (response.trim().isEmpty) {
       throw OnDeviceCompilerException('on-device generation returned empty output for chunk ${chunk.chunkIdx}');
     }
     return parseCompiledChunkResponse(response, nextFormulaNumber: nextFormulaNumber);
+  }
+
+  /// General local inference, also used for grounded novel character enrichment.
+  /// No network calls; ensureReady(allowDownload: false) enforces offline setup.
+  Future<String> generateText({required String systemPrompt, required String userMessage,
+      int maxTokens = 1200, String label = 'local analysis'}) async {
+    if (_commands == null) throw StateError('Load a local model before generation');
+    final prompt = formatOnDevicePrompt(model.promptFormat, systemPrompt,
+        model.id.startsWith('qwen3-') ? '$userMessage\n/no_think' : userMessage);
+    final result = Map<String, dynamic>.from(await _request({
+      'command': 'generate', 'prompt': prompt, 'label': label,
+      'maxTokens': maxTokens.clamp(1, 2400),
+    }) as Map);
+    final response = result.remove('text') as String;
+    lastGenerationStats = result;
+    lastRawResponse = response;
+    return response;
   }
 
   Future<void> dispose() async {
@@ -166,7 +187,7 @@ void _llamaWorker(SendPort replies) async {
       } else if (request['command'] == 'generate') {
         final engine = llama!;
         engine.clear();
-        replies.send({'progress': 'chunk ${request['chunk']}: reading source text'});
+        replies.send({'progress': '${request['label']}: reading source text'});
         final watch = Stopwatch()..start();
         engine.setPrompt(request['prompt'] as String);
         final output = StringBuffer();
@@ -182,10 +203,10 @@ void _llamaWorker(SendPort replies) async {
           output.write(piece);
           tokens++;
           if (tokens == 1 || tokens % 32 == 0) {
-            replies.send({'progress': 'chunk ${request['chunk']}: generated $tokens tokens'});
+            replies.send({'progress': '${request['label']}: generated $tokens tokens'});
             await Future<void>.delayed(Duration.zero);
           }
-          if (tokens >= 2400) { hitTokenLimit = true; break; }
+          if (tokens >= (request['maxTokens'] as int? ?? 2400)) { hitTokenLimit = true; break; }
         }
         replies.send({'result': {'text': output.toString(),
           'generated_tokens': tokens, 'first_token_ms': firstTokenMs,

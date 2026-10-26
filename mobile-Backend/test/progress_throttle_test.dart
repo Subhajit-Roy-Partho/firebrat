@@ -33,7 +33,9 @@ void main() {
     for (var i = 0; i < 1000; i++) {
       t = t.add(const Duration(milliseconds: 1));
       if (throttle.shouldEmit(stage: 'extracting', detail: 'page $i',
-          fraction: i.isEven ? 0 : 1)) emitted++;
+          fraction: i.isEven ? 0 : 1)) {
+        emitted++;
+      }
     }
     expect(emitted, lessThanOrEqualTo(4));
     expect(throttle.shouldEmit(stage: 'synthesizing', detail: 'ready',

@@ -1,6 +1,7 @@
-Firebrat 1.7.2
-- Listen while it converts: open a book once its first sections are narrated and playback carries on as more finish
-- Pause and resume conversions; progress is saved after every section, so an app update or restart no longer loses it
-- Stopped or failed conversions can be resumed
-- A resumed novel keeps its character voices
-- New in 1.7: EPUB/MOBI/AZW books, an on-device queue, a Cast screen, a free LLM key guide
+Firebrat 1.7.3
+- Fix a crash when starting offline Kokoro narration in Play builds.
+- Lower default speech CPU use and reduce conversion notification overload.
+- Download Kokoro voices separately and choose the speech CPU budget.
+- Optional character analysis using your downloaded local language model.
+- Import supported GGUF models from local files.
+- Correct model download sizes and reject incomplete imports.

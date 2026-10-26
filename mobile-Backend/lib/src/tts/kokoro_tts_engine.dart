@@ -1,12 +1,17 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_kokoro_tts/flutter_kokoro_tts.dart';
+import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
+// Upstream 0.0.1 is pinned: reuse its checksummed model/voice downloader.
+// ignore: implementation_imports
+import 'package:flutter_kokoro_tts/src/model_manager.dart';
 import '../models/compiled_models.dart';
 import '../models/segment_models.dart';
 import '../util/ids.dart';
 import '../novel/novel_analyzer.dart';
 import 'narration_engine.dart';
 import 'wav_utils.dart';
+import 'kokoro_runtime.dart' show FirebratKokoroTts;
 
 typedef VoiceDownloadProgress = void Function(double? progress, String status);
 
@@ -24,15 +29,10 @@ const List<String> kKokoroVoices = kokoroVoices;
 /// replacement for it: this integration exposes six preset voices (no
 /// cloning), while the stock engine needs no ~90MB model download at all.
 ///
-/// The ONNX session `flutter_kokoro_tts` creates internally runs on
-/// ONNX Runtime's default CPU execution provider — `flutter_onnxruntime`
-/// does expose NNAPI/CoreML execution-provider selection (see
-/// `on_device_compiler.dart`'s sibling note on `llama_cpp_dart`'s
-/// `gpuLayers` for the LLM side of hardware acceleration), but
-/// `flutter_kokoro_tts` v0.0.1 doesn't take a provider argument through to
-/// `createSession`, so wiring that through would mean forking it rather
-/// than configuring it. Not done here — flagged as a follow-up, not
-/// silently assumed.
+/// Our small adaptation of the upstream Dart runtime uses CPU inference with
+/// two intra-op threads and one inter-op thread, leaving capacity for Android
+/// and the reader. GPU offload in Settings applies to the separate GGUF LLM,
+/// not this speech session. Model files, phonemization and voices are unchanged.
 ///
 class KokoroTtsEngine implements NarrationEngine {
   final String voice;
@@ -40,10 +40,30 @@ class KokoroTtsEngine implements NarrationEngine {
   final String femaleVoice;
   final double speed;
   final NovelBookPlan? novelPlan;
-  final KokoroTts _tts = KokoroTts();
+  final FirebratKokoroTts _tts;
   bool _initialized = false;
 
-  KokoroTtsEngine({this.voice = 'Bella', this.maleVoice = 'Adam', this.femaleVoice = 'Sarah', this.speed = 1.0, this.novelPlan});
+  KokoroTtsEngine({this.voice = 'Bella', this.maleVoice = 'Adam', this.femaleVoice = 'Sarah', this.speed = 1.0, this.novelPlan,
+    int cpuThreads = 2, String acceleration = 'cpu'})
+      : _tts = FirebratKokoroTts(cpuThreads: cpuThreads, acceleration: acceleration);
+
+  static Future<bool> isDownloaded() => KokoroModelManager().isReady();
+
+  static Future<void> downloadModels({VoiceDownloadProgress? onProgress}) async {
+    final manager = KokoroModelManager();
+    await manager.download(onProgress: (p, status) => onProgress?.call(p, status));
+    await manager.ensureEspeakData();
+    if (!await manager.isReady()) throw StateError('Kokoro model verification failed');
+  }
+
+  static Future<List<String>> availableAcceleration() async {
+    try {
+      final providers = await OnnxRuntime().getAvailableProviders();
+      return ['cpu', if (Platform.isAndroid && providers.contains(OrtProvider.NNAPI)) 'nnapi'];
+    } catch (_) {
+      return ['cpu'];
+    }
+  }
 
   Future<void> ensureReady({VoiceDownloadProgress? onProgress}) async {
     if (_initialized) return;

@@ -106,6 +106,8 @@ class NovelBookPlan {
     'Then',
     'Someone',
     'Nobody',
+    'Mr', 'Mrs', 'Miss', 'Ms', 'Dr', 'Lady', 'Lord', 'Sir',
+    'Colonel', 'Captain', 'Major', 'Professor', 'Reverend', 'Uncle', 'Aunt',
   };
 
   static String? _speaker(String text, RegExpMatch match) {
@@ -215,7 +217,8 @@ class NovelBookPlan {
       if (gender == 'unknown' && merged.gender != 'unknown') {
         gender = merged.gender;
         evidence = [...evidence, merged.source == 'user'
-            ? 'set by the user' : 'web research about this book'];
+            ? 'set by the user' : merged.source == 'local_book'
+            ? 'local model evidence from this book' : 'web research about this book'];
       }
       out.add(c.copyWith(
         traits: merged,
