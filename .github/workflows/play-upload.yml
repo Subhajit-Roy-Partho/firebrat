@@ -1,0 +1,89 @@
+name: Upload verified bundle to Play
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: 'Successful build run containing the AAB artifact (no rebuild)'
+        type: string
+        required: true
+      artifact_name:
+        description: 'AAB artifact name from that build'
+        type: string
+        default: firebrat-play-store-aab
+      release_status:
+        description: 'draft stages the release; completed submits to the existing Alpha track'
+        type: choice
+        options: [draft, completed]
+        default: draft
+      verify_only:
+        description: 'Check Play access without uploading or changing a release'
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      build_run_id:
+        type: string
+        required: true
+      artifact_name:
+        type: string
+        default: firebrat-play-store-aab
+      release_status:
+        type: string
+        default: draft
+      verify_only:
+        type: boolean
+        default: false
+    secrets:
+      PLAY_SERVICE_ACCOUNT_JSON:
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: play-alpha-upload
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check requested release status
+        env:
+          RELEASE_STATUS: ${{ inputs.release_status }}
+        run: |
+          case "$RELEASE_STATUS" in draft|completed) ;; *) exit 1 ;; esac
+      - name: Verify Play service-account access
+        working-directory: frontend/firebrat_app
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          python3 -m pip install --quiet google-auth requests
+          python3 tool/check_play_access.py
+      - name: Download the already-built bundle
+        if: ${{ !inputs.verify_only }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          run-id: ${{ inputs.build_run_id }}
+          github-token: ${{ github.token }}
+          path: play-artifact
+      - name: Verify release artifact before upload
+        if: ${{ !inputs.verify_only }}
+        run: |
+          python3 frontend/firebrat_app/tool/check_native_alignment.py play-artifact/app-release.aab
+          python3 frontend/firebrat_app/tool/check_onnx_classes.py play-artifact/app-release.aab
+      - name: Upload to Google Play Alpha
+        if: ${{ !inputs.verify_only }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.firebrat.firebrat_app
+          releaseFiles: play-artifact/app-release.aab
+          track: alpha
+          status: ${{ inputs.release_status }}
+          whatsNewDirectory: frontend/firebrat_app/distribution/whatsnew
+          changesNotSentForReview: ${{ inputs.release_status == 'draft' }}

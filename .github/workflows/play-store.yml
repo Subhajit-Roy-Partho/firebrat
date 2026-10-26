@@ -2,6 +2,12 @@ name: Play Store bundle
 
 on:
   workflow_dispatch:
+    inputs:
+      play_status:
+        description: 'Upload the verified build to Alpha as a draft or submit it for review'
+        type: choice
+        options: [draft, completed]
+        default: draft
 
 env:
   FIREBRAT_PLAY_RELEASE: 'true'
@@ -96,3 +102,14 @@ jobs:
           name: firebrat-play-store-aab
           path: frontend/firebrat_app/build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
+
+  publish:
+    needs: build
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/play-upload.yml
+    with:
+      build_run_id: ${{ format('{0}', github.run_id) }}
+      release_status: ${{ inputs.play_status }}
+    secrets: inherit
