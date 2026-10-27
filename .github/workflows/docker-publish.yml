@@ -46,6 +46,7 @@ jobs:
             build_args: |
               TORCH_INDEX_URL=https://download.pytorch.org/whl/cu128
               TTS_TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124
+              WITH_CAST=1
             extra_tag: latest
           - variant: api
             dockerfile: backend/docker/Dockerfile.api
