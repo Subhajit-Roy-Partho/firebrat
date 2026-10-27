@@ -75,6 +75,10 @@ Single batches reach x8 (e.g. 45 rows, 361.8 s of audio in 43.0 s). The remainin
 - `ISSUES: none`.
 - Only Alice was QA'd by script; Frankenstein and Dorian Gray are built (`built.json`) but not yet QA'd. No human listening was done.
 
+## 6b. Abbreviation bug found after the first builds (fixed 2026-10-27)
+
+`textnorm._expand_abbreviations` matched title abbreviations as case-insensitive *prefixes*, so "Stop" -> "Saintop", "Drew" -> "Doctorew", "Revived" -> "Reverendived", "Colonel" -> "Colonelonel". It sat in every book built before the fix (2,297 of 2,496 sections contained an affected word); the 4-segment WER sample missed it. Fixed in commit `bd8efbd` (whole-token, capitalised matches only; regression test `test_abbreviations_never_corrupt_longer_words`). All five finished books were invalidated (old zips kept in `~/community-books/old-bad-textnorm/`, **not** to be uploaded) and re-synthesized by deleting `sections/*/synth.json` for affected sections. Lesson: QA must read segments containing capitalised abbreviations, not random samples only.
+
 ## 7. Remaining risks
 
 - Per-line emotion is not audible (section 3).

@@ -6,6 +6,7 @@ Internet Archive. Design/data model: `SPEC.md`. Rules: `../firebase/firestore.ru
 ```sh
 npm install
 npm test            # pure Internet Archive / manifest helpers
+npm run test:rules  # Firestore rules in the emulator (needs Java 17+; firebase-tools via npx)
 npm run dev
 VITE_APP_BASE=/firebrat/community/ npm run build   # -> dist/, publish at <pages>/community/
 ```
@@ -20,4 +21,4 @@ VITE_APP_BASE=/firebrat/community/ npm run build   # -> dist/, publish at <pages
 ## Notes
 - IA `/download` does not send CORS headers, so the chapter list is read from the submitter's local file and stored in Firestore.
 - Direct browser upload to IA uses the submitter's own S3 keys (memory only). Preflight to s3.us.archive.org returned CORS-open; a real upload is untested.
-- Rules are unit-untested: run them in the Firestore emulator before going public. No rate limiting without Functions.
+- Rules are tested in the emulator (`test/rules.test.mjs`, 5 tests: create/auth, admin-only status, rating aggregate, comments/reports/bugs/takedowns). No rate limiting without Functions.

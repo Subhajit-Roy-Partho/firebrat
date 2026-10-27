@@ -8,7 +8,7 @@ Read, in order: this file -> `AGENTS.md` (environment gotchas + the addendum at 
 ## 0. Rules of the road (from the owner; follow them)
 - **Git identity:** commit/push only as the default user `Subhajit-Roy-Partho`. Never set `git config user.name/email`, never add
   Claude/Co-Authored-By/"Generated with" lines to commits, PRs or tags. Work happens on branch **`community-library`**
-  (pushed to `origin`). **Do not merge to `master`, do not push to `main`/tags, do not publish Docker images** unless the owner says so
+  (pushed to `origin`). **Do not merge to `master`, do not push to `main`/tags, do not publish Docker images** unless the owner says so (the owner asked on 2026-10-27 to merge everything to the default branch `master`; Docker/tags remain off-limits)
   (the Docker CI workflow triggers on pushes to `main` and version tags only; the default branch is `master`).
 - **Only Claude agents** do the work. opencode is NOT used any more (its orchestrator hands work to sub-agents that keep running after the
   session ends and collide with other writers). If you find leftover opencode sessions, leave them alone.
@@ -173,3 +173,10 @@ The remaining step is a security review of `backend/server/iam.py` / `auth.py` /
 
 ## 7. Handover files from agents
 Each agent writes `docs/handover/<area>.md` when it finishes (what was done, what is left, test results, gotchas). The lead merges the essentials back into this file.
+
+## 8. STATUS UPDATE 2026-10-27 (supersedes sections 4 and 5 where they differ)
+- **Audio stage works** (Qwen3-TTS, per-character voices, batched; ~5-10x real time). Details, measurements and commands: `docs/handover/synth-debug.md`.
+- **Bug found and fixed after the first builds:** `textnorm` expanded title abbreviations as prefixes ("Stop" -> "Saintop", "Revived" -> "Reverendived"). 2,297/2,496 sections were affected, so every finished book was rebuilt (fix `bd8efbd`; old zips quarantined in `~/community-books/old-bad-textnorm/`, never upload them). Books Alice/Frankenstein/Dorian/Anne/Sherlock were rebuilt first; Pride and Prejudice, Dracula, Jane Eyre, Little Women, Crime and Punishment follow (two tmux workers `cb-synth`, `cb-synth2`; check `~/community-books/autorun-synth.log`).
+- **Community site:** Firestore rules now have emulator tests (`cd community && npm run test:rules`, 5 pass). NOT yet done and needing the owner's login/consent: `firebase login`, rules/indexes deploy, `admins/<uid>`, Internet Archive upload of the rebuilt zips (keys `internetArchiveS3key/secret` are set in the Mac's `~/.zshrc`), Firestore `books/*` documents, real DMCA address in `community/src/views/legal.js`.
+- **Android on-device expressive mode:** wired and unit-tested; phone runs show Qwen3-4B on CPU is far too slow (~0.5 tok/s); GPU offload and a release build were never tried. See `docs/handover/android-expressive-gpu.md`.
+- **Git:** `community-library` merged to `master` on 2026-10-27 at the owner's request (see git log).
