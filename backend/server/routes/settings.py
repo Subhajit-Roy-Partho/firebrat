@@ -9,8 +9,9 @@ restart the shim (or container) afterwards; this endpoint says so.
 """
 import json
 import os
+import tempfile
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
 from server import auth, config
@@ -42,6 +43,10 @@ def read_settings() -> dict:
 
 def write_settings(patch: dict) -> dict:
     current = read_settings()
+    if "default_chunk_pages" in patch:
+        v = patch["default_chunk_pages"]
+        if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 10000:
+            raise ValueError("default_chunk_pages must be an int 0..10000")
     for key in ("default_provider", "default_chunk_pages", "local_model_preset"):
         if key in patch:
             current[key] = patch[key]
@@ -50,8 +55,22 @@ def write_settings(patch: dict) -> dict:
     key, _ = preset_or_default(str(current.get("local_model_preset", "")))
     current["local_model_preset"] = key
     os.makedirs(os.path.dirname(_path()), exist_ok=True)
-    with open(_path(), "w", encoding="utf-8") as f:
-        json.dump(current, f, indent=2)
+    # Atomic: write a temp file next to the target, fsync, then replace, so a
+    # crash or concurrent reader never sees a torn settings.json.
+    fd, tmp = tempfile.mkstemp(prefix="settings.", suffix=".tmp",
+                               dir=os.path.dirname(_path()))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(current, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, _path())
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
     return current
 
 
@@ -190,7 +209,7 @@ def get_settings():
 
 @router.get("/models")
 def list_models(provider: str = "nanogpt",
-                _user: dict = Depends(auth.require_user)):
+                _user: dict = Depends(auth.require_role("admin", "user", "viewer"))):
     """Authenticated provider/model picker backing for the app.
 
     providers: the two job providers. cloud_models: env defaults plus
@@ -233,7 +252,16 @@ def list_models(provider: str = "nanogpt",
 
 @router.post("/settings")
 def update_settings(patch: dict, _user: dict = Depends(auth.require_role("admin"))):
-    s = write_settings(patch if isinstance(patch, dict) else {})
+    try:
+        s = write_settings(patch if isinstance(patch, dict) else {})
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    if config.iam_enabled():
+        from server import iam as _iam
+        _iam.safe_audit(_user["uid"], "settings.update", "settings",
+                        json.dumps({k: s.get(k) for k in (
+                            "default_provider", "default_chunk_pages",
+                            "local_model_preset")}, sort_keys=True))
     return JSONResponse(content={
         **s,
         "note": "local_model_preset applies when the LLM shim (re)starts — "

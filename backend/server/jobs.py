@@ -72,7 +72,7 @@ def create_job(book_id: str, filename: str, title: str, pdf_path: str,
                local_model: str = "", model: str = "",
                content_mode: str = "illustrated",
                research_characters: bool = False, character_traits: str = "",
-               owner_uid: str = "") -> str:
+               owner_uid: str = "", job_id: str | None = None) -> str:
     """Queue a conversion. provider: 'nanogpt' (cloud endpoint) or 'local'
     (on-server GPU model via FIREBRAT_LOCAL_LLM_URL). chunk_pages > 0
     overrides FIREBRAT_CHUNK_PAGES for this job only (smaller chunks fit
@@ -84,7 +84,9 @@ def create_job(book_id: str, filename: str, title: str, pdf_path: str,
         raise ValueError("content_mode must be illustrated, novel or cast")
     if provider not in ("nanogpt", "local"):
         provider = "nanogpt"
-    job_id = uuid.uuid4().hex[:16]
+    # Callers may pre-allocate the id (the upload route names the stored file
+    # after it so two uploads can never share a path).
+    job_id = job_id or uuid.uuid4().hex[:16]
     now = _now()
     conn = _connect()
     try:

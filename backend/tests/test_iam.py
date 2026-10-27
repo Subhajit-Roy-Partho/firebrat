@@ -286,7 +286,7 @@ def test_setup_code_stored_hashed_and_logged_once(iam_dirs, caplog):
     assert sum(code in r.getMessage() for r in caplog.records) == 1
     db = sqlite3.connect(os.path.join(os.path.dirname(cfg.JOBS_DB_PATH), "iam.sqlite3"))
     stored = db.execute("SELECT code_hash FROM bootstrap").fetchone()[0]
-    assert code not in stored and len(stored) == 64
+    assert code not in stored and stored.startswith("pbkdf2$")
     dump = " ".join(str(r) for r in db.execute("SELECT * FROM audit"))
     assert code not in dump
 

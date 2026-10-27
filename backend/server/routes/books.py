@@ -73,6 +73,12 @@ def remove_book(book_id: str, _user: dict = Depends(auth.require_user)):
                 raise HTTPException(status_code=403, detail="only the owner or an admin can delete this book")
     if not delete_book(book_id):
         raise HTTPException(status_code=404, detail="book not found")
+    if config.iam_enabled():
+        # Admin deleting a book that is not theirs: leave a trail.
+        job = _jobs.latest_job_for_book(book_id)
+        owner = (job.get("owner_uid") or "") if job else ""
+        if role == "admin" and owner != _user["uid"]:
+            _iam.safe_audit(_user["uid"], "book.delete", book_id, f"owner={owner}")
     return {"deleted": book_id}
 
 @router.get("/books/{book_id}/assets/{asset_path:path}")

@@ -92,7 +92,8 @@ def validate_values(values: dict) -> dict:
     llm = values.get("llm", {})
     if not isinstance(llm, dict) or set(llm) - {"model", "quantization"}:
         raise ValueError("llm needs exactly {model, quantization}")
-    if llm.get("model") not in llm_ids:
+    # isinstance first: `list in set` raises TypeError (unhashable) -> 500.
+    if not isinstance(llm.get("model"), str) or llm.get("model") not in llm_ids:
         raise ValueError(f"llm.model must be one of {sorted(llm_ids)}")
     if llm.get("quantization") != "fp8":
         raise ValueError("llm.quantization must be 'fp8'")
@@ -101,7 +102,7 @@ def validate_values(values: dict) -> dict:
     tts = values.get("tts", {})
     if not isinstance(tts, dict) or set(tts) - {"engine"}:
         raise ValueError("tts needs exactly {engine}")
-    if tts.get("engine") not in tts_ids:
+    if not isinstance(tts.get("engine"), str) or tts.get("engine") not in tts_ids:
         raise ValueError(f"tts.engine must be one of {sorted(tts_ids)}")
     out["tts"] = {"engine": tts["engine"]}
 
@@ -193,8 +194,10 @@ def write_server_settings(patch: dict, actor_uid: str = "") -> dict:
         raise
     if actor_uid:
         from server import iam as _iam
-        _iam.audit(actor_uid, "settings_update", "server_settings",
-                   json.dumps(values, sort_keys=True))
+        # The file is already replaced: a failing audit write must not
+        # turn an applied change into a 500.
+        _iam.safe_audit(actor_uid, "settings_update", "server_settings",
+                        json.dumps(values, sort_keys=True))
     return values
 
 

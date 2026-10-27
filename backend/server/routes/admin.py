@@ -6,6 +6,7 @@ All endpoints 404 unless FIREBRAT_IAM=1, 401 without a signed-in user, and
 """
 
 import os
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -47,10 +48,13 @@ def bootstrap(body: dict | None = None, user: dict = Depends(auth.require_user))
     code = body.get("code")
     if not isinstance(code, str) or not code.strip() or len(code) > 64:
         raise HTTPException(status_code=422, detail="code must be the setup code string")
-    ok, reason = _iam.verify_bootstrap(code)
+    ok, reason = _iam.verify_bootstrap(code, user["uid"])
     if reason == "locked":
+        # Never put the submitted code in the audit detail.
+        _iam.safe_audit(user["uid"], "bootstrap.locked", user["uid"], "too many wrong codes")
         raise HTTPException(status_code=429, detail="too many wrong codes, try again in 10 minutes")
     if not ok:
+        _iam.safe_audit(user["uid"], "bootstrap.failed", user["uid"], "wrong setup code")
         raise HTTPException(status_code=403, detail="invalid setup code")
     try:
         return _user_view(_iam.bootstrap_admin(user))
@@ -226,12 +230,21 @@ def resume_queue(user: dict = Depends(_admin)):
     return {"paused": False}
 
 
+_SLUG_CHARS_RE = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
+
+
 def _slug_or_422(slug: str) -> str:
+    """Validate a slug taken from the URL and return its canonical
+    (normalized) form. Anything with characters outside [A-Za-z0-9_-]
+    (".." included) is rejected before it can reach a filesystem path;
+    the returned slug always matches ^[a-z0-9][a-z0-9-]{2,99}$."""
     from server import cast_bridge
-    if not cast_bridge.SLUG_RE.match(slug) and not cast_bridge.SLUG_RE.match(
-            cast_bridge.normalize_slug(slug)):
+    if not _SLUG_CHARS_RE.match(slug or ""):
         raise HTTPException(status_code=404, detail="unknown book slug")
-    return slug
+    out = cast_bridge.normalize_slug(slug)
+    if not cast_bridge.SLUG_RE.match(out):
+        raise HTTPException(status_code=404, detail="unknown book slug")
+    return out
 
 
 @router.post("/queue/{slug}/cancel")
@@ -240,7 +253,7 @@ def cancel_book(slug: str, user: dict = Depends(_admin)):
     still-queued scheduler inbox entry and raise the scheduler's cancel flag
     (honoured between stages). 404 when nothing is known about the slug."""
     from server import cast_bridge, jobs as _jobs
-    _slug_or_422(slug)
+    slug = _slug_or_422(slug)
     job = _job_for_slug(slug)
     known = job is not None or bool(cast_bridge.read_cast_state(slug)["state"]) \
         or os.path.isfile(cast_bridge.inbox_path(cast_bridge.normalize_slug(slug)))
@@ -252,7 +265,7 @@ def cancel_book(slug: str, user: dict = Depends(_admin)):
     if job is not None and job.get("state") in ("queued", "running"):
         _jobs.request_cancel(job["job_id"])
         cancelled_job = job["job_id"]
-    _iam.audit(user["uid"], "queue_cancel", slug,
+    _iam.safe_audit(user["uid"], "queue_cancel", slug,
                f"job={cancelled_job} inbox_removed={removed_inbox}")
     return {"slug": slug, "cancelled_job": cancelled_job,
             "removed_inbox": removed_inbox}
@@ -268,7 +281,7 @@ def prioritize_book(slug: str, body: dict, user: dict = Depends(_admin)):
     from server.routes.jobs import _job_view
     if not isinstance(body, dict) or body.get("top") is not True:
         raise HTTPException(status_code=422, detail='body must be {"top": true}')
-    _slug_or_422(slug)
+    slug = _slug_or_422(slug)
     job = _job_for_slug(slug)
     if job is None:
         raise HTTPException(status_code=404, detail="unknown book slug")
@@ -281,5 +294,5 @@ def prioritize_book(slug: str, body: dict, user: dict = Depends(_admin)):
         cast_bridge.set_priority_top(slug)
     else:
         paused = _runner.promote_now(job["job_id"])
-    _iam.audit(user["uid"], "queue_priority", slug, f"job={job['job_id']}")
+    _iam.safe_audit(user["uid"], "queue_priority", slug, f"job={job['job_id']}")
     return {**_job_view(_jobs.get_job(job["job_id"])), "paused_jobs": paused}

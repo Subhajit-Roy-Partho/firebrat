@@ -4,6 +4,7 @@ for the full contract.
 """
 import os
 import tempfile
+import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
@@ -60,16 +61,46 @@ def _role(user: dict) -> str | None:
     return role
 
 
-def _require_uploader(user: dict) -> None:
-    """Upload needs role user or admin when IAM is on; viewers 403."""
+def _require_uploader(user: dict) -> str | None:
+    """Upload needs role user or admin when IAM is on; viewers 403.
+    Returns the caller's role (None with IAM off)."""
     if not config.iam_enabled():
-        return
-    if _role(user) not in ("admin", "user"):
+        return None
+    role = _role(user)
+    if role not in ("admin", "user"):
         raise HTTPException(
             status_code=403,
             detail="Your account can only listen — uploading needs a user role; "
                    "ask your server admin.",
         )
+    return role
+
+
+def _audit_admin_job(user: dict, action: str, job: dict) -> None:
+    """Audit an admin acting on somebody else's job (IAM on only). Called
+    after the action succeeded; audit failures are logged, never raised."""
+    if not config.iam_enabled():
+        return
+    from server import iam as _iam
+    if (job.get("owner_uid") or "") != user["uid"] and _iam.get_role(user) == "admin":
+        _iam.safe_audit(user["uid"], action, job["job_id"],
+                        f"book={job['book_id']} owner={job.get('owner_uid') or ''}")
+
+
+def _book_id_taken(book_id: str, cast: bool) -> bool:
+    """True when `book_id` is already used by a package dir OR any job row
+    (queued/running jobs have no package dir yet), and for cast uploads when
+    its cast slug is already claimed by another job."""
+    if os.path.isdir(os.path.join(config.OUTPUT_DIR, book_id)):
+        return True
+    if jobs.latest_job_for_book(book_id) is not None:
+        return True
+    if cast:
+        from server import cast_bridge
+        slug = cast_bridge.normalize_slug(book_id)
+        if any(cast_bridge.normalize_slug(j["book_id"]) == slug for j in jobs.list_jobs()):
+            return True
+    return False
 
 
 def _job_visible(job: dict, user: dict) -> bool:
@@ -110,7 +141,7 @@ async def upload_book(
     character_traits: str = Form(""),
     _user: dict = Depends(auth.require_user),
 ):
-    _require_uploader(_user)
+    role = _require_uploader(_user)
     if content_mode not in ("illustrated", "novel", "cast"):
         raise HTTPException(status_code=422, detail="content_mode must be illustrated, novel or cast")
     if content_mode == "cast" and not config.cast_available():
@@ -146,18 +177,30 @@ async def upload_book(
 
     os.makedirs(config.UPLOAD_DIR, exist_ok=True)
     book_id = sanitize_book_id(file.filename)
+    cast = content_mode == "cast"
+    if cast:
+        # Normalise BEFORE the uniqueness check: my_book and my-book map to
+        # the same cast slug (inbox entry, state, cancel flag) and must not
+        # be treated as two different books.
+        from server import cast_bridge
+        book_id = cast_bridge.normalize_slug(book_id)
     # Disambiguate a repeat filename so re-uploading the same book creates a
     # fresh conversion rather than colliding with (or silently overwriting)
-    # a previous run's package directory.
-    if os.path.isdir(os.path.join(config.OUTPUT_DIR, book_id)):
+    # a previous run's package directory. Queued/running jobs count too (they
+    # have no package dir yet), so two users uploading the same filename get
+    # distinct ids.
+    if _book_id_taken(book_id, cast):
         n = 2
-        while os.path.isdir(os.path.join(config.OUTPUT_DIR, f"{book_id}-{n}")):
+        while _book_id_taken(f"{book_id}-{n}", cast):
             n += 1
         book_id = f"{book_id}-{n}"
 
     # Ebooks keep their own extension: convert.py picks the text reader from it.
     dest_ext = os.path.splitext(lname)[1] if is_ebook_upload else ".pdf"
-    dest_path = os.path.join(config.UPLOAD_DIR, f"{book_id}{dest_ext}")
+    # Stored under a fresh job id, never the (user-controlled, repeatable)
+    # book id: uploads can never overwrite or share a file.
+    job_id = uuid.uuid4().hex[:16]
+    dest_path = os.path.join(config.UPLOAD_DIR, f"{job_id}{dest_ext}")
     size = 0
     max_mb = config.MAX_UPLOAD_MB
     if config.iam_enabled():  # admin-controlled limit (server_settings.json)
@@ -229,6 +272,13 @@ async def upload_book(
     # never validated against a live list (ids change; a bad id fails
     # honestly in the pipeline, not here). Ignored for local-provider jobs.
     eff_model = ((model or "").strip())[:200]
+    if eff_model and config.iam_enabled() and role != "admin":
+        # Plain users may only pick from the server's model catalog; free
+        # text model ids are an admin privilege (they select what the
+        # server's API key is spent on).
+        from server.routes.settings import _cloud_models
+        if eff_model not in _cloud_models()[2]:
+            raise HTTPException(status_code=422, detail="model is not in this server's model list")
     try:
         eff_chunk = int(chunk_pages or 0)
     except (TypeError, ValueError):
@@ -243,7 +293,8 @@ async def upload_book(
                              content_mode=content_mode,
                              research_characters=bool(research_characters) and content_mode == "novel",
                              character_traits="\n".join(traits_lines) if content_mode == "novel" else "",
-                             owner_uid=_user["uid"] if config.iam_enabled() else "")
+                             owner_uid=_user["uid"] if config.iam_enabled() else "",
+                             job_id=job_id)
     job_runner.enqueue(job_id)
     return _job_view(jobs.get_job(job_id))
 
@@ -290,6 +341,7 @@ def retry_job(job_id: str, _user: dict = Depends(auth.require_user)):
 
     jobs.increment_retry(job_id)
     job_runner.enqueue(job_id, extra_args)
+    _audit_admin_job(_user, "job.retry", job)
     return _job_view(jobs.get_job(job_id))
 
 
@@ -321,6 +373,7 @@ def resume_job(job_id: str, _user: dict = Depends(auth.require_user)):
 
     jobs.set_state(job_id, "queued")
     job_runner.enqueue(job_id, extra_args)
+    _audit_admin_job(_user, "job.resume", job)
     return _job_view(jobs.get_job(job_id))
 
 
@@ -340,6 +393,7 @@ def convert_now_job(job_id: str, _user: dict = Depends(auth.require_user)):
     if not os.path.isfile(job["pdf_path"]):
         raise HTTPException(status_code=410, detail="original upload no longer on disk, cannot convert")
     job_runner.promote_now(job_id)
+    _audit_admin_job(_user, "job.convert_now", job)
     return _job_view(jobs.get_job(job_id))
 
 
@@ -371,6 +425,7 @@ def delete_job(job_id: str, remove_files: bool = True, _user: dict = Depends(aut
     if job["state"] == "running":
         jobs.request_cancel(job_id)
         job_runner.cancel_running(job_id)
+        _audit_admin_job(_user, "job.delete", job)
         return _job_view(jobs.get_job(job_id))
     jobs.request_cancel(job_id)  # no-op unless queued; marks skip-flag
     # A cast job deleted before the scheduler picked it up must not convert
@@ -384,6 +439,7 @@ def delete_job(job_id: str, remove_files: bool = True, _user: dict = Depends(aut
     deleted = jobs.delete_job(job_id)
     assert deleted is not None  # fetched above; no concurrent deleter exists
     removed_files = _remove_job_files(deleted) if remove_files else False
+    _audit_admin_job(_user, "job.delete", job)
     return {"job_id": job_id, "deleted": True, "removed_files": removed_files}
 
 
@@ -414,6 +470,7 @@ def get_job_log(job_id: str, tail_lines: int = 200, _user: dict = Depends(auth.r
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
     _require_job_access(job, _user)
+    tail_lines = max(1, min(2000, tail_lines))  # <=0 would return the whole log
     log_path = os.path.join(config.OUTPUT_DIR, job["book_id"], "convert_stdout.log")
     if not os.path.isfile(log_path):
         return JSONResponse(content={"lines": []})

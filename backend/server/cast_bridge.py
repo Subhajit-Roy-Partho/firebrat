@@ -58,7 +58,11 @@ def normalize_slug(book_id: str) -> str:
     slug = slug.strip("-") or "book"
     if len(slug) < 3:
         slug = (slug + "-book")[:3]
-    return slug[:100]
+    slug = slug[:100].rstrip("-") or "book"
+    # Safety net: whatever came in, the result is always a plain slug that
+    # is safe to join into <root>/jobs/<slug>, inbox/ and cancel/ paths
+    # (never "..", never a separator).
+    return slug if SLUG_RE.match(slug) else "book"
 
 
 def inbox_path(slug: str, root: str | None = None) -> str:

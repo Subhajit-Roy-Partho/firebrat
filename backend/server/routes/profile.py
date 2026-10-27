@@ -14,10 +14,15 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 
 from server import config
-from server.auth import require_user
+from server.auth import require_role, require_user
 
 log = logging.getLogger("firebrat.server.profile")
 router = APIRouter()
+
+# With IAM on, avatar storage needs an active account with a role (disabled or
+# role-less Google accounts must not get free storage); identical to
+# require_user when IAM is off.
+_active_role = require_role("admin", "user", "viewer")
 
 _EXTS = (".png", ".jpg", ".webp")
 _MEDIA = {".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp"}
@@ -80,7 +85,7 @@ def me(user: dict = Depends(require_user)):
 
 
 @router.put("/me/avatar")
-async def put_avatar(file: UploadFile, user: dict = Depends(require_user)):
+async def put_avatar(file: UploadFile, user: dict = Depends(_active_role)):
     limit = config.MAX_AVATAR_KB * 1024
     data = await file.read(limit + 1)
     if len(data) > limit:
@@ -105,7 +110,7 @@ async def put_avatar(file: UploadFile, user: dict = Depends(require_user)):
 
 
 @router.get("/me/avatar")
-def get_avatar(user: dict = Depends(require_user)):
+def get_avatar(user: dict = Depends(_active_role)):
     path = _find(user["uid"])
     if path is None:
         raise HTTPException(status_code=404, detail="no avatar set")
@@ -114,7 +119,7 @@ def get_avatar(user: dict = Depends(require_user)):
 
 
 @router.delete("/me/avatar", status_code=204)
-def delete_avatar(user: dict = Depends(require_user)):
+def delete_avatar(user: dict = Depends(_active_role)):
     path = _find(user["uid"])
     if path is not None:
         os.remove(path)

@@ -145,7 +145,9 @@ def _run_job(job_id: str, extra_args: list[str]) -> None:
         config.CONVERT_PY, config.CONVERT_SCRIPT, job["pdf_path"],
         "--output", config.OUTPUT_DIR,
         "--book-id", job["book_id"],
-        "--title", job["title"],
+        # `--opt=value` form: a user-chosen title starting with "-" must
+        # not be parsed as another option by argparse.
+        f"--title={job['title']}",
         *extra_args,
     ]
     if job.get("content_mode") == "novel":
@@ -154,7 +156,7 @@ def _run_job(job_id: str, extra_args: list[str]) -> None:
             cmd += ["--research-characters"]
         for line in (job.get("character_traits") or "").splitlines():
             if line.strip():
-                cmd += ["--character-trait", line.strip()]
+                cmd += [f"--character-trait={line.strip()}"]
     # Per-job conversion options (see jobs.create_job): a local-provider
     # job points the pipeline at the on-server LLM shim, and a chunk_pages
     # override rides along as FIREBRAT_CHUNK_PAGES for this subprocess
@@ -233,7 +235,7 @@ def _run_job(job_id: str, extra_args: list[str]) -> None:
             except Exception:
                 log.exception("FCM notify failed for job %s", job_id)
         else:
-            jobs.set_state(job_id, "failed", error=f"convert.py exited {returncode} — see {log_path}")
+            jobs.set_state(job_id, "failed", error=f"convert.py exited {returncode} — see the job log")
             log.error("Job %s (%s) failed with exit code %d", job_id, job["book_id"], returncode)
             try:
                 from server import auth as _auth
