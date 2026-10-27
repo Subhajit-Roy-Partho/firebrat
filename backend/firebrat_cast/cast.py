@@ -16,17 +16,26 @@ import os
 import re
 from typing import Any
 
-from .llm import LLMBackend, extract_json, extract_json_array
+from .llm import LLMBackend, extract_json, extract_json_array, generate_many
 from .segmenter import Seg, page_text, segment_pages, word_count
 
 log = logging.getLogger(__name__)
+
+
+def _batch_size() -> int:
+    """LLM batch width from FIREBRAT_CAST_BATCH (default 8), clamped >= 1."""
+    try:
+        return max(1, int(os.environ.get("FIREBRAT_CAST_BATCH", "8")))
+    except (TypeError, ValueError):
+        return 8
 
 EMOTIONS = ("neutral", "joy", "sadness", "anger", "fear", "surprise",
             "tenderness", "sarcasm", "disgust", "awe", "suspense")
 GENDERS = ("male", "female", "unknown")
 AGES = ("child", "young", "adult", "elder")
 ACCENTS = ("british", "american", "other")
-CHUNK_WORDS = 2500
+CHUNK_WORDS = 600          # keeps each attribution prompt well inside an 8k-token context
+MAX_QUOTES_PER_CHUNK = 30
 WINDOW_WORDS = 3500
 WINDOW_OVERLAP = 800
 CONTEXT_CHARS = 200
@@ -217,14 +226,16 @@ def make_windows(segs: list[Seg], size: int = WINDOW_WORDS,
 
 def make_chunks(segs: list[Seg], target: int = CHUNK_WORDS) -> list[list[Seg]]:
     """Contiguous seg groups of ~target words (quotes are never split)."""
-    chunks, current, total = [], [], 0
+    chunks, current, total, quotes = [], [], 0, 0
     for seg in segs:
         words = max(1, word_count(seg["text"]))
-        if current and total + words > target:
+        is_quote = seg.get("kind") == "quote"
+        if current and (total + words > target or (is_quote and quotes >= MAX_QUOTES_PER_CHUNK)):
             chunks.append(current)
-            current, total = [], 0
+            current, total, quotes = [], 0, 0
         current.append(seg)
         total += words
+        quotes += is_quote
     if current:
         chunks.append(current)
     return chunks
@@ -271,19 +282,63 @@ def roster_pass(windows: list[list[Seg]], backend: LLMBackend | None,
     full_text = "\n".join(s["text"] for w in windows for s in w)
     if backend is None:
         return DEFAULT_NARRATOR, _regex_roster(full_text)
-    narrator, roster = dict(DEFAULT_NARRATOR), []
-    for i, window in enumerate(windows):
-        text = "\n".join(s["text"] for s in window)
-        key = f"roster_{i:03d}_{_hash(text)}"
-        cached = cache.get(key)
-        if cached is None:
+    hint = '{"narrator": {}, "characters": []}'
+    # Backends without a native generate_text_batch gain nothing from grouping
+    # (generate_many would just loop), so keep them at width 1: that preserves
+    # the old per-window failure isolation exactly (a window whose call raises
+    # is skipped without consuming/losing its neighbours' replies).
+    batch_n = (_batch_size() if callable(getattr(backend, "generate_text_batch", None))
+               else 1)
+    texts = ["\n".join(s["text"] for s in window) for window in windows]
+    keys = [f"roster_{i:03d}_{_hash(text)}" for i, text in enumerate(texts)]
+    uncached = [(i, texts[i], keys[i]) for i in range(len(windows))
+                if cache.get(keys[i]) is None]
+    for b in range(0, len(uncached), batch_n):
+        batch = uncached[b:b + batch_n]
+        users = [build_roster_user(text) for _, text, _ in batch]
+        hinted = [u + f"\nReply with exactly one JSON object matching: {hint}"
+                  for u in users]
+        try:
+            replies = generate_many(backend, ROSTER_SYSTEM, hinted)
+        except (ValueError, RuntimeError, OSError) as e:
+            log.warning("roster batch failed (%s), retrying per window", e)
+            for idx, _, key in batch:
+                try:
+                    obj = backend.generate_json(
+                        ROSTER_SYSTEM, build_roster_user(texts[idx]), hint)
+                except (ValueError, RuntimeError, OSError) as e2:
+                    log.warning("roster window %d failed (%s), skipping", idx, e2)
+                    continue
+                cache.put(key, obj)
+            continue
+        if replies is None:
+            replies = []
+        # Batch reply shorter than the batch (should not happen): retry the
+        # tail sequentially so no window is silently dropped.
+        if len(replies) < len(batch):
+            for idx, _, key in batch[len(replies):]:
+                try:
+                    obj = backend.generate_json(
+                        ROSTER_SYSTEM, build_roster_user(texts[idx]), hint)
+                except (ValueError, RuntimeError, OSError) as e:
+                    log.warning("roster window %d failed (%s), skipping", idx, e)
+                    continue
+                cache.put(key, obj)
+        for (idx, _, key), user, reply in zip(batch, users, list(replies)):
             try:
-                cached = backend.generate_json(ROSTER_SYSTEM, build_roster_user(text),
-                                               '{"narrator": {}, "characters": []}')
-            except (ValueError, RuntimeError) as e:
-                log.warning("roster window %d failed (%s), skipping", i, e)
-                continue
-            cache.put(key, cached)
+                obj = reply if isinstance(reply, dict) else extract_json(reply)
+            except ValueError:
+                try:
+                    obj = backend.generate_json(ROSTER_SYSTEM, user, hint)
+                except (ValueError, RuntimeError, OSError) as e:
+                    log.warning("roster window %d failed (%s), skipping", idx, e)
+                    continue
+            cache.put(key, obj)
+    narrator, roster = dict(DEFAULT_NARRATOR), []
+    for i in range(len(windows)):
+        cached = cache.get(keys[i])
+        if cached is None:
+            continue
         try:
             obj = cached if isinstance(cached, dict) else extract_json(str(cached))
         except ValueError:
@@ -340,9 +395,9 @@ def build_attribution_user(chunk_no: int, items: list[tuple[int, Seg, str, str]]
              "Recent speakers: " + (", ".join(recent) if recent else "none"),
              "Quotes:"]
     for num, seg, before, after in items:
-        lines.append(f"[{num}] (page {seg['page']}) {_one_line(seg['text'])}")
-        lines.append(f"    before: {_one_line(before, 200)}")
-        lines.append(f"    after: {_one_line(after, 200)}")
+        lines.append(f"[{num}] (page {seg['page']}) {_one_line(seg['text'], 300)}")
+        lines.append(f"    before: {_one_line(before, 90)}")
+        lines.append(f"    after: {_one_line(after, 90)}")
     return "\n".join(lines)
 
 
@@ -380,7 +435,17 @@ def parse_attribution(text: str, n: int, valid_ids: set[str]) -> list | None:
 def attribution_pass(chunks: list[list[Seg]], characters: list[dict],
                      backend: LLMBackend | None, cache: ChunkCache,
                      full_text_by_page: dict[int, str] | None = None) -> dict[tuple[int, int], tuple[str, str, str]]:
-    """{(page, idx): (speaker_id, emotion, delivery)} for every quote seg."""
+    """{(page, idx): (speaker_id, emotion, delivery)} for every quote seg.
+
+    Batched for throughput: chunks are grouped in batches of _batch_size()
+    and share one generate_many call. NOTE the tradeoff this implies: the
+    'recent speakers' carry-over baked into each chunk's cache key and prompt
+    is snapshotted once per batch (recent[-3:] at batch start) for ALL chunks
+    in that batch, instead of evolving chunk-by-chunk as in the sequential
+    path. Per-chunk disk caching, the json-repair retry, and the regex
+    fallbacks all stay per item, so an interrupted run still resumes and one
+    bad reply never loses the rest of its batch.
+    """
     valid_ids = {c["id"] for c in characters} | {NARRATOR_ID}
     roster_lines = ([f"{c['id']} = {c['name']} ({c['gender']}, {c['age']})" for c in characters]
                     + [f"{NARRATOR_ID} = third-person narrator"])
@@ -390,34 +455,98 @@ def attribution_pass(chunks: list[list[Seg]], characters: list[dict],
             name_to_id.setdefault(norm_name(alias), c["id"])
     result: dict[tuple[int, int], tuple[str, str, str]] = {}
     recent: list[str] = []
-    for i, chunk in enumerate(chunks):
-        _, items = chunk_quotes(chunk)
-        if not items:
-            continue
-        key = f"chunk_{i:04d}_" + _hash("".join(s["text"] for _, s, _, _ in items)
-                                       + "".join(sorted(valid_ids)) + "".join(recent))
-        rows = None
-        cached = cache.get(key)
-        if cached is not None:
-            rows = sanitize_rows(cached, len(items), valid_ids)
-        if rows is None and backend is not None:
-            user = build_attribution_user(i, items, roster_lines, recent[-3:])
+    # Width 1 for backends without generate_text_batch (see roster_pass): solo
+    # batches reduce exactly to the old sequential semantics, including the
+    # per-chunk cache keys (recent evolves chunk-by-chunk again).
+    batch_n = (_batch_size() if callable(getattr(backend, "generate_text_batch", None))
+               else 1)
+    repair_suffix = ("\nYour previous reply was unusable (wrong shape or missing quotes). "
+                     "Reply again with exactly {\"utterances\": [[n, speaker, emotion, delivery], ...]}.")
+    i = 0
+    while i < len(chunks):
+        batch_idx = list(range(i, min(i + batch_n, len(chunks))))
+        snap = list(recent[-3:])
+        # Per-chunk items + keys under the batch-frozen recent snapshot.
+        infos: list[tuple[int, list[Seg], list, str | None,
+                                   list | None]] = []
+        for ci in batch_idx:
+            chunk = chunks[ci]
+            _, items = chunk_quotes(chunk)
+            if not items:
+                infos.append((ci, chunk, items, None, []))
+                continue
+            key = f"chunk_{ci:04d}_" + _hash("".join(s["text"] for _, s, _, _ in items)
+                                            + "".join(sorted(valid_ids)) + "".join(snap))
+            rows = None
+            cached = cache.get(key)
+            if cached is not None:
+                rows = sanitize_rows(cached, len(items), valid_ids)
+            infos.append((ci, chunk, items, key, rows))
+        need = [info for info in infos if info[2] and info[4] is None]
+        batch_replies: dict[int, str | None] = {}
+        if need and backend is not None:
+            users = [build_attribution_user(ci, items, roster_lines, snap)
+                     for ci, _, items, _, _ in need]
             try:
-                rows = parse_attribution(backend.generate_text(ATTRIBUTION_SYSTEM, user), len(items), valid_ids)
-                if rows is None:  # one repair retry with the failure named
-                    user += ("\nYour previous reply was unusable (wrong shape or missing quotes). "
-                             "Reply again with exactly {\"utterances\": [[n, speaker, emotion, delivery], ...]}.")
-                    rows = parse_attribution(backend.generate_text(ATTRIBUTION_SYSTEM, user), len(items), valid_ids)
-            except (ValueError, RuntimeError) as e:
-                log.warning("attribution chunk %d failed (%s), using regex fallback", i, e)
-                rows = None
-        if rows is None:  # deterministic fallback: regex tag -> roster id, else narrator
-            rows = _fallback_rows(chunk, items, name_to_id, full_text_by_page)
-        cache.put(key, [[n, sp, em, dl] for n, sp, em, dl in rows])
-        for (_, seg, _, _), (_, speaker, emotion, delivery) in zip(items, rows):
-            result[(seg["page"], seg["idx"])] = (speaker, emotion, delivery)
-        recent.extend(speaker for _, speaker, _, _ in rows)
-        recent = recent[-3:]
+                texts = generate_many(backend, ATTRIBUTION_SYSTEM, users)
+            except (ValueError, RuntimeError, OSError) as e:
+                log.warning("attribution batch failed (%s), retrying per chunk", e)
+                texts = None
+            if texts is not None:
+                for (ci, _, _, _, _), reply in zip(need, list(texts)):
+                    batch_replies[ci] = reply
+                # Short reply list: missing tail chunks fall through to the
+                # per-item sequential path below (batch_replies.get -> None).
+            for ci, _, items, _, _ in need:
+                if ci in batch_replies:
+                    continue
+                try:
+                    batch_replies[ci] = backend.generate_text(
+                        ATTRIBUTION_SYSTEM,
+                        build_attribution_user(ci, items, roster_lines, snap))
+                except (ValueError, RuntimeError, OSError) as e:
+                    log.warning("attribution chunk %d failed (%s), using regex fallback", ci, e)
+                    batch_replies[ci] = None
+        # Per item in original chunk order: parse, one repair retry, fallback.
+        decided: dict[int, list] = {}
+        for ci, chunk, items, key, cached_rows in infos:
+            if not items:
+                continue
+            rows = cached_rows
+            if rows is None and backend is not None:
+                reply = batch_replies.get(ci)
+                try:
+                    rows = (parse_attribution(reply, len(items), valid_ids)
+                            if reply is not None else None)
+                except (ValueError, RuntimeError, OSError) as e:
+                    log.warning("attribution chunk %d failed (%s), using regex fallback", ci, e)
+                    rows = None
+                if rows is None and reply is not None:
+                    # One repair retry with the failure named (sequential).
+                    try:
+                        repair_user = (build_attribution_user(ci, items, roster_lines, snap)
+                                       + repair_suffix)
+                        rows = parse_attribution(
+                            backend.generate_text(ATTRIBUTION_SYSTEM, repair_user),
+                            len(items), valid_ids)
+                    except (ValueError, RuntimeError, OSError) as e:
+                        log.warning("attribution chunk %d failed (%s), using regex fallback", ci, e)
+                        rows = None
+            if rows is None:  # deterministic fallback: regex tag -> roster id, else narrator
+                rows = _fallback_rows(chunk, items, name_to_id, full_text_by_page)
+            if key is not None:
+                cache.put(key, [[n, sp, em, dl] for n, sp, em, dl in rows])
+            decided[ci] = rows
+        # Update result + recent AFTER the whole batch, in chunk order.
+        for ci, chunk, items, key, _ in infos:
+            if not items:
+                continue
+            rows = decided[ci]
+            for (_, seg, _, _), (_, speaker, emotion, delivery) in zip(items, rows):
+                result[(seg["page"], seg["idx"])] = (speaker, emotion, delivery)
+            recent.extend(speaker for _, speaker, _, _ in rows)
+            recent = recent[-3:]
+        i += batch_n
     return result
 
 

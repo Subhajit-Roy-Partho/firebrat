@@ -106,7 +106,7 @@ class LocalHFBackend:
 
     def __init__(self, model_id: str = MODEL_ID, quantize: str = "auto") -> None:
         self.model_id = model_id
-        self.quantize = quantize  # 'auto' | 'fp8' | 'bnb8' | 'fp16'
+        self.quantize = os.environ.get("FIREBRAT_CAST_QUANT") or quantize  # 'auto' | 'fp8' | 'bnb8' | 'bnb4' | 'fp16'
         self.quant_used: str | None = None
         self._model = None
         self._tok = None
@@ -129,6 +129,12 @@ class LocalHFBackend:
                 if want == "fp8":
                     from transformers import FineGrainedFP8Config
                     kwargs["quantization_config"] = FineGrainedFP8Config()
+                elif want == "bnb4":
+                    import torch
+                    from transformers import BitsAndBytesConfig
+                    kwargs["quantization_config"] = BitsAndBytesConfig(
+                        load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.bfloat16,
+                        llm_int8_skip_modules=["visual", "lm_head"])
                 elif want == "bnb8":
                     from transformers import BitsAndBytesConfig
                     kwargs["quantization_config"] = BitsAndBytesConfig(
@@ -167,6 +173,59 @@ class LocalHFBackend:
                                        pad_token_id=self._tok.eos_token_id)
         new_tokens = out[0][inputs["input_ids"].shape[1]:]
         return strip_thinking(self._tok.decode(new_tokens, skip_special_tokens=True))
+
+    def generate_text_batch(self, system: str, users: list[str],
+                            max_tokens: int = 2048) -> list[str]:
+        """One model call over a batch of prompts (left-padded).
+
+        Splits in half and retries on CUDA OOM so a batch of 8 costs ~one
+        call's wall time instead of eight sequential calls.
+        """
+        import torch
+        self._ensure_loaded()
+        users = list(users)
+        if not users:
+            return []
+        if len(users) == 1:
+            return [self.generate_text(system, users[0], max_tokens)]
+        try:
+            tok = self._tok
+            if getattr(tok, "pad_token", None) is None:
+                tok.pad_token = tok.eos_token
+            tok.padding_side = "left"
+            prompts = [self._prompt(system, u) for u in users]
+            enc = tok(prompts, return_tensors="pt", padding=True)
+            input_ids = enc["input_ids"]
+            attn = enc.get("attention_mask") if hasattr(enc, "get") else None
+            padded_len = input_ids.shape[1]
+            # Per-row real lengths (for documentation/debugging; slicing
+            # uses padded_len since left-padding makes the prompt suffix
+            # uniform across rows).
+            _lens = (attn.sum(dim=1).tolist() if attn is not None else
+                     [padded_len] * len(users))
+            _ = _lens
+            inputs = {k: (v.to(self._model.device) if hasattr(v, "to") else v)
+                      for k, v in enc.items()}
+            with torch.no_grad():
+                out = self._model.generate(
+                    **inputs, max_new_tokens=max_tokens,
+                    do_sample=False, pad_token_id=tok.eos_token_id)
+            texts = []
+            for row in out:
+                new_tokens = row[padded_len:]
+                texts.append(strip_thinking(
+                    tok.decode(new_tokens, skip_special_tokens=True)))
+            return texts
+        except torch.cuda.OutOfMemoryError:
+            if len(users) <= 1:
+                raise
+            try:
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
+            mid = len(users) // 2
+            return (self.generate_text_batch(system, users[:mid], max_tokens)
+                    + self.generate_text_batch(system, users[mid:], max_tokens))
 
     def generate_json(self, system: str, user: str, schema_hint: str = "",
                       max_tokens: int = 2048) -> dict:
@@ -231,7 +290,40 @@ class OpenAICompatBackend:
             raise ValueError(f"bad chat-completions reply: {e}")
         return strip_thinking(content or "")
 
+    def generate_text_batch(self, system: str, users: list[str],
+                            max_tokens: int = 2048) -> list[str]:
+        """Concurrent requests via a thread pool; input order preserved."""
+        from concurrent.futures import ThreadPoolExecutor
+        users = list(users)
+        if not users:
+            return []
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            def one(u: str) -> str:
+                try:
+                    return self.generate_text(system, u, max_tokens)
+                except (OSError, ValueError) as e:  # one bad request must not sink the batch; caller retries/falls back
+                    log.warning("batch item failed: %s", e)
+                    return ""
+            return list(pool.map(one, users))
+
     def generate_json(self, system: str, user: str, schema_hint: str = "",
                       max_tokens: int = 2048) -> dict:
         hint = f"\nReply with exactly one JSON object matching: {schema_hint}" if schema_hint else ""
         return extract_json(self.generate_text(system, user + hint, max_tokens))
+
+
+def generate_many(backend: Any, system: str, users: list[str],
+                  max_tokens: int = 2048) -> list[str]:
+    """Batched generate_text with a sequential fallback.
+
+    Uses ``backend.generate_text_batch`` when present, else loops over
+    ``backend.generate_text``. Keeps fakes lacking ``generate_text_batch``
+    working; order of ``users`` is preserved in the returned list.
+    """
+    users = list(users)
+    if not users:
+        return []
+    fn = getattr(backend, "generate_text_batch", None)
+    if callable(fn):
+        return list(fn(system, users, max_tokens))
+    return [backend.generate_text(system, u, max_tokens) for u in users]
