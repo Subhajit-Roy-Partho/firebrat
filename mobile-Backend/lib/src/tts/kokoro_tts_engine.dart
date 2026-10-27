@@ -141,7 +141,7 @@ class KokoroTtsEngine implements NarrationEngine {
         if (utteranceClips.isEmpty) {
           throw StateError('No narration for $segmentId');
         }
-        clips.add(WavAudio.concatenate(utteranceClips, pauseMs: 0).combined);
+        clips.add(WavAudio.concatenate(utteranceClips, pauseMs: 140).combined);
       } catch (error) {
         throw StateError(
           'Could not synthesize narration for $segmentId: $error',

@@ -9,6 +9,7 @@ import 'dart:io';
 
 import 'dart:convert';
 import 'dart:typed_data';
+import 'audio_trim.dart';
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
 import 'package:flutter_kokoro_tts/src/model_manager.dart';
 import 'package:flutter_kokoro_tts/src/phonemizer.dart';
@@ -212,12 +213,15 @@ class FirebratKokoroTts {
     if (parts.isEmpty) return Float32List(0);
     if (parts.length == 1) return parts.first;
 
-    final total = parts.fold<int>(0, (sum, part) => sum + part.length);
+    // Chunks are trimmed tight, so put back a short natural pause between sentences.
+    final gap = silenceSamples(sampleRate, 170);
+    final total = parts.fold<int>(0, (sum, part) => sum + part.length) + gap.length * (parts.length - 1);
     final result = Float32List(total);
     var offset = 0;
-    for (final part in parts) {
-      result.setRange(offset, offset + part.length, part);
-      offset += part.length;
+    for (var i = 0; i < parts.length; i++) {
+      result.setRange(offset, offset + parts[i].length, parts[i]);
+      offset += parts[i].length;
+      if (i < parts.length - 1) offset += gap.length; // zeros already
     }
     return result;
   }
@@ -350,10 +354,9 @@ class FirebratKokoroTts {
       );
     }
 
-    // Trim trailing silence
-    if (audio.length > 5000) {
-      audio = Float32List.sublistView(audio, 0, audio.length - 5000);
-    }
+    // Trim the silent head/tail the model leaves around each sentence (a fixed
+    // 5000-sample cut left ~0.7 s of dead air after every sentence).
+    audio = trimSilence(audio, sampleRate);
     _synthSamples += audio.length;
 
 
