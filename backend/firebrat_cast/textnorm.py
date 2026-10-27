@@ -152,26 +152,20 @@ def _expand_roman_headings(text: str) -> str:
     return _STANDALONE_ROMAN_RE.sub(_alone, text)
 
 
-# Order matters: Mrs before Mr (else "Mrs" -> "Misters"), e.g./i.e. verbatim.
+# Titles/ranks are expanded only as whole, capitalised tokens ("Dr", "Dr.", "St."), never as a
+# prefix of a longer word ("Drew", "Stop", "Revived", "Colonel" must stay as written).
+_TITLES = {
+    "Mrs": "Missus", "Mr": "Mister", "Ms": "Miss", "Dr": "Doctor", "St": "Saint",
+    "Prof": "Professor", "Rev": "Reverend", "Gen": "General", "Col": "Colonel",
+    "Capt": "Captain", "Lt": "Lieutenant", "Sgt": "Sergeant", "Hon": "Honorable",
+    "Jr": "Junior", "Sr": "Senior",
+}
+_TITLE_RE = re.compile(r"(?<![A-Za-z])(" + "|".join(sorted(_TITLES, key=len, reverse=True)) + r")(?![A-Za-z])\.?")
+# Case-insensitive, whole-word only.
 _ABBREV = [
-    (r"\bMrs\.?", "Missus"),
-    (r"\bMr\.?", "Mister"),
-    (r"\bMs\.?", "Miss"),
-    (r"\bDr\.?", "Doctor"),
-    (r"\bSt\.?", "Saint"),
-    (r"\bProf\.?", "Professor"),
-    (r"\bRev\.?", "Reverend"),
-    (r"\bGen\.?", "General"),
-    (r"\bCol\.?", "Colonel"),
-    (r"\bCapt\.?", "Captain"),
-    (r"\bLt\.?", "Lieutenant"),
-    (r"\bSgt\.?", "Sergeant"),
-    (r"\bHon\.?", "Honorable"),
-    (r"\bJr\.?", "Junior"),
-    (r"\bSr\.?", "Senior"),
-    (r"\bNo\.", "Number"),  # period required: bare "no" is a word
-    (r"\bvs\.?", "versus"),
-    (r"\betc\.?", "etcetera"),
+    (r"(?<![A-Za-z])No\.(?=\s*\d)", "Number"),  # "No. 5"; bare "no" is a word
+    (r"(?<![A-Za-z])vs\.?(?![A-Za-z])", "versus"),
+    (r"(?<![A-Za-z])etc\.?(?![A-Za-z])", "etcetera"),
     (r"\be\.g\.", "for example"),
     (r"\bi\.e\.", "that is"),
     (r"\ba\.m\.", "A M"),
@@ -180,6 +174,7 @@ _ABBREV = [
 
 
 def _expand_abbreviations(text: str) -> str:
+    text = _TITLE_RE.sub(lambda m: _TITLES[m.group(1)], text)
     for pattern, repl in _ABBREV:
         text = re.sub(pattern, repl, text, flags=re.IGNORECASE)
     return text

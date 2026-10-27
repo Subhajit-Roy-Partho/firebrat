@@ -77,3 +77,9 @@ def test_whitespace_collapse_and_empty():
     assert normalize_text("a   b\n\tc") == "a b c"
     assert normalize_text("") == ""
     assert normalize_text("   ") == ""
+
+
+def test_abbreviations_never_corrupt_longer_words():
+    words = "Revived Stop Drawing Student Genuine Colonel Honest Drew Stephen Captain Capture Generous Stranger"
+    assert normalize_text(words) == words
+    assert normalize_text("Dr. Jekyll met Capt. Ahab at St. Paul, No. 5") == "Doctor Jekyll met Captain Ahab at Saint Paul, Number five"
