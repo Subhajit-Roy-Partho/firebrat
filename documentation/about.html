@@ -21,6 +21,7 @@
       <li><a href="../">Open web app</a></li>
       <li><a href="index.html">Home</a></li>
       <li><a href="guide.html">Get started</a></li>
+      <li><a href="community.html">Community</a></li>
       <li><a href="architecture.html">How it works</a></li>
       <li><a href="about.html" aria-current="page">Accessibility mission</a></li>
       <li><a href="https://github.com/Subhajit-Roy-Partho/firebrat">GitHub</a></li>
@@ -97,11 +98,30 @@
   </div>
 </section>
 
+<section class="alt" id="expressive-voices">
+  <div class="wrap prose" style="max-width:820px">
+    <span class="eyebrow">New · preview</span>
+    <h2>Expressive multi-voice narration <span class="status-pill preview">Preview</span></h2>
+    <p>For novels, a single narrator can make a conversation hard to follow, which matters most for readers who already find text difficult. Firebrat now has a second way to narrate fiction: every character gets a distinct voice, and lines are spoken with the emotion the scene calls for.</p>
+    <ul>
+      <li><strong>An LLM does the casting.</strong> Qwen3.5-9B reads the book and builds a roster of characters (gender, age, temperament, accent, a voice description), decides who speaks each quoted line, and tags the emotion or delivery.</li>
+      <li><strong>A speech model does the acting.</strong> Qwen3-TTS gives each character a distinct voice and speaks each line in that voice, with that emotion. The narrator stays a calm, human-sounding reader.</li>
+      <li><strong>Every client plays it unchanged.</strong> The result is the standard Firebrat package, so the web app, the Android app and the community library need no changes to play it.</li>
+      <li><strong>Upload mode &ldquo;Expressive voices&rdquo;.</strong> When a server has this switched on, the upload form offers it as a book type for EPUB, MOBI and AZW ebooks and for PDFs with real embedded text (no OCR). If the server has not enabled it, the option does not appear.</li>
+    </ul>
+    <p>It needs a GPU. The large models run one at a time: first the casting step for every queued book, then the audio step book by book. The <a href="architecture.html#cast-pipeline">how it works</a> page shows the stages.</p>
+    <div class="note">
+      <p><strong>Honest status.</strong> The casting stage has been run on real novels, and the stages are covered by offline tests. The new voice stage (Qwen3-TTS) has not yet been verified end to end on real books: it may need tuning after the first listen. Treat this mode as a preview, and use the <a href="community.html">community library</a> only for books whose audio you have actually listened to.</p>
+    </div>
+  </div>
+</section>
+
 <footer>
   <div class="wrap">
     <p>Firebrat is licensed under the <a href="https://github.com/Subhajit-Roy-Partho/firebrat/blob/master/LICENSE">GNU AGPL-3.0</a>.</p>
     <ul class="footer-links">
       <li><a href="guide.html">Get started</a></li>
+      <li><a href="community.html">Community</a></li>
       <li><a href="architecture.html">How it works</a></li>
       <li><a href="about.html">Accessibility mission</a></li>
       <li><a href="https://github.com/Subhajit-Roy-Partho/firebrat">GitHub</a></li>
