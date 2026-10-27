@@ -170,7 +170,7 @@ def default_segment(entry: dict, root: str) -> dict:
 
 
 def make_llm_backend(kind: str):
-    mod = _need("firebrat_cast.cast", "cast")
+    mod = _need("firebrat_cast.llm", "cast")
     if kind == "external":
         return mod.OpenAICompatBackend()
     return mod.LocalHFBackend()
@@ -204,10 +204,7 @@ def default_synth_one(entry: dict, root: str, engine, on_progress=None) -> dict:
     compiled_path = os.path.join(work, "compiled.json")
     if not os.path.isfile(compiled_path):
         mod = _need("firebrat_cast.compile_cast", "synth")
-        compile_fn = getattr(mod, "compile_cast", None)
-        if compile_fn is None:
-            raise RuntimeError("firebrat_cast.compile_cast must define compile_cast(raw_path, cast_path, out_path)")
-        compile_fn(raw_path, cast_path, compiled_path)
+        mod.compile_cast_file(raw_path, cast_path, compiled_path)
         # keep a copy where convert.py/manifest tooling expects it
         write_json_atomic(os.path.join(work, "raw", "compiled.json"), read_json(compiled_path))
     from firebrat_cast.synth import synthesize_book

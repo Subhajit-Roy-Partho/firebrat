@@ -111,17 +111,21 @@ class LocalHFBackend:
         self._model = None
         self._tok = None
 
+    def load(self) -> None:
+        self._ensure_loaded()
+
     def _ensure_loaded(self) -> None:
         if self._model is not None:
             return
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        # Qwen3.5 ships as a conditional-generation (vision+text) checkpoint; this class is the one verified to load it fully.
+        from transformers import AutoModelForImageTextToText as AutoModelForCausalLM, AutoTokenizer
         self._tok = AutoTokenizer.from_pretrained(self.model_id, trust_remote_code=True)
         # 'auto' prefers bnb 8-bit: on the server FP8 on-the-fly conversion of Qwen3.5-9B produced corrupted outputs
         wants = [self.quantize] if self.quantize != "auto" else ["bnb8", "fp8", "fp16"]
         error: Exception | None = None
         for want in wants:
             try:
-                kwargs: dict[str, Any] = {"trust_remote_code": True, "device_map": "auto"}
+                kwargs: dict[str, Any] = {"trust_remote_code": True, "device_map": "cuda"}
                 if want == "fp8":
                     from transformers import FineGrainedFP8Config
                     kwargs["quantization_config"] = FineGrainedFP8Config()
@@ -188,7 +192,7 @@ class OpenAICompatBackend:
     """
 
     def __init__(self, model: str | None = None, base_url: str | None = None,
-                 api_key: str | None = None, timeout: int = 120) -> None:
+                 api_key: str | None = None, timeout: int = 600) -> None:
         self.base_url = (base_url or os.environ.get("CAST_LLM_URL") or "").rstrip("/")
         self.api_key = api_key or os.environ.get("CAST_LLM_KEY", "")
         self.model = model or os.environ.get("CAST_LLM_MODEL", MODEL_ID)
@@ -196,6 +200,12 @@ class OpenAICompatBackend:
         self.name = f"openai-compat:{self.model}"
         if not self.base_url:
             raise ValueError("OpenAICompatBackend needs base_url or CAST_LLM_URL")
+
+    def load(self) -> None:  # API backend: nothing resident on the GPU
+        return
+
+    def unload(self) -> None:
+        return
 
     def _post(self, payload: dict) -> dict:
         import urllib.request
@@ -213,7 +223,7 @@ class OpenAICompatBackend:
                 "messages": [{"role": "system", "content": system},
                              {"role": "user", "content": user}],
                 "temperature": 0, "max_tokens": max_tokens,
-                "response_format": {"type": "json_object"}}
+                "chat_template_kwargs": {"enable_thinking": False}}
         data = self._post(body)
         try:
             content = data["choices"][0]["message"]["content"]
