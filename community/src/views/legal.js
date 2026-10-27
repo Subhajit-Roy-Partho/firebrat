@@ -7,8 +7,8 @@ import { h, toast } from "../ui.js";
 import { submitTakedown } from "../data.js";
 import { navigate } from "../router.js";
 
-// TODO: replace with the real counter-notice contact before launch.
-const COUNTER_NOTICE_EMAIL = "takedown@REPLACE-ME.example";
+// Counter-notices go through the public issue tracker (no personal mailbox is published).
+const COUNTER_NOTICE_URL = "https://github.com/Subhajit-Roy-Partho/firebrat/issues/new?title=Counter-notice";
 
 function field(labelText, input, hintText = "") {
   return h(
@@ -133,7 +133,7 @@ function takedownDoc(prefillBook) {
           "Admins review every notice for completeness.",
           "Valid notices may lead to the listing being hidden (status “disputed”) or removed pending resolution.",
           "We may contact you at the email you provide if anything is unclear.",
-          "If your content was removed by mistake, you can send a counter-notice to ",
+          "If your content was removed by mistake, you can send a counter-notice by ",
         ),
       ],
       h2("A serious warning"),
@@ -146,7 +146,7 @@ function takedownDoc(prefillBook) {
   // The counter-notice address line needs the email inline; append it to the list above.
   const listItems = wrap.querySelectorAll("li");
   const last = listItems[listItems.length - 1];
-  if (last) last.append(h("code", {}, COUNTER_NOTICE_EMAIL), ".");
+  if (last) last.append(h("a", { href: COUNTER_NOTICE_URL, target: "_blank", rel: "noopener" }, "opening a counter-notice issue"), ".");
 
   const nameI = h("input", { class: "input", type: "text", value: "", "aria-label": "Your full name" });
   const emailI = h("input", { class: "input", type: "email", value: "", "aria-label": "Contact email" });

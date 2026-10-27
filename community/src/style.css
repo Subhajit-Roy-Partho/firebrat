@@ -652,3 +652,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
   color: var(--warn);
   font-weight: 700;
 }
+
+/* embed mode (inside the Firebrat PWA) */
+html[data-embed] .brand,
+html[data-embed] .main-nav,
+html[data-embed] .site-footer { display: none; }
+html[data-embed] .site-header { position: sticky; top: 0; }
+html[data-embed] .header-inner { gap: 0.5rem; padding-block: 0.5rem; }
+html[data-embed] .header-inner { flex-wrap: wrap; justify-content: flex-end; }
+html[data-embed] .searchbar { order: -1; flex: 1 1 100%; }
+html[data-embed] .theme-btn { display: none; }
+html[data-embed] body { padding-bottom: 0; }

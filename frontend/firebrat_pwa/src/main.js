@@ -127,3 +127,10 @@ loadLibrary();if(sessionStorage.getItem('firebrat.redirect')){switchTab('setting
 document.querySelector('.brand')?.addEventListener('click',event=>{event.preventDefault();switchTab('library');});
 
 ;(()=>{const m=document.getElementById('content-mode'),o=document.getElementById('novel-options');if(m&&o){const sync=()=>{o.hidden=m.value!=='novel'};m.addEventListener('change',sync);sync();}})();
+
+// Community tab: lazy-load the library site once, same-origin on GitHub Pages so sign-in is shared.
+{const tab=document.querySelector('[data-tab=community]'),frame=document.getElementById('community-frame'),off=document.getElementById('community-offline');
+const url=(STATIC_HOST?new URL(APP_BASE+'community/',location.origin).href:'https://subhajit-roy-partho.github.io/firebrat/community/')+'?embed=1';
+document.getElementById('community-open').href=url.replace('?embed=1','');
+const load=()=>{off.hidden=navigator.onLine;if(!navigator.onLine||frame.src)return;frame.onload=()=>frame.classList.add('ready');frame.src=url};
+tab?.addEventListener('click',load);addEventListener('online',()=>{if(!tab||tab.getAttribute('aria-current')==='page')load()})}

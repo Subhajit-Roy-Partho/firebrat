@@ -1,4 +1,8 @@
 import "./style.css";
+
+// Embedded inside the Firebrat PWA (?embed=1): hide site chrome, the host app provides navigation.
+const EMBED = new URLSearchParams(location.search).get("embed") === "1";
+if (EMBED) document.documentElement.dataset.embed = "1";
 /* Firebrat Community — app shell + boot.
    Builds header (<main id="outlet">, footer, mini-player), registers
    routes -> dynamic import('./views/<name>.js'), theme toggle, auth
