@@ -115,6 +115,21 @@ Fixed a launcher/scheduler flag mismatch (`--cast-python`). Not exercised end-to
 - Backend hand-off: `docs/handover/backend.md`. NOTHING here has run against a live server, live Firebase tokens, the scheduler process or a device.
 - Decisions applied: quiet hours = window with NO new GPU phase; settings file `<data>/server_settings.json` exported to the scheduler as `FIREBRAT_SETTINGS_FILE`; defaults `max_books_per_llm_phase`=4, `shortest_first`, `batched`.
 
+### 3.8 Phone debugging + Focus-mode fix (2026-10-26, Pixel 9a, adb over USB)
+- Bug: Focus ("zoomed in") mode showed no picture for figures/tables linked at section level (relinked by caption) because it only followed the narrated segment's ref. Fix in `lib/state/reader_providers.dart`
+  (`ReaderState.currentVisual` falls back to the section's first linked figure/table) + `lib/widgets/figure_gallery.dart` (thumbnails `BoxFit.contain` on white). Test: `test/focus_fallback_test.dart`. Verified on the device with a 31-section cut of the Digital Design book. Commit `7150aee`.
+- How the on-device debug build was done (no data loss): clean `git worktree` of HEAD; copy the owner's gitignored `android/app/google-services.json` and untracked `pubspec_overrides.yaml` into it; add `applicationIdSuffix = ".debug"` to the debug buildType and a duplicate client entry
+  with package `com.firebrat.firebrat_app.debug` in that worktree's google-services.json (local only, never committed); `flutter build apk --debug --target-platform android-arm64`; `adb install -r` (side by side with the signed release app).
+  A small test package (manifest sections 232-262 + their audio/figures zip, built on the server) was pushed to `/sdcard/Download` and imported via the app's import button. The full book download from the review server is ~0.7 MB/s (1.2 GB = ~30 min).
+- The `.debug` app is still installed on the phone; the screen timeout was set to 30 minutes by the owner. Owner's real app is untouched. The Android phone ID: `adb devices` shows `55201JEBF00569` (Pixel 9a, Android 17, ~7.7 GB RAM).
+
+### 3.9 On-device models, accelerators and download network (Flutter agent, tests only, NOT yet tried on a device)
+- `mobile-Backend/`: LLM catalog now 13 models with tiers (Light/Balanced/Powerful/Desktop-class), min RAM, licence, SHA-256 (added Llama 3.2 1B, Qwen3 8B, Llama 3.1 8B, Gemma 3 12B, Qwen3 14B; Qwen3.5 left out: llama.cpp support unconfirmed); Kokoro int8 (default)/fp16/fp32 + 5 extra voices; `device_capabilities.dart`, `accelerator.dart`
+  (Auto / GPU-NPU (NNAPI -> XNNPACK -> CPU) / CPU with automatic CPU fallback and "Running on" status), `network/network_gate.dart` (Wi-Fi only / Wi-Fi+cellular default / ask on cellular > 50 MB; waiting-for-Wi-Fi + auto-resume).
+- Kokoro on GPU: NOT achievable with the current plugin (`flutter_onnxruntime` bundles no QNN; NNAPI does not handle dynamic shapes, expect little/no gain); `sherpa_onnx` not added (own libonnxruntime.so would clash). Honest result in the hand-off.
+- App: settings UI (`kokoro_model_controls.dart`, `model_choice_widgets.dart`), `app_network_gate.dart`, `device_probe.dart`, `connectivity_plus` dependency. `flutter analyze` clean, `flutter test` 146 pass; mobile-Backend 142 pass (3 skipped). Hand-off: `docs/handover/flutter-models.md`.
+- Risks: no device benchmark for NNAPI/fp16/fp32; RAM figures are estimates; `connectivity_plus` cannot see the metered flag; espeak-ng (inside the Kokoro package) is GPL-3.0 and Llama/Gemma have non-permissive licences: review before a store release.
+
 ### 3.6 opencode bridge
 `~/.claude/mcp/opencode-bridge/server.mjs` (MCP: opencode_start/status/result/cancel/list; plain `worker` agent, private instance) pushed to `Subhajit-Roy-Partho/opencode-config` branch `claude` (`claude-bridge/`). Superseded by "Claude agents only".
 
@@ -144,7 +159,8 @@ The remaining step is a security review of `backend/server/iam.py` / `auth.py` /
 8. **Community site hardening**: Firestore emulator tests; rate limiting is impossible without Functions (document); name a DMCA agent if operating in the US; real IA upload from the submit page (route B) is untested; consider an IA-item existence checker and auto-flagging after N reports.
 9. **Docker**: validate the `WITH_CAST` Dockerfile in CI on a branch/workflow_dispatch (NOT on `main` without the owner's OK); the GPU image grows by several GB; vLLM wheels need CUDA 13.0/12.9 on the host driver.
 10. **Merge**: when the books are done and the owner agrees, open a PR `community-library` -> `master` (clean merge verified), or merge as instructed. Merging does not publish Docker (workflow watches `main`).
-11. **Later**: deep links `firebrat://community/book/<id>` in the Android manifest; second wave of books (Count of Monte Cristo, Brothers Karamazov, Hound of the Baskervilles); batching `generate` calls in-process is implemented but vLLM is preferred.
+11. **Phone test of 3.9** (ask the owner first): install a debug build as in 3.8, benchmark Kokoro CPU vs GPU/NPU and int8 vs fp16 on the Pixel 9a, try the Wi-Fi-only rule (turn Wi-Fi off), larger LLMs, and the Community screen.
+12. **Later**: deep links `firebrat://community/book/<id>` in the Android manifest; second wave of books (Count of Monte Cristo, Brothers Karamazov, Hound of the Baskervilles); batching `generate` calls in-process is implemented but vLLM is preferred.
 
 ## 6. Known issues / gotchas
 - Four backend tests fail on the Mac only because pydub/firebase_admin/pypdf are not installed (pre-existing).

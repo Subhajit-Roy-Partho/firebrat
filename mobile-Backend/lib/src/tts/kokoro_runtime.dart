@@ -7,52 +7,59 @@
 
 import 'dart:io';
 
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
 import 'package:flutter_kokoro_tts/src/model_manager.dart';
 import 'package:flutter_kokoro_tts/src/phonemizer.dart';
 import 'package:flutter_kokoro_tts/src/text_cleaner.dart';
 import 'package:flutter_kokoro_tts/src/text_preprocessor.dart';
+import '../models/device_capabilities.dart';
+import '../models/model_tier.dart';
+import '../models/tts_model_catalog.dart';
+import 'accelerator.dart';
 
-const List<String> kokoroVoices = [
-  'Default', // af.bin
-  'Bella', // af_bella.bin
-  'Nicole', // af_nicole.bin
-  'Sarah', // af_sarah.bin
-  'Adam', // am_adam.bin
-  'Michael', // am_michael.bin
-];
+/// Every selectable voice name (bundled six first, then the extra five).
+final List<String> kokoroVoices = [for (final v in kKokoroVoiceCatalog) v.name];
 
 /// Map of voice names to their corresponding file names
-const Map<String, String> _kokoroVoiceMap = {
-  'Default': 'af.bin',
-  'Bella': 'af_bella.bin',
-  'Nicole': 'af_nicole.bin',
-  'Sarah': 'af_sarah.bin',
-  'Adam': 'am_adam.bin',
-  'Michael': 'am_michael.bin',
-};
+final Map<String, String> _kokoroVoiceMap = {for (final v in kKokoroVoiceCatalog) v.name: v.fileName};
 
-const Map<String, double> _speedPriors = {
-  'Default': 0.8,
-  'Bella': 0.8,
-  'Nicole': 0.8,
-  'Sarah': 0.8,
-  'Adam': 0.8,
-  'Michael': 0.8,
-};
+const double _defaultSpeedPrior = 0.8;
 
 class FirebratKokoroTts {
   final int cpuThreads;
+
+  /// `auto`, `gpuNpu`/`nnapi` or `cpu` (see [AcceleratorPreference.parse]).
   final String acceleration;
-  FirebratKokoroTts({this.cpuThreads = 2, this.acceleration = 'cpu'});
+
+  /// Catalog id of the Kokoro model file (see `tts_model_catalog.dart`).
+  final String modelId;
+  final DeviceCapabilities device;
+  FirebratKokoroTts({
+    this.cpuThreads = 2,
+    this.acceleration = 'cpu',
+    this.modelId = kDefaultTtsModelId,
+    this.device = DeviceCapabilities.unknown,
+  });
+
+  AcceleratedSession<OrtSession>? _accel;
+
+  /// "Running on" text, valid after initialisation (and meaningful after the
+  /// first synthesis, which is when a runtime fallback can still happen).
+  String get accelerationStatus => _accel?.statusLabel ?? 'Not started';
+  AccelBackend? get activeBackend => _accel?.active;
+  List<String> get accelerationNotes => List.unmodifiable(_accel?.notes ?? const []);
+  /// Why a model other than the requested one was used, if it was.
+  String? modelNote;
+  final Stopwatch _synthWatch = Stopwatch();
+  int _synthSamples = 0;
   final KokoroModelManager _modelManager = KokoroModelManager();
   final Phonemizer _phonemizer = Phonemizer();
   final TextCleaner _textCleaner = TextCleaner();
   final TextPreprocessor _textPreprocessor = TextPreprocessor();
   static const int _maxTokens = 500;
 
-  OrtSession? _session;
   bool _isInitialized = false;
   Future<void>? _initializing;
 
@@ -109,26 +116,52 @@ class FirebratKokoroTts {
       onProgress?.call(0.97, 'Loading ONNX session...');
       final ort = OnnxRuntime();
       final threads = cpuThreads.clamp(1, 4);
-      var useNnapi = false;
-      if (acceleration == 'nnapi' && Platform.isAndroid) {
-        try {
-          useNnapi = (await ort.getAvailableProviders()).contains(OrtProvider.NNAPI);
-        } catch (_) {
-          onProgress?.call(0.97, 'Acceleration unavailable; using CPU');
+      // Model file: the requested variant when it is on disk, else the always
+      // present int8 model (never fail a conversion over a missing variant).
+      final requested = findTtsModel(modelId);
+      var modelFile = _modelManager.modelPath;
+      if (!requested.bundledWithBase) {
+        final candidate = File('${_modelManager.modelDir}/${requested.fileName}');
+        if (await candidate.exists() && await candidate.length() == requested.approxSizeBytes) {
+          modelFile = candidate.path;
+        } else {
+          modelNote = '${requested.displayName} is not downloaded; using the default int8 model.';
+          onProgress?.call(0.97, modelNote!);
         }
       }
-      try {
-        _session = await ort.createSession(_modelManager.modelPath,
-          options: OrtSessionOptions(intraOpNumThreads: threads,
-            interOpNumThreads: 1,
-            providers: [if (useNnapi) OrtProvider.NNAPI, OrtProvider.CPU]));
-      } catch (_) {
-        if (!useNnapi) rethrow;
-        onProgress?.call(0.97, 'NNAPI unavailable for this model; using CPU');
-        _session = await ort.createSession(_modelManager.modelPath,
-          options: OrtSessionOptions(intraOpNumThreads: threads,
-            interOpNumThreads: 1, providers: [OrtProvider.CPU]));
+      final servedModel = modelFile == _modelManager.modelPath ? findTtsModel(kDefaultTtsModelId) : requested;
+      var providers = <String>{};
+      if (Platform.isAndroid) {
+        try {
+          providers = {for (final p in await ort.getAvailableProviders()) p.name};
+        } catch (_) {}
       }
+      final caps = DeviceCapabilities(
+        totalRamMb: device.totalRamMb,
+        supportedAbis: device.supportedAbis,
+        androidSdk: device.androidSdk,
+        ortProviders: providers.isNotEmpty ? providers : device.ortProviders,
+      );
+      final plan = Platform.isAndroid
+          ? planAccelerators(
+              preference: AcceleratorPreference.parse(acceleration), device: caps, model: servedModel)
+          : const [AccelBackend.cpu];
+      onProgress?.call(0.97, 'Loading ONNX session (${plan.first.label})...');
+      _accel = AcceleratedSession<OrtSession>(
+        plan: plan,
+        create: (backend) => ort.createSession(modelFile,
+            options: OrtSessionOptions(
+                intraOpNumThreads: threads,
+                interOpNumThreads: 1,
+                providers: switch (backend) {
+                  AccelBackend.nnapi => [OrtProvider.NNAPI, OrtProvider.CPU],
+                  AccelBackend.xnnpack => [OrtProvider.XNNPACK, OrtProvider.CPU],
+                  _ => [OrtProvider.CPU],
+                })),
+        close: (session) => session.close(),
+      );
+      await _accel!.open();
+      if (_accel!.notes.isNotEmpty) onProgress?.call(0.98, _accel!.notes.last);
 
       _isInitialized = true;
       onProgress?.call(1.0, 'Ready');
@@ -145,6 +178,9 @@ class FirebratKokoroTts {
 
     final path = '${_modelManager.modelDir}/voices/${_kokoroVoiceMap[voice]!}';
 
+    if (!await File(path).exists()) {
+      throw StateError('Voice "$voice" is not downloaded. Download the extra voices in Conversion settings, or pick another voice.');
+    }
     final bytes = await File(path).readAsBytes();
     final embedding = bytes.buffer.asFloat32List();
 
@@ -247,7 +283,7 @@ class FirebratKokoroTts {
     );
 
     // -- Speed Adjustment --
-    final speedFactor = _speedPriors[voice]!;
+    const speedFactor = _defaultSpeedPrior;
 
     final effectiveSpeed = speed * speedFactor;
 
@@ -261,11 +297,20 @@ class FirebratKokoroTts {
 
     final speedTensor = await OrtValue.fromList([effectiveSpeed], [1]);
 
-    final outputs = await _session!.run({
-      'input_ids': inputIds,
-      'style': styleTensor,
-      'speed': speedTensor,
-    });
+    if (!_synthWatch.isRunning) _synthWatch.start();
+    final Map<String, OrtValue> outputs;
+    try {
+      outputs = await _accel!.run((session) => session.run({
+            'input_ids': inputIds,
+            'style': styleTensor,
+            'speed': speedTensor,
+          }));
+    } catch (_) {
+      await inputIds.dispose();
+      await styleTensor.dispose();
+      await speedTensor.dispose();
+      rethrow;
+    }
 
     // Dispose inputs
     await inputIds.dispose();
@@ -309,10 +354,34 @@ class FirebratKokoroTts {
     if (audio.length > 5000) {
       audio = Float32List.sublistView(audio, 0, audio.length - 5000);
     }
+    _synthSamples += audio.length;
 
 
     return audio;
   }
+
+  /// Records what the last run used so the settings screen can show
+  /// "Running on: ...". Best effort; never throws.
+  Future<void> _writeStatus() async {
+    try {
+      final accel = _accel;
+      if (accel == null) return;
+      final seconds = _synthWatch.elapsedMilliseconds / 1000;
+      final audioSeconds = _synthSamples / sampleRate;
+      await File('${_modelManager.modelDir}/last_run.json').writeAsString(jsonEncode({
+        'status': accel.statusLabel,
+        'backend': accel.active?.name,
+        'requested': accel.requested.name,
+        'model': modelId,
+        'notes': [...accel.notes, if (modelNote != null) modelNote],
+        'realtime_factor': audioSeconds > 0 ? double.parse((seconds / audioSeconds).toStringAsFixed(2)) : null,
+        'audio_seconds': double.parse(audioSeconds.toStringAsFixed(1)),
+      }));
+    } catch (_) {}
+  }
+
+  /// Persists the status after the first synthesis finished (call once).
+  Future<void> recordStatus() => _writeStatus();
 
   // ── Helpers ──
 
@@ -350,10 +419,9 @@ class FirebratKokoroTts {
     if (!_isInitialized) return;
 
     // Dispose ONNX session
-    if (_session != null) {
-      await _session!.close();
-      _session = null;
-    }
+    await _writeStatus();
+    await _accel?.close();
+    _accel = null;
 
     // Dispose phonemizer
     _phonemizer.dispose();

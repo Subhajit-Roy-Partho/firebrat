@@ -17,6 +17,7 @@ import '../novel/character_traits.dart';
 import '../novel/novel_analyzer.dart';
 import '../models/compiled_models.dart';
 import '../models/conversion_settings.dart';
+import '../models/device_capabilities.dart';
 import '../models/manifest_models.dart';
 import '../tts/kokoro_tts_engine.dart';
 import '../tts/narration_engine.dart';
@@ -317,10 +318,12 @@ class MobileConversionPipeline {
     final NarrationEngine tts;
     final String narratorEngineName;
     if (settings.voiceEngine == OnDeviceVoiceEngine.kokoroOnnx) {
-      final kokoro = KokoroTtsEngine(voice: settings.kokoroVoice, acceleration: settings.kokoroAcceleration, cpuThreads: settings.kokoroCpuThreads, maleVoice: settings.maleVoice, femaleVoice: settings.femaleVoice, novelPlan: novelPlan);
+      final kokoro = KokoroTtsEngine(voice: settings.kokoroVoice, acceleration: settings.kokoroAcceleration, cpuThreads: settings.kokoroCpuThreads, modelId: settings.ttsModelId, device: DeviceCapabilities(totalRamMb: settings.deviceRamMb, androidSdk: settings.androidSdk), maleVoice: settings.maleVoice, femaleVoice: settings.femaleVoice, novelPlan: novelPlan);
       await kokoro.ensureReady(
         onProgress: (progress, status) => _report('synthesizing', status, progress),
       );
+      if (kokoro.modelNote != null) _report('synthesizing', kokoro.modelNote!, 0.0);
+      _report('synthesizing', 'Narration running on: ${kokoro.accelerationStatus}', 0.0);
       tts = kokoro;
       narratorEngineName = 'kokoro_onnx';
     } else {

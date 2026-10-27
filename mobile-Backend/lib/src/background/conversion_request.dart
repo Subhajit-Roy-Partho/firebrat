@@ -33,6 +33,9 @@ class ConversionRequest {
   final String kokoroVoice;
   final String kokoroAcceleration;
   final int kokoroCpuThreads;
+  final String ttsModelId;
+  final int? deviceRamMb;
+  final int? androidSdk;
   final String maleVoice;
   final String femaleVoice;
   final Map<String, String> characterVoices;
@@ -57,6 +60,9 @@ class ConversionRequest {
     this.kokoroVoice = 'Bella',
     this.kokoroAcceleration = 'cpu',
     this.kokoroCpuThreads = 2,
+    this.ttsModelId = 'kokoro-int8',
+    this.deviceRamMb,
+    this.androidSdk,
     this.maleVoice = 'Adam',
     this.femaleVoice = 'Sarah',
     this.characterVoices = const {},
@@ -92,6 +98,9 @@ class ConversionRequest {
     'kokoroVoice': kokoroVoice,
     'kokoroAcceleration': kokoroAcceleration,
     'kokoroCpuThreads': kokoroCpuThreads,
+    'ttsModelId': ttsModelId,
+    'deviceRamMb': deviceRamMb,
+    'androidSdk': androidSdk,
     'maleVoice': maleVoice, 'femaleVoice': femaleVoice, 'characterVoices': characterVoices,
   };
 
@@ -116,6 +125,9 @@ class ConversionRequest {
         kokoroVoice: json['kokoroVoice'] as String? ?? 'Bella',
         kokoroAcceleration: json['kokoroAcceleration'] as String? ?? 'cpu',
         kokoroCpuThreads: (json['kokoroCpuThreads'] as int? ?? 2).clamp(1, 4),
+        ttsModelId: json['ttsModelId'] as String? ?? 'kokoro-int8',
+        deviceRamMb: json['deviceRamMb'] as int?,
+        androidSdk: json['androidSdk'] as int?,
         maleVoice: json['maleVoice'] as String? ?? 'Adam',
         femaleVoice: json['femaleVoice'] as String? ?? 'Sarah',
         characterVoices: Map<String, String>.from(json['characterVoices'] as Map? ?? {}),

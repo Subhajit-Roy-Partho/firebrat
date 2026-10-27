@@ -76,7 +76,17 @@ class OnDeviceModeSettings {
   /// Kokoro preset voice name (see `tts/kokoro_tts_engine.dart`'s
   /// `kKokoroVoices`), only used when [voiceEngine] is `kokoroOnnx`.
   final String kokoroVoice;
+
+  /// `auto`, `gpuNpu` or `cpu` (legacy `nnapi` is read as `gpuNpu`).
   final String kokoroAcceleration;
+
+  /// Catalog id of the Kokoro model file (`tts_model_catalog.dart`).
+  final String ttsModelId;
+
+  /// Probed by the app so background code can plan accelerators / warnings
+  /// without device plugins. Null when unknown.
+  final int? deviceRamMb;
+  final int? androidSdk;
   final int kokoroCpuThreads;
   final String maleVoice;
   final String femaleVoice;
@@ -96,6 +106,9 @@ class OnDeviceModeSettings {
     this.voiceEngine = OnDeviceVoiceEngine.kokoroOnnx,
     this.kokoroVoice = 'Bella',
     this.kokoroAcceleration = 'cpu',
+    this.ttsModelId = 'kokoro-int8',
+    this.deviceRamMb,
+    this.androidSdk,
     this.kokoroCpuThreads = 2,
     this.maleVoice = 'Adam',
     this.femaleVoice = 'Sarah',

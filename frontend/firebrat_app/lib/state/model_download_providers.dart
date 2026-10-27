@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart';
 import 'package:path_provider/path_provider.dart';
+import '../services/app_network_gate.dart';
 import '../services/download_task_handler.dart';
 
 /// Per-model weight download state. Lives in a provider (not widget
@@ -18,7 +19,12 @@ class ModelDownloadState {
   final bool downloading;
   final bool downloaded;
 
+  /// Non-null while the "Download over" setting is holding the transfer
+  /// (e.g. "Waiting for Wi-Fi"). Partial progress is kept and it resumes by itself.
+  final String? waitingLabel;
+
   const ModelDownloadState({
+    this.waitingLabel,
     required this.fraction,
     required this.receivedBytes,
     required this.totalBytes,
@@ -28,6 +34,7 @@ class ModelDownloadState {
   });
 
   String get label {
+    if (waitingLabel != null) return waitingLabel!;
     String mb(int b) => (b / 1073741824).toStringAsFixed(1);
     if (totalBytes == null || totalBytes == 0) return status;
     final pct = fraction == null
@@ -62,7 +69,15 @@ class ModelDownloadNotifier extends Notifier<Map<String, ModelDownloadState>> {
       status: prev?.status ?? 'starting…',
       downloading: downloading,
       downloaded: prev?.downloaded ?? false,
+      waitingLabel: prev?.waitingLabel,
     );
+  }
+
+  void _setWaiting(String id, String? label) {
+    final prev = _current(id, downloading: true);
+    _set(id, ModelDownloadState(
+      fraction: prev.fraction, receivedBytes: prev.receivedBytes, totalBytes: prev.totalBytes,
+      status: label ?? prev.status, downloading: true, downloaded: false, waitingLabel: label));
   }
 
   Future<String> startDownload(OnDeviceLlmModel model) {
@@ -122,10 +137,14 @@ class ModelDownloadNotifier extends Notifier<Map<String, ModelDownloadState>> {
     DateTime lastEmit = DateTime.fromMillisecondsSinceEpoch(0);
     double lastFraction = -1;
     try {
-      final path = await ModelDownloader().ensureDownloaded(
+      // The "Download over" rule: wait (keeping the .part file) when the network
+      // is not allowed, pause if it stops being allowed, resume automatically.
+      final path = await AppNetworkGate.instance.runGated<String>(
+        model.approxSizeBytes,
+        (gateToken) => ModelDownloader().ensureDownloaded(
         model,
         dir,
-        cancelToken: token,
+        cancelToken: gateToken,
         onBytes: (received, total) {
           final now = DateTime.now();
           final f = total != null && total > 0
@@ -148,6 +167,7 @@ class ModelDownloadNotifier extends Notifier<Map<String, ModelDownloadState>> {
             status: 'downloading ${model.displayName}',
             downloading: true,
             downloaded: false,
+            waitingLabel: null,
           ));
           if (f >= 0) {
             DownloadKeepAlive.updateProgress(
@@ -167,6 +187,9 @@ class ModelDownloadNotifier extends Notifier<Map<String, ModelDownloadState>> {
             downloaded: p != null && p >= 1.0,
           ));
         },
+      ),
+        userCancel: token,
+        onWaiting: (label) => _setWaiting(model.id, label),
       );
       _set(model.id, ModelDownloadState(
         fraction: 1.0,

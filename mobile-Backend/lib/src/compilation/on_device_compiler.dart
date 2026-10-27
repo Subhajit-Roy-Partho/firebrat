@@ -172,13 +172,26 @@ void _llamaWorker(SendPort replies) async {
         Llama.lib.ggml_backend_load_all();
         final devices = Llama.lib.ggml_backend_dev_count();
         replies.send({'progress': 'native backends: $devices device(s)'});
-        llama = Llama(request['path'] as String,
-          modelParams: ModelParams()..nGpuLayers = request['gpuLayers'] as int,
+        Llama open(int layers) => Llama(request['path'] as String,
+          modelParams: ModelParams()..nGpuLayers = layers,
           contextParams: ContextParams()
             ..nCtx = 4096 ..nBatch = 1536 ..nUbatch = 128
             ..nThreads = 4 ..nThreadsBatch = 4 ..nPredict = 2400,
           samplerParams: SamplerParams()..temp = 0.2..seed = 42,
           verbose: false);
+        final wanted = request['gpuLayers'] as int;
+        var used = wanted;
+        try {
+          llama = open(wanted);
+        } catch (error) {
+          // Accelerator unavailable or out of memory: degrade to CPU instead
+          // of failing the conversion.
+          if (wanted == 0) rethrow;
+          replies.send({'progress': 'GPU load failed ($error); falling back to CPU'});
+          used = 0;
+          llama = open(0);
+        }
+        replies.send({'progress': 'language model running on: ${used > 0 ? 'GPU (Vulkan/OpenCL, $used layers requested)' : 'CPU'}'});
         replies.send({'result': true, 'id': request['id']});
       } else if (request['command'] == 'dispose') {
         llama?.dispose();

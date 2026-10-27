@@ -9,6 +9,7 @@ environment:
 
 dependencies:
   archive: ^4.0.7
+  crypto: ^3.0.6
   dio: ^5.11.0
   flutter:
     sdk: flutter

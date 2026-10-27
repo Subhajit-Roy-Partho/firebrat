@@ -139,6 +139,7 @@ class NotificationService {
         'verifying' => 'Verifying…',
         'extracting' => 'Extracting…',
         'done' => 'Done',
+        'waiting' => 'Waiting for Wi-Fi · ${mb(receivedBytes)} MB kept',
         _ => '${mb(receivedBytes)}${totalBytes != null && totalBytes > 0 ? ' / ${mb(totalBytes)} MB' : ' MB'} · $pct%',
       };
       final finished = phase == 'done';

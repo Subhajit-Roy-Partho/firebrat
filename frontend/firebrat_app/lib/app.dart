@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'services/app_network_gate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/analytics_service.dart';
 import '../services/auth_service.dart';
@@ -27,6 +28,7 @@ class FirebratApp extends ConsumerWidget {
     // when the app was updated or closed carries on without opening Conversions.
     ref.read(onDeviceQueueProvider);
     return MaterialApp(
+      navigatorKey: AppNetworkGate.navigatorKey,
       title: 'Firebrat',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),

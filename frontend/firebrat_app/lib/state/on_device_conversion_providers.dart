@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart' show AcceleratorPreference, kDefaultTtsModelId;
 import '../utils/server_url.dart';
 
 /// How the app should convert a new PDF: send it to a Firebrat server
@@ -46,7 +47,11 @@ class ConversionModeSettings {
   final String voiceEngine;
   /// Kokoro preset voice name (kKokoroVoices), only used for kokoroOnnx.
   final String kokoroVoice;
+  /// 'auto' | 'gpuNpu' | 'cpu' (see AcceleratorPreference). Legacy saved
+  /// values 'cpu'/'nnapi' are migrated on load.
   final String kokoroAcceleration;
+  /// Catalog id of the Kokoro model file (tts_model_catalog.dart).
+  final String ttsModelId;
   final int kokoroCpuThreads;
   final String maleVoice;
   final String femaleVoice;
@@ -72,7 +77,8 @@ class ConversionModeSettings {
     this.onDeviceGpuLayers = 0,
     this.voiceEngine = 'kokoroOnnx',
     this.kokoroVoice = 'Bella',
-    this.kokoroAcceleration = 'cpu',
+    this.kokoroAcceleration = 'auto',
+    this.ttsModelId = kDefaultTtsModelId,
     this.kokoroCpuThreads = 2,
     this.maleVoice = 'Adam',
     this.femaleVoice = 'Sarah',
@@ -100,6 +106,7 @@ class ConversionModeSettings {
     String? voiceEngine,
     String? kokoroVoice,
     String? kokoroAcceleration,
+    String? ttsModelId,
     int? kokoroCpuThreads,
     String? maleVoice, String? femaleVoice, Map<String, String>? characterVoices,
   }) =>
@@ -124,6 +131,7 @@ class ConversionModeSettings {
         voiceEngine: voiceEngine ?? this.voiceEngine,
         kokoroVoice: kokoroVoice ?? this.kokoroVoice,
         kokoroAcceleration: kokoroAcceleration ?? this.kokoroAcceleration,
+        ttsModelId: ttsModelId ?? this.ttsModelId,
         kokoroCpuThreads: kokoroCpuThreads ?? this.kokoroCpuThreads,
         maleVoice: maleVoice ?? this.maleVoice, femaleVoice: femaleVoice ?? this.femaleVoice,
         characterVoices: characterVoices ?? this.characterVoices,
@@ -183,7 +191,8 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
       onDeviceGpuLayers: prefs.getInt(_kGpuLayers) ?? 0,
       voiceEngine: prefs.getString(_kVoiceEngine) ?? 'kokoroOnnx',
       kokoroVoice: prefs.getString(_kKokoroVoice) ?? 'Bella',
-      kokoroAcceleration: prefs.getString('conversion.kokoroAcceleration') ?? 'cpu',
+      kokoroAcceleration: AcceleratorPreference.parse(prefs.getString('conversion.kokoroAcceleration')).storageValue,
+      ttsModelId: prefs.getString('conversion.ttsModelId') ?? kDefaultTtsModelId,
       kokoroCpuThreads: (prefs.getInt('conversion.kokoroCpuThreads') ?? 2).clamp(1, 4),
       maleVoice: prefs.getString('conversion.maleVoice') ?? 'Adam',
       femaleVoice: prefs.getString('conversion.femaleVoice') ?? 'Sarah',
@@ -207,9 +216,14 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
   }
 
   Future<void> setKokoroAcceleration(String value) async {
-    if (value != 'cpu' && value != 'nnapi') throw ArgumentError.value(value);
-    state = state.copyWith(kokoroAcceleration: value);
-    await (await SharedPreferences.getInstance()).setString('conversion.kokoroAcceleration', value);
+    final parsed = AcceleratorPreference.parse(value).storageValue; // also maps legacy 'nnapi'
+    state = state.copyWith(kokoroAcceleration: parsed);
+    await (await SharedPreferences.getInstance()).setString('conversion.kokoroAcceleration', parsed);
+  }
+
+  Future<void> setTtsModel(String id) async {
+    state = state.copyWith(ttsModelId: id);
+    await (await SharedPreferences.getInstance()).setString('conversion.ttsModelId', id);
   }
 
   Future<void> setKokoroCpuThreads(int value) async {

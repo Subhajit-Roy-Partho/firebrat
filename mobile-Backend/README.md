@@ -177,3 +177,30 @@ never cast a voice. Overrides win. Evidence is saved in character_roster.json.
 Automatic casting was device-verified offline with Sarah/Michael (32 s processing,
 32.491 s narration). All six presets have now been exercised across tests.
 This is an English heuristic; ambiguous/pronoun-only speakers are not resolved.
+
+## Model catalog, device tiers and accelerators
+
+Added 2026-10-26 (details and caveats: `docs/handover/flutter-models.md`).
+
+- **LLM catalog** (`lib/src/compilation/model_catalog.dart`): 13 GGUF models, each with
+  `tier` (Light / Balanced / Powerful / Desktop-class), `minDeviceRamGb`, licence, SHA-256 and
+  acceleration (`llama.cpp`: CPU, optional Vulkan layers). Defaults are unchanged
+  (`qwen3-1.7b`, 0 GPU layers). Only models the pinned llama.cpp can load are listed.
+- **TTS catalog** (`lib/src/models/tts_model_catalog.dart`): Kokoro-82M int8 (default, verified on a
+  phone), fp16 and fp32, plus 5 extra voices (Sky, Emma, Isabella, George, Lewis), all from a pinned
+  Hugging Face revision with SHA-256. `KokoroAssets` downloads the extras (resume + checksum).
+- **Device probing / advice** (`models/device_capabilities.dart`): `DeviceCapabilities` (RAM, ABI,
+  API level, ORT providers) -> `tier`, `assessFit()` (warning text such as "needs ~6 GB, this phone has 4 GB"),
+  `recommendLlm()`. The host app fills it with device_info_plus.
+- **Accelerator selector** (`tts/accelerator.dart`): `AcceleratorPreference` (Auto / GPU-NPU / CPU) ->
+  `planAccelerators()` -> `AcceleratedSession` (opens the first back end that works, retries once on CPU if
+  a run fails). `FirebratKokoroTts.accelerationStatus` and `<kokoro dir>/last_run.json` report what ran.
+  Auto = CPU for the default model (safe); it only tries NNAPI for the fp16 model on Android 10+/6 GB+.
+  The LLM worker falls back to CPU if a GPU load fails.
+- **Download network policy** (`lib/src/network/`): `NetworkPolicy.decide()` is a pure function
+  (preference, network kind, metered flag, size -> allow / wait / ask). `NetworkGate` waits, pauses a
+  running transfer through a `CancelToken` when the network stops being allowed, and resumes by itself.
+  The app wires it in `frontend/firebrat_app/lib/services/app_network_gate.dart`.
+
+Tests: `test/model_catalog_test.dart`, `test/accelerator_test.dart`, `test/network_policy_test.dart`
+(pure Dart, fake runtime / fake connectivity stream).

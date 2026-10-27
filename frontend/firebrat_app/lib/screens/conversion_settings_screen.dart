@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import '../widgets/kokoro_model_controls.dart';
+import '../widgets/model_choice_widgets.dart';
+import '../services/device_probe.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart';
@@ -430,6 +432,10 @@ class _ConversionSettingsScreenState
             _VoicePicker(notifier: notifier, settings: settings),
           ],
           const SizedBox(height: 24),
+          const _SectionTitle('Downloads'),
+          const SizedBox(height: 4),
+          const DownloadNetworkSetting(),
+          const SizedBox(height: 24),
           FilledButton(
             onPressed: () => _save(context),
             child: const Text('Save'),
@@ -803,6 +809,9 @@ class _LocalModelPickerState extends ConsumerState<_LocalModelPicker> {
     final notifier = widget.notifier;
     final selected = findOnDeviceLlmModel(settings.onDeviceLlmModelId);
     final dl = ref.watch(modelDownloadProvider)[selected.id];
+    final caps = ref.watch(deviceCapabilitiesProvider).asData?.value ?? DeviceCapabilities.unknown;
+    final recommended = recommendLlm(caps);
+    final fit = assessFit(name: selected.displayName, minDeviceRamGb: selected.minDeviceRamGb, device: caps);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -818,12 +827,16 @@ class _LocalModelPickerState extends ConsumerState<_LocalModelPicker> {
             border: OutlineInputBorder(),
           ),
           items: [
-            for (final m in kOnDeviceLlmCatalog)
+            for (final m in llmModelsByTier())
               DropdownMenuItem(
                 value: m.id,
-                child: Text(
-                  '${m.displayName} · ${_gb(m.approxSizeBytes)} · ~${m.approxRamGb.toStringAsFixed(1)} GB RAM',
-                  overflow: TextOverflow.ellipsis,
+                child: Semantics(
+                  label: '${m.displayName}, ${m.tier.label}, ${_gb(m.approxSizeBytes)} download, needs about ${m.minDeviceRamGb.toStringAsFixed(0)} gigabytes of RAM',
+                  excludeSemantics: true,
+                  child: Text(
+                    '${m.tier.label} · ${m.displayName} · ${_gb(m.approxSizeBytes)} · ${m.minDeviceRamGb.toStringAsFixed(m.minDeviceRamGb == m.minDeviceRamGb.roundToDouble() ? 0 : 1)} GB+ RAM',
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
           ],
@@ -836,6 +849,52 @@ class _LocalModelPickerState extends ConsumerState<_LocalModelPicker> {
           selected.description,
           style: Theme.of(context).textTheme.bodySmall,
         ),
+        const SizedBox(height: 4),
+        Text(
+          '${selected.tier.label} class (${selected.tier.audience}) · ${selected.runtime} · '
+          'GPU offload optional (CPU fallback) · Licence: ${selected.license}',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        if (fit.warning != null) ...[
+          NoticeCard(
+            icon: Icons.memory_rounded,
+            severe: fit.fit == ModelFit.tooLarge,
+            text: fit.warning!,
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (recommended.id != selected.id)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => notifier.setLocalLlmModel(recommended.id),
+              icon: const Icon(Icons.recommend_outlined, size: 18),
+              label: Text(caps.totalRamMb == null
+                  ? 'Safe default: ${recommended.displayName}'
+                  : 'Recommended for this phone (${caps.summary}): ${recommended.displayName}'),
+            ),
+          )
+        else
+          Text('Recommended for this phone (${caps.summary}).', style: Theme.of(context).textTheme.bodySmall),
+        NoticeCard(
+          icon: Icons.sd_storage_outlined,
+          text: 'Download size ${_gb(selected.approxSizeBytes)}; keep at least '
+              '${((selected.approxSizeBytes * 1.15) / 1073741824).toStringAsFixed(1)} GB of free storage. '
+              '${const NetworkPolicy().recommendsWifi(selected.approxSizeBytes) ? 'Use Wi-Fi for this one. ' : ''}'
+              'The file is checked against its SHA-256 after download.',
+        ),
+        const SizedBox(height: 8),
+        const Align(alignment: Alignment.centerLeft, child: NetworkStatusChip()),
+        if (dl != null && dl.waitingLabel != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Semantics(
+              liveRegion: true,
+              child: Text('${dl.waitingLabel} · partial download kept; resumes automatically.',
+                  style: Theme.of(context).textTheme.bodySmall),
+            ),
+          ),
         const SizedBox(height: 8),
         if (dl != null && dl.downloading) ...[
           if (dl.fraction != null)
@@ -960,13 +1019,13 @@ class _LocalModelPickerState extends ConsumerState<_LocalModelPicker> {
   }
 }
 
-class _VoicePicker extends StatelessWidget {
+class _VoicePicker extends ConsumerWidget {
   final ConversionModeNotifier notifier;
   final ConversionModeSettings settings;
   const _VoicePicker({required this.notifier, required this.settings});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Column(
       children: [
         RadioGroup<String>(
@@ -1004,16 +1063,17 @@ class _VoicePicker extends StatelessWidget {
             decoration: const InputDecoration(
               labelText: 'Kokoro voice',
               helperText:
-                  'Narrator: four female presets and two male presets. Novel characters use the choices below.',
+                  'Narrator: 11 presets (American and British). Emma, Isabella, George, Lewis and Sky need the small extra-voices download above. Novel characters use the choices below.',
               helperMaxLines: 5,
               border: OutlineInputBorder(),
             ),
             items: [
-              for (final v in kKokoroVoices)
+              for (final info in kKokoroVoiceCatalog)
                 DropdownMenuItem(
-                  value: v,
+                  value: info.name,
                   child: Text(
-                    '$v · ${kKokoroMaleVoices.contains(v) ? 'Male' : 'Female'}',
+                    '${info.name} · ${info.isFemale ? 'Female' : 'Male'} · ${info.accent}'
+                    '${info.bundled || (ref.watch(kokoroUsableVoicesProvider).asData?.value.contains(info.name) ?? false) ? '' : ' · needs voice download'}',
                   ),
                 ),
             ],
@@ -1063,7 +1123,7 @@ class _VoicePicker extends StatelessWidget {
                 ),
                 items: [
                   for (final v
-                      in male ? kKokoroMaleVoices : kKokoroFemaleVoices)
+                      in male ? kKokoroAllMaleVoices : kKokoroAllFemaleVoices)
                     DropdownMenuItem(value: v, child: Text(v)),
                 ],
                 onChanged: (v) => notifier.setCharacterVoiceDefaults(

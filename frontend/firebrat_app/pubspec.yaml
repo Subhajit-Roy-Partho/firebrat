@@ -61,6 +61,8 @@ dependencies:
   http: ^1.6.0
   audio_session: ^0.2.4
   url_launcher: ^6.3.2
+  connectivity_plus: ^7.3.1
+  device_info_plus: ^13.1.0
 
 # syncfusion_flutter_pdfviewer 34.x needs device_info_plus ^13 (which in
 # turn needs win32 ^6 on Windows). The win32 override below forces that;

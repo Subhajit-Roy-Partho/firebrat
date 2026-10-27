@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../services/app_network_gate.dart';
 import '../state/library_providers.dart';
 import '../utils/community_helpers.dart';
 
@@ -334,6 +335,8 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     final packageKind = data['packageKind'] as String? ?? 'zip';
     final cancelToken = CancelToken();
     final progress = ValueNotifier<double?>(null);
+    // Non-null while the "Download over" setting holds this download.
+    final waiting = ValueNotifier<String?>(null);
     // Progress dialog with cancel.
     var dialogOpen = false;
     if (context.mounted) {
@@ -345,13 +348,19 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
           title: Text('Downloading "$bookId"'),
           content: ValueListenableBuilder<double?>(
             valueListenable: progress,
-            builder: (_, v, _) => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(value: v),
-                const SizedBox(height: 8),
-                Text(v == null ? 'Starting…' : '${(v * 100).round()}%'),
-              ],
+            builder: (_, v, _) => ValueListenableBuilder<String?>(
+              valueListenable: waiting,
+              builder: (_, wait, _) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  LinearProgressIndicator(value: wait != null ? 0 : v),
+                  const SizedBox(height: 8),
+                  Text(wait ?? (v == null ? 'Starting…' : '${(v * 100).round()}%')),
+                  if (wait != null)
+                    const Text('It starts automatically when Wi-Fi is available '
+                        '(Settings > Download over).'),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -371,6 +380,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     try {
       final dio = Dio();
       late final String downloadUrl;
+      int? sizeBytes;
       if (packageKind == 'folder') {
         downloadUrl = 'https://archive.org/compress/$archiveId';
       } else {
@@ -385,6 +395,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
           final name = (f as Map)['name'] as String? ?? '';
           if (name.toLowerCase().endsWith('.zip')) {
             zipName = name;
+            sizeBytes = int.tryParse('${f['size'] ?? ''}');
             break;
           }
         }
@@ -398,6 +409,14 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
       }
       final tmpDir = Directory.systemTemp;
       tempFile = File('${tmpDir.path}/firebrat-community-$archiveId.zip');
+      // "Download over" rule (this download cannot resume mid-file, so it waits
+      // before starting). Size unknown (folder route): assume a large file.
+      final allowed = await AppNetworkGate.instance.waitUntilAllowed(
+        sizeBytes ?? 100 * 1024 * 1024,
+        onWaiting: (label) => waiting.value = label,
+        isCancelled: () => cancelToken.isCancelled,
+      );
+      if (!allowed) return;
       await dio.download(
         downloadUrl,
         tempFile.path,

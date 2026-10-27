@@ -65,6 +65,9 @@ class MobileConversionTaskHandler extends TaskHandler {
         kokoroVoice: request.kokoroVoice,
         kokoroAcceleration: request.kokoroAcceleration,
         kokoroCpuThreads: request.kokoroCpuThreads,
+        ttsModelId: request.ttsModelId,
+        deviceRamMb: request.deviceRamMb,
+        androidSdk: request.androidSdk,
         maleVoice: request.maleVoice, femaleVoice: request.femaleVoice, characterVoices: request.characterVoices,
       ),
       onProgress: (p) {

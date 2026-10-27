@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart' show WaitingCallback;
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'app_network_gate.dart';
 import 'auth_service.dart';
 
 /// Google Drive sync for book blobs: the user's own Drive quota holds the
@@ -149,11 +152,15 @@ class DriveSyncService {
     required String bookId,
     required String zipPath,
     void Function(int sentBytes, int totalBytes)? onProgress,
+    WaitingCallback? onWaiting,
   }) async {
     final api = await _api();
     final folder = await _folderId(api);
     final file = File(zipPath);
     final total = await file.length();
+    // "Download over" rule. An upload cannot be resumed mid-way, so it waits
+    // BEFORE starting (nothing is lost) and starts when the network is allowed.
+    await AppNetworkGate.instance.waitUntilAllowed(total, onWaiting: onWaiting);
     final name = '$bookId.zip';
     final escapedName = name.replaceAll("'", "\\'");
     final existing = await api.files.list(
@@ -179,8 +186,21 @@ class DriveSyncService {
     required String driveFileId,
     required String destPath,
     void Function(int receivedBytes, int? totalBytes)? onProgress,
+    WaitingCallback? onWaiting,
   }) async {
     final api = await _api();
+    final sizeMeta = await api.files.get(driveFileId, $fields: 'size') as drive.File;
+    final expectedSize = int.tryParse(sizeMeta.size ?? '') ?? 0;
+    // "Download over" rule: waits with the .part kept and resumes via Range.
+    await AppNetworkGate.instance.runGated<void>(
+      expectedSize,
+      (token) => _downloadOnce(api, driveFileId, destPath, onProgress, token),
+      onWaiting: onWaiting,
+    );
+  }
+
+  Future<void> _downloadOnce(drive.DriveApi api, String driveFileId, String destPath,
+      void Function(int receivedBytes, int? totalBytes)? onProgress, CancelToken gate) async {
     final part = File('$destPath.part');
     var have = await part.exists() ? await part.length() : 0;
     final meta = await api.files.get(driveFileId, $fields: 'size') as drive.File;
@@ -202,6 +222,9 @@ class DriveSyncService {
       ) as drive.Media;
       var received = have;
       await for (final chunk in media.stream) {
+        // The gate cancels this token when the network stops being allowed;
+        // leave the .part behind and let runGated wait and resume.
+        if (gate.isCancelled) throw StateError('paused: network not allowed');
         sink.add(chunk);
         received += chunk.length;
         onProgress?.call(received, total);

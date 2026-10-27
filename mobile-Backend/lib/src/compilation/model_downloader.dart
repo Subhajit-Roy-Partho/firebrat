@@ -1,6 +1,7 @@
 import 'dart:io';
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
-import 'model_catalog.dart';
+import '../models/model_tier.dart';
 
 typedef DownloadProgressCallback = void Function(double? progress, String status);
 
@@ -9,7 +10,7 @@ typedef DownloadProgressCallback = void Function(double? progress, String status
 /// fraction) is what lets the UI show stable "1.2 / 2.5 GB" numbers.
 typedef DownloadBytesCallback = void Function(int receivedBytes, int? totalBytes);
 
-/// Downloads an [OnDeviceLlmModel]'s GGUF weights directly from Hugging
+/// Downloads a [DownloadableAsset] (an `OnDeviceLlmModel`'s GGUF weights, a TTS model file, ...) directly from Hugging
 /// Face into [modelsDir], skipping the download if a file of roughly the
 /// right size is already there. Uses `dio` (already a dependency, via
 /// `cloud_compiler.dart`) rather than pulling in a second HTTP client.
@@ -28,7 +29,7 @@ class ModelDownloader {
   final Dio _dio = Dio();
 
   Future<String> ensureDownloaded(
-    OnDeviceLlmModel model,
+    DownloadableAsset model,
     String modelsDir, {
     DownloadProgressCallback? onProgress,
     DownloadBytesCallback? onBytes,
@@ -46,6 +47,8 @@ class ModelDownloader {
       // entries only have an approximate size (see model_catalog.dart),
       // and HF occasionally re-serves a quant with a marginally different
       // byte count across a re-upload.
+      // The SHA-256 (when present) is checked on fresh downloads only: a file
+      // already on disk may be a user-imported GGUF of slightly different size.
       if ((existingSize - model.approxSizeBytes).abs() < model.approxSizeBytes * 0.02) {
         onProgress?.call(1.0, 'already downloaded');
         onBytes?.call(existingSize, existingSize);
@@ -151,6 +154,15 @@ class ModelDownloader {
       }
       await sink.flush();
       await sink.close();
+      final expected = model.sha256;
+      if (expected != null) {
+        emit(received, total, () => 'verifying ${model.displayName}');
+        final digest = await sha256.bind(partFile.openRead()).first;
+        if (digest.toString() != expected.toLowerCase()) {
+          await partFile.delete();
+          throw StateError('Checksum mismatch for ${model.displayName}; the partial file was removed. Retry the download.');
+        }
+      }
       await partFile.rename(path);
     } catch (_) {
       try {
