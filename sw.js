@@ -1,5 +1,5 @@
 import {rangeBounds} from './range.mjs';
-const SHELL_PREFIX='firebrat-shell-/firebrat/-',SHELL=SHELL_PREFIX+'e273d2d2a88b21cc', INDEX='firebrat-index-v1', INDEX_URL=new URL('/firebrat/_library',self.location.origin).href;
+const SHELL_PREFIX='firebrat-shell-/firebrat/-',SHELL=SHELL_PREFIX+'c7c5f74cc2fab729', INDEX='firebrat-index-v1', INDEX_URL=new URL('/firebrat/_library',self.location.origin).href;
 self.addEventListener('install',event=>event.waitUntil((async()=>{
   const cache=await caches.open(SHELL), page=await fetch('/firebrat/',{cache:'reload'});
   if(!page.ok)throw new Error('App shell unavailable');
