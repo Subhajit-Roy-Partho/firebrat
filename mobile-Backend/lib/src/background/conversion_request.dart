@@ -39,6 +39,9 @@ class ConversionRequest {
   final String maleVoice;
   final String femaleVoice;
   final Map<String, String> characterVoices;
+  final String expressiveEngine;
+  final String expressiveKokoroModelId;
+  final String? expressiveNarratorVoice;
 
   const ConversionRequest({
     required this.pdfPath,
@@ -66,6 +69,9 @@ class ConversionRequest {
     this.maleVoice = 'Adam',
     this.femaleVoice = 'Sarah',
     this.characterVoices = const {},
+    this.expressiveEngine = 'piper',
+    this.expressiveKokoroModelId = 'kokoro1-fp16',
+    this.expressiveNarratorVoice,
   });
 
   /// Every source PDF in chapter order — [pdfPaths] when set, else the
@@ -102,6 +108,9 @@ class ConversionRequest {
     'deviceRamMb': deviceRamMb,
     'androidSdk': androidSdk,
     'maleVoice': maleVoice, 'femaleVoice': femaleVoice, 'characterVoices': characterVoices,
+    'expressiveEngine': expressiveEngine,
+    'expressiveKokoroModelId': expressiveKokoroModelId,
+    'expressiveNarratorVoice': expressiveNarratorVoice,
   };
 
   factory ConversionRequest.fromJson(Map<String, dynamic> json) =>
@@ -131,6 +140,9 @@ class ConversionRequest {
         maleVoice: json['maleVoice'] as String? ?? 'Adam',
         femaleVoice: json['femaleVoice'] as String? ?? 'Sarah',
         characterVoices: Map<String, String>.from(json['characterVoices'] as Map? ?? {}),
+        expressiveEngine: json['expressiveEngine'] as String? ?? 'piper',
+        expressiveKokoroModelId: json['expressiveKokoroModelId'] as String? ?? 'kokoro1-fp16',
+        expressiveNarratorVoice: json['expressiveNarratorVoice'] as String?,
       );
 
   static String _filePath(String stateDir) =>

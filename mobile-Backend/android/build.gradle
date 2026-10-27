@@ -37,3 +37,9 @@ android {
     }
     kotlinOptions { jvmTarget = '17' }
 }
+
+dependencies {
+    // Same artifact/version as flutter_onnxruntime (Gradle resolves one copy): lets OrtBridge
+    // open sessions with NNAPI flags, profiling and verbose logging, which the plugin does not expose.
+    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.23.0'
+}

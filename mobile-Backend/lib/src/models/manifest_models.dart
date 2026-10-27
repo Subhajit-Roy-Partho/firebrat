@@ -149,6 +149,10 @@ class Manifest {
   final bool partial;
   final int? sectionsPlanned;
 
+  /// Expressive (multi-voice) books: engine, narrator and the character -> voice table
+  /// (`cast` manifest key, same shape as the server pipeline's).
+  final Map<String, dynamic>? cast;
+
   const Manifest({
     required this.bookId,
     required this.title,
@@ -164,6 +168,7 @@ class Manifest {
     this.sourcePdfPath,
     this.partial = false,
     this.sectionsPlanned,
+    this.cast,
   });
 
   Map<String, dynamic> toJson() => {
@@ -176,7 +181,11 @@ class Manifest {
         'pipeline_version': 'mobile-0.1.0',
         'narrator_voice': {
           'engine': narratorEngine,
-          'model_class': narratorEngine == 'kokoro_onnx' ? 'Kokoro82M' : 'DeviceTts',
+          'model_class': switch (narratorEngine) {
+            'kokoro_onnx' || 'kokoro_v1' => 'Kokoro82M',
+            'piper_libritts' => 'PiperVITS',
+            _ => 'DeviceTts',
+          },
           'sample_rate': sampleRate,
         },
         'audio_format': {
@@ -194,5 +203,6 @@ class Manifest {
         'tables': tables.map((t) => t.toJson()).toList(),
         if (partial) 'partial': true,
         if (partial && sectionsPlanned != null) 'sections_planned': sectionsPlanned,
+        if (cast != null) 'cast': cast,
       };
 }

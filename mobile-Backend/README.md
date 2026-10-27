@@ -204,3 +204,67 @@ Added 2026-10-26 (details and caveats: `docs/handover/flutter-models.md`).
 
 Tests: `test/model_catalog_test.dart`, `test/accelerator_test.dart`, `test/network_policy_test.dart`
 (pure Dart, fake runtime / fake connectivity stream).
+
+## Expressive multi-voice narration (on device, experimental)
+
+Added 2026-10-27; measurements and caveats: `docs/handover/android-expressive-gpu.md`. It is the on-device
+counterpart of `backend/firebrat_cast`: the same casting design (character roster, speaker attribution for
+every quote, emotion + delivery per line, mood per page), sized for a phone. Offered as **Expressive
+(experimental)** next to Illustrated and Novel, only on Balanced phones and up (about 6 GB RAM, `CastLimits.allowedFor`).
+Novel and Illustrated mode are unchanged.
+
+```
+pages ──> cast/cast_segmenter.dart   quote / narration spans with the server's (page, idx) keys, lossless
+        ├> cast/cast_engine.dart     pass 1 roster (budgeted windows, aliases merged) + pass 2 attribution/emotion
+        │                            chunks (<=12-16 quotes, only the characters present in the prompt)
+        │                            JSON-validated, repair retry for the missing quotes, loose parser for broken
+        │                            quoting, regex dialogue-tag fallback (novel analyzer), narrator last
+        │                            per-answer disk cache `cast/cache/*.json` -> an interrupted run resumes
+        ├> cast/cast_voices.dart     voice per character: gender / age / accent / temperament -> a voice by MEASURED
+        │                            pitch, never the narrator's voice, fixed for the whole book (`cast/voices.json`)
+        │                            + emotion -> delivery table (speed, pauses, gain, light pitch) incl. stage directions
+        ├> cast/cast_plan.dart       per page: ordered lines (text, voice, delivery); manifest `cast` key;
+        │                            `character_roster.json` for the existing Cast screen
+        └> tts/cast_narration_engine.dart  voices every line through a `SpeechBackend`:
+              tts/kokoro_v1_backend.dart   Kokoro v1.0, 28 English voices, ORT through OrtBridge (typed tensors)
+              tts/piper_backend.dart       Piper en_US libritts_r (904 speakers, 27 curated), ~8x faster
+```
+
+* `pipeline/expressive_conversion.dart` glues it into `MobileConversionPipeline` (`BookContentMode.expressive`):
+  cast (LLM loaded, then **disposed before** the speech model loads) -> voices -> narration. The package gets the
+  standard layout plus `manifest.cast = {engine, narrator, characters:[{id,name,gender,age,voice}]}`.
+* Limits by device class: `CastLimits.forTier` (LLM-call budget, roster windows, chunk size). Beyond the budget the
+  quotes with the most untagged speakers get the LLM, the rest keep the dialogue-tag/narrator fallback, and
+  `cast.json` says so (`notes`, `stats`). `estimateExpressive` gives the honest time estimate shown in the app.
+* Downloads (`tts/expressive_assets.dart`): Piper model (79 MB) or Kokoro v1.0 model (92/163/326 MB) + 28 voices
+  (14 MB), pinned revisions with SHA-256, resume, network gate through a `CancelToken`.
+* Speech on GPU/NPU: not possible for these models on a Pixel 9a, measured: see the handover doc. `OrtBridge`
+  (`android/.../OrtBridge.kt`) exposes NNAPI flags, per-session profiling and typed tensors; `planFor` in
+  `kokoro_v1_backend.dart` encodes the result (CPU / XNNPACK; NNAPI only when the user asks).
+* LLM: `PromptFormatKind.auto` formats prompts with the template stored in the GGUF (llama.cpp
+  `llama_chat_apply_template`), so a new model family needs no hand-written template. The worker also reports prompt tokens.
+
+### Benchmarks and evaluation (re-run recipes)
+
+```bash
+# Speech: Kokoro / Piper, every ONNX Runtime provider (plugin or OrtBridge), profile per provider.
+#   edit bench_config.json (see lib/src/tts/tts_benchmark.dart), then from a debug copy of the app:
+cd frontend/firebrat_app
+flutter test integration_test/tts_benchmark_test.dart -d <serial> | grep BENCH    # start FIRST (it reinstalls the app)
+adb push bench_config.json models voices ... /sdcard/Android/data/com.firebrat.firebrat_app.debug/files/kokoro_bench/   # config LAST
+
+# LLM casting quality on the phone (fixture test/fixtures/cast_eval_sample.json), one model after another:
+flutter test integration_test/llm_cast_eval_test.dart -d <serial> | grep BENCH
+
+# The same prompts/scoring on a laptop through llama-server (quality only, speeds are the laptop's):
+llama-server -m model.gguf -c 8192 -ngl 99 --port 8099 --jinja &
+cd mobile-Backend && dart run tool/cast_eval_cli.dart --url http://127.0.0.1:8099 --label name --attr 14 --roster 6
+dart run tool/cast_eval_cli.dart --baseline --attr 28 --roster 0        # regex-only baseline
+
+# End to end (EPUB -> cast -> narration -> package) on the phone:
+flutter test integration_test/expressive_e2e_test.dart -d <serial> | grep BENCH
+```
+
+Tests (no device): `test/cast_engine_test.dart` (segmenter, JSON repair, roster merge, fake-LLM casting, resume from
+cache, retry, fallbacks, budget, voices, emotion table), `test/cast_eval_test.dart` (fixture + oracle harness check),
+`test/cast_narration_test.dart` (plan, narration with a fake engine, pipeline stage, estimate, asset catalog, accelerator plan, Piper encoding).

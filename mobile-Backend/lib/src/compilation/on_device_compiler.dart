@@ -1,7 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:isolate';
+import 'dart:ffi';
 import 'dart:io';
+import 'package:ffi/ffi.dart';
 import 'package:llama_cpp_dart/llama_cpp_dart.dart';
+// The raw struct for llama_chat_apply_template is not re-exported by the package.
+// ignore: implementation_imports
+import 'package:llama_cpp_dart/src/llama_cpp.dart' show llama_chat_message;
 import '../models/compiled_models.dart';
 import '../models/raw_page.dart';
 import 'model_catalog.dart';
@@ -32,6 +38,13 @@ String formatOnDevicePrompt(PromptFormatKind kind, String systemPrompt, String u
           '$userMessage<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n';
     case PromptFormatKind.phi:
       return '<|system|>\n$systemPrompt<|end|>\n<|user|>\n$userMessage<|end|>\n<|assistant|>\n';
+    case PromptFormatKind.auto:
+      // Normally formatted inside the worker with the model's own template;
+      // this ChatML form is only the fallback when llama.cpp cannot apply it.
+      return ChatMLFormat().formatMessages([
+        {'role': 'system', 'content': systemPrompt},
+        {'role': 'user', 'content': userMessage},
+      ]);
   }
 }
 
@@ -131,11 +144,13 @@ class OnDeviceCompiler {
   Future<String> generateText({required String systemPrompt, required String userMessage,
       int maxTokens = 1200, String label = 'local analysis'}) async {
     if (_commands == null) throw StateError('Load a local model before generation');
-    final prompt = formatOnDevicePrompt(model.promptFormat, systemPrompt,
-        model.id.startsWith('qwen3-') ? '$userMessage\n/no_think' : userMessage);
+    final auto = model.promptFormat == PromptFormatKind.auto;
+    final user = model.id.startsWith('qwen3-') ? '$userMessage\n/no_think' : userMessage;
+    final prompt = formatOnDevicePrompt(model.promptFormat, systemPrompt, user);
     final result = Map<String, dynamic>.from(await _request({
       'command': 'generate', 'prompt': prompt, 'label': label,
       'maxTokens': maxTokens.clamp(1, 2400),
+      if (auto) ...{'system': systemPrompt, 'user': user, 'assistantPrefix': model.assistantPrefix},
     }) as Map);
     final response = result.remove('text') as String;
     lastGenerationStats = result;
@@ -202,7 +217,14 @@ void _llamaWorker(SendPort replies) async {
         engine.clear();
         replies.send({'progress': '${request['label']}: reading source text'});
         final watch = Stopwatch()..start();
-        engine.setPrompt(request['prompt'] as String);
+        var prompt = request['prompt'] as String;
+        if (request['system'] != null) {
+          // The model's own chat template (GGUF metadata) through llama.cpp; ChatML if it cannot be applied.
+          prompt = (_applyModelTemplate(engine, request['system'] as String, request['user'] as String) ?? prompt) +
+              ((request['assistantPrefix'] as String?) ?? '');
+        }
+        final promptTokens = _countTokens(engine, prompt);
+        engine.setPrompt(prompt);
         final output = StringBuffer();
         var tokens = 0;
         int? firstTokenMs;
@@ -222,13 +244,58 @@ void _llamaWorker(SendPort replies) async {
           if (tokens >= (request['maxTokens'] as int? ?? 2400)) { hitTokenLimit = true; break; }
         }
         replies.send({'result': {'text': output.toString(),
-          'generated_tokens': tokens, 'first_token_ms': firstTokenMs,
+          'generated_tokens': tokens, 'first_token_ms': firstTokenMs, 'prompt_tokens': promptTokens,
           'generation_ms': watch.elapsedMilliseconds,
           'context_limit': contextLimit, 'token_limit': hitTokenLimit},
           'id': request['id']});
       }
     } catch (error) {
       replies.send({'error': error.toString(), 'id': request['id']});
+    }
+  }
+}
+
+/// Prompt length in tokens (for throughput reporting); -1 when it cannot be counted.
+int _countTokens(Llama engine, String text) {
+  final bytes = text.toNativeUtf8();
+  try {
+    final n = Llama.lib.llama_tokenize(engine.vocab, bytes.cast<Char>(), bytes.length, nullptr, 0, true, true);
+    return n < 0 ? -n : n;
+  } catch (_) {
+    return -1;
+  } finally {
+    malloc.free(bytes);
+  }
+}
+
+/// Formats [system]/[user] with the template stored in the model file. Null if
+/// the model has none or llama.cpp's template matcher does not know it.
+String? _applyModelTemplate(Llama engine, String system, String user) {
+  final lib = Llama.lib;
+  final tmpl = lib.llama_model_chat_template(engine.model, nullptr);
+  if (tmpl == nullptr) return null;
+  final roles = ['system', 'user'].map((r) => r.toNativeUtf8()).toList();
+  final contents = [system, user].map((c) => c.toNativeUtf8()).toList();
+  final messages = malloc<llama_chat_message>(2);
+  try {
+    for (var i = 0; i < 2; i++) {
+      final slot = (messages + i).ref;
+      slot.role = roles[i].cast<Char>();
+      slot.content = contents[i].cast<Char>();
+    }
+    final capacity = (system.length + user.length) * 4 + 4096;
+    final buffer = malloc<Uint8>(capacity);
+    try {
+      final n = lib.llama_chat_apply_template(tmpl, messages, 2, true, buffer.cast<Char>(), capacity);
+      if (n <= 0 || n > capacity) return null;
+      return utf8.decode(buffer.asTypedList(n), allowMalformed: true);
+    } finally {
+      malloc.free(buffer);
+    }
+  } finally {
+    malloc.free(messages);
+    for (final p in [...roles, ...contents]) {
+      malloc.free(p);
     }
   }
 }

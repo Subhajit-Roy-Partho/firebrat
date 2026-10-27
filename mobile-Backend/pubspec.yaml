@@ -11,6 +11,7 @@ dependencies:
   archive: ^4.0.7
   crypto: ^3.0.6
   dio: ^5.11.0
+  ffi: ^2.1.0
   flutter:
     sdk: flutter
   flutter_foreground_task: ^10.0.0

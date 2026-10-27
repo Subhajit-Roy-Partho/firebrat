@@ -15,14 +15,18 @@ import java.util.concurrent.Executors
 /** Offline page rendering, registered in both the UI and conversion engines. */
 class MobileBackendPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     private lateinit var channel: MethodChannel
+    private var ortBridge: OrtBridge? = null
     private val executor = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel = MethodChannel(binding.binaryMessenger, "firebrat/local_pdf")
         channel.setMethodCallHandler(this)
+        ortBridge = OrtBridge(binding.binaryMessenger)
     }
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
+        ortBridge?.dispose()
+        ortBridge = null
         executor.shutdown()
     }
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {

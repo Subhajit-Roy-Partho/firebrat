@@ -51,9 +51,11 @@ class MobileConversionTaskHandler extends TaskHandler {
         cloudForAll: request.cloudForAll,
         researchCharacters: request.researchCharacters,
         localCharacterResearch: request.localCharacterResearch,
-        contentMode: request.contentMode == 'novel'
-            ? BookContentMode.novel
-            : BookContentMode.illustrated,
+        contentMode: switch (request.contentMode) {
+          'novel' => BookContentMode.novel,
+          'expressive' => BookContentMode.expressive,
+          _ => BookContentMode.illustrated,
+        },
         llmBaseUrl: request.llmBaseUrl,
         llmApiKey: request.llmApiKey,
         llmModel: request.llmModel,
@@ -69,6 +71,9 @@ class MobileConversionTaskHandler extends TaskHandler {
         deviceRamMb: request.deviceRamMb,
         androidSdk: request.androidSdk,
         maleVoice: request.maleVoice, femaleVoice: request.femaleVoice, characterVoices: request.characterVoices,
+        expressiveEngine: request.expressiveEngine,
+        expressiveKokoroModelId: request.expressiveKokoroModelId,
+        expressiveNarratorVoice: request.expressiveNarratorVoice,
       ),
       onProgress: (p) {
         if (!throttle.shouldEmit(stage: p.stage, detail: p.detail, fraction: p.fraction ?? 0)) return;

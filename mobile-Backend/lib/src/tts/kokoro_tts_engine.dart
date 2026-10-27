@@ -94,6 +94,7 @@ class KokoroTtsEngine implements NarrationEngine {
     required List<CompiledSegment> segments,
     required String sectionDir,
     int pauseMs = 260,
+    List<int> sourcePages = const [],
   }) async {
     if (!_initialized) {
       throw StateError(

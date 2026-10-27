@@ -17,7 +17,9 @@ library;
 import '../models/device_capabilities.dart';
 import '../models/model_tier.dart';
 
-enum PromptFormatKind { chatml, gemma, llama3, phi }
+/// [auto] formats the prompt with the chat template stored in the GGUF file
+/// (through llama.cpp), so new model families need no hand-written template.
+enum PromptFormatKind { chatml, gemma, llama3, phi, auto }
 
 class OnDeviceLlmModel implements DownloadableAsset {
   final String id;
@@ -53,6 +55,15 @@ class OnDeviceLlmModel implements DownloadableAsset {
   @override
   final String? sha256;
 
+  /// Text appended after the assistant header (e.g. an empty think block to
+  /// switch reasoning off for Qwen3.5-style models).
+  final String assistantPrefix;
+
+  /// Measured on the Pixel 9a (Tensor G4, CPU, 4 threads, 4096 context): prompt
+  /// processing and generation speed in tokens/s; null = not measured.
+  final double? phonePrefillTokS;
+  final double? phoneGenTokS;
+
   const OnDeviceLlmModel({
     required this.id,
     required this.displayName,
@@ -69,12 +80,20 @@ class OnDeviceLlmModel implements DownloadableAsset {
     this.runtime = 'llama.cpp (GGUF, Q4_K_M)',
     this.acceleration = const {AccelBackend.cpu, AccelBackend.vulkan},
     this.sha256,
+    this.assistantPrefix = '',
+    this.phonePrefillTokS,
+    this.phoneGenTokS,
   });
 
   @override
   String get downloadUrl => 'https://huggingface.co/$hfRepo/resolve/main/$fileName';
 
   double get sizeMb => approxSizeBytes / 1048576;
+
+  /// Speed used for time estimates: the measurement when there is one, else a
+  /// size-based guess (generation is memory-bound: roughly 16 GB/s / file size).
+  double get prefillTokS => phonePrefillTokS ?? (110 / (approxSizeBytes / 1e9)).clamp(15, 400).toDouble();
+  double get genTokS => phoneGenTokS ?? (16 / (approxSizeBytes / 1e9)).clamp(1.5, 40).toDouble();
 }
 
 const _apache = 'Apache-2.0';
@@ -217,6 +236,111 @@ const List<OnDeviceLlmModel> kOnDeviceLlmCatalog = [
     license: 'MIT',
     licenseUrl: 'https://huggingface.co/microsoft/Phi-4-mini-instruct/blob/main/LICENSE',
     sha256: '01999f17c39cc3074afae5e9c539bc82d45f2dd7faa3917c66cbef76fce8c0c2',
+  ),
+  OnDeviceLlmModel(
+    id: 'lfm2.5-1.2b',
+    displayName: 'LFM2.5 1.2B Instruct',
+    hfRepo: 'bartowski/LiquidAI_LFM2.5-1.2B-Instruct-GGUF',
+    fileName: 'LiquidAI_LFM2.5-1.2B-Instruct-Q4_K_M.gguf',
+    approxSizeBytes: 730895712,
+    approxRamGb: 1.2,
+    promptFormat: PromptFormatKind.auto,
+    description: 'Liquid AI hybrid model, very fast on phones.',
+    tier: ModelTier.light,
+    minDeviceRamGb: 3,
+    license: 'LFM Open License v1.0 (free below USD 10M revenue)',
+    licenseUrl: 'https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct/blob/main/LICENSE',
+    sha256: 'baaf531531f397456e46b89554fd66f30ec84b57d5b0cfd6365785cd3db12a97',
+  ),
+  OnDeviceLlmModel(
+    id: 'smollm3-3b',
+    displayName: 'SmolLM3 3B',
+    hfRepo: 'bartowski/HuggingFaceTB_SmolLM3-3B-GGUF',
+    fileName: 'HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf',
+    approxSizeBytes: 1915305792,
+    approxRamGb: 2.8,
+    promptFormat: PromptFormatKind.auto,
+    description: 'Hugging Face 3B model; multilingual, long context.',
+    tier: ModelTier.balanced,
+    minDeviceRamGb: 5,
+    license: _apache,
+    licenseUrl: 'https://huggingface.co/HuggingFaceTB/SmolLM3-3B',
+    sha256: '519732558d5fa7420ab058e1b776dcfe73da78013c2fe59c7ca43c325ef89132',
+  ),
+  OnDeviceLlmModel(
+    id: 'granite-4.2-3b',
+    displayName: 'Granite 4.2 3B',
+    hfRepo: 'bartowski/granite-4.2-3b-GGUF',
+    fileName: 'granite-4.2-3b-Q4_K_M.gguf',
+    approxSizeBytes: 2317126048,
+    approxRamGb: 3.1,
+    promptFormat: PromptFormatKind.auto,
+    description: 'IBM Granite 3B instruct, good at structured output.',
+    tier: ModelTier.balanced,
+    minDeviceRamGb: 5,
+    license: _apache,
+    licenseUrl: 'https://huggingface.co/ibm-granite/granite-4.2-3b',
+    sha256: 'd8c0c39e0b775ff4e7ed1ed7f0593d27158acb063b07b132fa4f134b2075567f',
+  ),
+  OnDeviceLlmModel(
+    id: 'ministral-3-3b',
+    displayName: 'Ministral 3 3B Instruct',
+    hfRepo: 'bartowski/mistralai_Ministral-3-3B-Instruct-2512-GGUF',
+    fileName: 'mistralai_Ministral-3-3B-Instruct-2512-Q4_K_M.gguf',
+    approxSizeBytes: 2146498528,
+    approxRamGb: 3.0,
+    promptFormat: PromptFormatKind.auto,
+    description: 'Mistral AI 3B instruct (Dec 2025).',
+    tier: ModelTier.balanced,
+    minDeviceRamGb: 5,
+    license: _apache,
+    licenseUrl: 'https://huggingface.co/mistralai/Ministral-3-3B-Instruct-2512',
+    sha256: 'fec9d28c7f8dab7c6857d54b56c8264cce57d6f6d9003bd4110f6457f071c65a',
+  ),
+  OnDeviceLlmModel(
+    id: 'gemma-3n-e2b',
+    displayName: 'Gemma 3n E2B IT',
+    hfRepo: 'bartowski/google_gemma-3n-E2B-it-GGUF',
+    fileName: 'google_gemma-3n-E2B-it-Q4_K_M.gguf',
+    approxSizeBytes: 2787806304,
+    approxRamGb: 3.5,
+    promptFormat: PromptFormatKind.auto,
+    description: 'Google Gemma 3n, built for phones (text only here).',
+    tier: ModelTier.balanced,
+    minDeviceRamGb: 6,
+    license: _gemma,
+    licenseUrl: 'https://ai.google.dev/gemma/terms',
+    sha256: 'b29adbcff5e0458d8bfa0b26fe6acb2c722f9eaa84890995dfd394d24c236389',
+  ),
+  OnDeviceLlmModel(
+    id: 'gemma-3n-e4b',
+    displayName: 'Gemma 3n E4B IT',
+    hfRepo: 'bartowski/google_gemma-3n-E4B-it-GGUF',
+    fileName: 'google_gemma-3n-E4B-it-Q4_K_M.gguf',
+    approxSizeBytes: 4237064064,
+    approxRamGb: 5.0,
+    promptFormat: PromptFormatKind.auto,
+    description: 'Larger Gemma 3n; needs a lot of free memory.',
+    tier: ModelTier.powerful,
+    minDeviceRamGb: 8,
+    license: _gemma,
+    licenseUrl: 'https://ai.google.dev/gemma/terms',
+    sha256: '70b4129714d30cfd7d36ff449257a2633485693ea6f5da9c2057f20fb7cbe1f8',
+  ),
+  OnDeviceLlmModel(
+    id: 'ministral-3-8b',
+    displayName: 'Ministral 3 8B Instruct',
+    hfRepo: 'bartowski/mistralai_Ministral-3-8B-Instruct-2512-GGUF',
+    fileName: 'mistralai_Ministral-3-8B-Instruct-2512-Q4_K_M.gguf',
+    approxSizeBytes: 5198387456,
+    approxRamGb: 6.5,
+    promptFormat: PromptFormatKind.auto,
+    description: 'Mistral AI 8B instruct (Dec 2025).',
+    tier: ModelTier.powerful,
+    minDeviceRamGb: 10,
+    license: _apache,
+    licenseUrl: 'https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512',
+    sha256: '7deb50ecb3afca928f0aa6dccdb87ed4ce4ab3991797e5fc0e0dedb92754802a',
   ),
   OnDeviceLlmModel(
     id: 'qwen3-8b',

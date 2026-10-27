@@ -26,7 +26,8 @@ class CloudModeSettings {
 /// (`OnDeviceTts`, no download, no cloning) or Kokoro-82M, a real neural
 /// voice model run on-device via ONNX Runtime (`KokoroTtsEngine`,
 /// one-time model download, six exposed preset voices, still no cloning).
-enum BookContentMode { illustrated, novel }
+/// [expressive]: LLM-cast multi-voice novel (experimental, Balanced phones and up).
+enum BookContentMode { illustrated, novel, expressive }
 
 enum OnDeviceVoiceEngine { stockTts, kokoroOnnx }
 
@@ -92,6 +93,12 @@ class OnDeviceModeSettings {
   final String femaleVoice;
   final Map<String, String> characterVoices;
 
+  /// Expressive mode: speech engine (`kokoro` | `piper`), Kokoro v1.0 graph id
+  /// (`kokoro1-int8|fp16|fp32`) and an optional narrator voice id.
+  final String expressiveEngine;
+  final String expressiveKokoroModelId;
+  final String? expressiveNarratorVoice;
+
   const OnDeviceModeSettings({
     this.allowCloudFallback = false,
     this.cloudForAll = false,
@@ -113,6 +120,9 @@ class OnDeviceModeSettings {
     this.maleVoice = 'Adam',
     this.femaleVoice = 'Sarah',
     this.characterVoices = const {},
+    this.expressiveEngine = 'piper',
+    this.expressiveKokoroModelId = 'kokoro1-fp16',
+    this.expressiveNarratorVoice,
   });
 }
 
