@@ -13,6 +13,10 @@ abstract class NarrationEngine {
     required List<CompiledSegment> segments,
     required String sectionDir,
     int pauseMs = 260,
+
+    /// 0-based source pages of the section (the expressive narrator needs them to
+    /// find each quote's cast entry); engines that do not care ignore it.
+    List<int> sourcePages = const [],
   });
 
   void dispose();

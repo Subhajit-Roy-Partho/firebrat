@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'api_client.dart';
+import 'app_network_gate.dart';
 import 'download_task_handler.dart';
 
 /// Phase-aware progress snapshot. The UI shows `downloadedMb/totalMb · pct`
@@ -15,16 +16,23 @@ class DownloadProgress {
   final double fraction; // 0.0–1.0, download mapped to 0–0.92, verify/extract above
   final int receivedBytes;
   final int? totalBytes; // null while the checksum endpoint is unreachable
-  final String phase; // 'downloading' | 'verifying' | 'extracting' | 'done'
+  final String phase; // 'downloading' | 'waiting' | 'verifying' | 'extracting' | 'done'
+
+  /// Set while the "Download over" setting holds the transfer, e.g.
+  /// "Waiting for Wi-Fi". The partial file is kept and the download resumes
+  /// by itself when an allowed network returns.
+  final String? waitingLabel;
 
   const DownloadProgress({
     required this.fraction,
     required this.receivedBytes,
     required this.totalBytes,
     required this.phase,
+    this.waitingLabel,
   });
 
   String get label {
+    if (waitingLabel != null) return '$waitingLabel · ${_mb(receivedBytes)} MB kept';
     final got = _mb(receivedBytes);
     final pct = (fraction.clamp(0.0, 1.0) * 100).toStringAsFixed(0);
     if (totalBytes == null || totalBytes == 0) return '$got MB · $pct%';
@@ -239,12 +247,15 @@ class DownloadManager {
     final zipPath = '${books.path}/$bookId.zip';
     final target = await bookDir(bookId);
 
-    void emit(double fraction, int received, int? total, String phase) {
+    var lastReceived = 0;
+    void emit(double fraction, int received, int? total, String phase, {String? waiting}) {
+      lastReceived = received;
       onProgress?.call(DownloadProgress(
         fraction: fraction.clamp(0.0, 1.0),
         receivedBytes: received,
         totalBytes: total,
-        phase: phase,
+        phase: waiting != null ? 'waiting' : phase,
+        waitingLabel: waiting,
       ));
     }
 
@@ -267,14 +278,26 @@ class DownloadManager {
         final token = CancelToken();
         _tokens[bookId] = token;
         try {
-          await api.downloadBook(
-            bookId,
-            zipPath,
-            expectedTotal: total,
-            cancelToken: token,
-            onBytes: (received, _) {
-              emit(received / total * 0.92, received, total, 'downloading');
-              _updateNotification(bookId, received, total);
+          // "Download over" rule: waits (partial file kept, Range resume) when
+          // the network is not allowed and resumes by itself.
+          await AppNetworkGate.instance.runGated<void>(
+            total,
+            (gateToken) => api.downloadBook(
+              bookId,
+              zipPath,
+              expectedTotal: total,
+              cancelToken: gateToken,
+              onBytes: (received, _) {
+                emit(received / total * 0.92, received, total, 'downloading');
+                _updateNotification(bookId, received, total);
+              },
+            ),
+            userCancel: token,
+            onWaiting: (label) {
+              emit(lastReceived / total * 0.92, lastReceived, total, 'downloading', waiting: label);
+              if (label != null) {
+                DownloadKeepAlive.updateProgress('$label…', bookId);
+              }
             },
           );
           emit(0.94, total, total, 'verifying');

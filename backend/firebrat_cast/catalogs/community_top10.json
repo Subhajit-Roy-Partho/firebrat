@@ -1,0 +1,122 @@
+[
+ {
+  "slug": "alices-adventures-in-wonderland-carroll",
+  "gutenberg": 11,
+  "title": "Alice's Adventures in Wonderland",
+  "author": "Lewis Carroll",
+  "died": 1898,
+  "category": "children",
+  "language": "en",
+  "description": "Alice follows a white rabbit down a hole into a nonsensical world of talking animals, a Mad Tea-Party and the Queen of Hearts (1865).",
+  "sourceUrl": "https://www.gutenberg.org/ebooks/11",
+  "translator": ""
+ },
+ {
+  "slug": "the-picture-of-dorian-gray-wilde",
+  "gutenberg": 174,
+  "title": "The Picture of Dorian Gray",
+  "author": "Oscar Wilde",
+  "died": 1900,
+  "category": "fiction",
+  "language": "en",
+  "description": "A beautiful young man stays unchanged while his portrait bears the marks of his vices (1890/1891).",
+  "sourceUrl": "https://www.gutenberg.org/ebooks/174",
+  "translator": ""
+ },
+ {
+  "slug": "frankenstein-shelley",
+  "gutenberg": 84,
+  "title": "Frankenstein; or, The Modern Prometheus",
+  "author": "Mary Wollstonecraft Shelley",
+  "died": 1851,
+  "category": "fiction",
+  "language": "en",
+  "description": "Victor Frankenstein's creature turns on its maker in the founding novel of science fiction (1818).",
+  "sourceUrl": "https://www.gutenberg.org/ebooks/84",
+  "translator": ""
+ },
+ {
+  "slug": "anne-of-green-gables-montgomery",
+  "gutenberg": 45,
+  "title": "Anne of Green Gables",
+  "author": "L. M. Montgomery",
+  "died": 1942,
+  "category": "fiction",
+  "language": "en",
+  "description": "An imaginative orphan girl is mistakenly sent to an elderly brother and sister on Prince Edward Island (1908).",
+  "sourceUrl": "https://www.gutenberg.org/ebooks/45",
+  "translator": ""
+ },
+ {
+  "slug": "the-adventures-of-sherlock-holmes-doyle",
+  "gutenberg": 1661,
+  "title": "The Adventures of Sherlock Holmes",
+  "author": "Arthur Conan Doyle",
+  "died": 1930,
+  "category": "fiction",
+  "language": "en",
+  "description": "Twelve classic detective stories featuring Sherlock Holmes and Dr Watson (1892).",
+  "sourceUrl": "https://www.gutenberg.org/ebooks/1661",
+  "translator": ""
+ },
+ {
+  "slug": "pride-and-prejudice-austen",
+  "gutenberg": 1342,
+  "title": "Pride and Prejudice",
+  "author": "Jane Austen",
+  "died": 1817,
+  "category": "fiction",
+  "language": "en",
+  "description": "Elizabeth Bennet and Mr Darcy overcome first impressions in Austen's best-loved novel (1813).",
+  "sourceUrl": "https://www.gutenberg.org/ebooks/1342",
+  "translator": ""
+ },
+ {
+  "slug": "dracula-stoker",
+  "gutenberg": 345,
+  "title": "Dracula",
+  "author": "Bram Stoker",
+  "died": 1912,
+  "category": "fiction",
+  "language": "en",
+  "description": "Count Dracula travels from Transylvania to England and a band of friends sets out to stop him (1897).",
+  "sourceUrl": "https://www.gutenberg.org/ebooks/345",
+  "translator": ""
+ },
+ {
+  "slug": "jane-eyre-bronte",
+  "gutenberg": 1260,
+  "title": "Jane Eyre",
+  "author": "Charlotte Brontë",
+  "died": 1855,
+  "category": "fiction",
+  "language": "en",
+  "description": "An orphaned governess finds love and a dark secret at Thornfield Hall (1847).",
+  "sourceUrl": "https://www.gutenberg.org/ebooks/1260",
+  "translator": ""
+ },
+ {
+  "slug": "little-women-alcott",
+  "gutenberg": 37106,
+  "title": "Little Women",
+  "author": "Louisa May Alcott",
+  "died": 1888,
+  "category": "fiction",
+  "language": "en",
+  "description": "The four March sisters grow up in Civil War-era New England (1868-69).",
+  "sourceUrl": "https://www.gutenberg.org/ebooks/37106",
+  "translator": ""
+ },
+ {
+  "slug": "crime-and-punishment-dostoyevsky",
+  "gutenberg": 2554,
+  "title": "Crime and Punishment",
+  "author": "Fyodor Dostoyevsky",
+  "died": 1881,
+  "category": "fiction",
+  "language": "en",
+  "description": "A destitute student commits a murder and is consumed by guilt; translated by Constance Garnett (1866).",
+  "sourceUrl": "https://www.gutenberg.org/ebooks/2554",
+  "translator": "Constance Garnett (d. 1946)"
+ }
+]

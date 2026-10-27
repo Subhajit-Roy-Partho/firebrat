@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/conversion_settings_screen.dart';
 import '../screens/conversions_screen.dart';
 import '../screens/information_screen.dart';
+import '../screens/server_admin_screen.dart';
 import '../screens/sync_screen.dart';
 import '../screens/tour_screen.dart';
 import '../services/auth_service.dart';
+import '../state/server_admin_providers.dart';
 import '../state/on_device_conversion_providers.dart';
 import '../state/avatar_provider.dart';
 import '../state/guest_access_provider.dart';
@@ -118,6 +120,20 @@ class AppDrawer extends ConsumerWidget {
               Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SyncScreen()));
             },
           ),
+          // Admin-only: users, models, run pattern, queue. Hidden for
+          // everyone else (and while IAM is off, unless legacy admin).
+          if (ref.watch(showAdminSectionProvider))
+            ListTile(
+              leading: const Icon(Icons.admin_panel_settings_outlined),
+              title: const Text('Server administration'),
+              subtitle: const Text('Users, models, run pattern, queue'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ServerAdminScreen()),
+                );
+              },
+            ),
           if (email != null)
             ListTile(
               leading: const Icon(Icons.logout_rounded),
@@ -125,6 +141,7 @@ class AppDrawer extends ConsumerWidget {
               onTap: () async {
                 Navigator.of(context).pop();
                 await AuthService.instance.signOut();
+                ref.read(serverAdminProvider.notifier).clear();
                 // AuthGate flips to SignInScreen on authStateChanges.
               },
             )

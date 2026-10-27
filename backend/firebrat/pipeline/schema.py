@@ -162,7 +162,7 @@ class ManifestSection(BaseModel):
     source_pages: list[int] = Field(default_factory=list)
 
 class Manifest(BaseModel):
-    content_mode: Literal["illustrated", "novel"] = "illustrated"
+    content_mode: Literal["illustrated", "novel", "cast"] = "illustrated"
     character_roster: list[dict] = Field(default_factory=list)
     schema_version: str = "1.0"
     book_id: str
@@ -182,3 +182,8 @@ class Manifest(BaseModel):
     figures: list[ManifestFigure] = Field(default_factory=list)
     formulas: list[ManifestFormula] = Field(default_factory=list)
     tables: list[ManifestTable] = Field(default_factory=list)
+    # Expressive-cast packages record their engine + per-character voices
+    # here (e.g. {engine: "qwen3-tts", characters: [...]}) and set
+    # narrator_voice.engine = "qwen3-tts". Old readers ignore it; old
+    # packages omit it and still validate.
+    cast: dict = Field(default_factory=dict)

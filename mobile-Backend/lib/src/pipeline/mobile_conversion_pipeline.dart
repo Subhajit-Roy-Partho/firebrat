@@ -17,11 +17,13 @@ import '../novel/character_traits.dart';
 import '../novel/novel_analyzer.dart';
 import '../models/compiled_models.dart';
 import '../models/conversion_settings.dart';
+import '../models/device_capabilities.dart';
 import '../models/manifest_models.dart';
 import '../tts/kokoro_tts_engine.dart';
 import '../tts/narration_engine.dart';
 import '../tts/on_device_tts.dart';
 import '../util/ids.dart';
+import 'expressive_conversion.dart';
 
 /// Progress reported as the pipeline runs, mirroring the stage names in
 /// `firebrat.pipeline.status` server-side (`extracting`, `compiling`,
@@ -159,8 +161,9 @@ class MobileConversionPipeline {
     if (extraction.pages.isEmpty || extraction.pages.every((p) => p.text.trim().isEmpty)) {
       throw StateError('No readable text was found in this document.');
     }
-    final isNovel = settings.contentMode == BookContentMode.novel;
-    var novelPlan = isNovel ? NovelBookPlan.analyze(extraction.pages, voiceOverrides: settings.characterVoices) : null;
+    final isExpressive = settings.contentMode == BookContentMode.expressive;
+    final isNovel = settings.contentMode == BookContentMode.novel || isExpressive;
+    var novelPlan = settings.contentMode == BookContentMode.novel ? NovelBookPlan.analyze(extraction.pages, voiceOverrides: settings.characterVoices) : null;
     Map<String, dynamic>? researchReport;
     // Automatic character research: needs only an LLM URL, key and model (not the
     // "cloud helper"), and sends just the title and character names.
@@ -316,11 +319,27 @@ class MobileConversionPipeline {
     _report('synthesizing', '0/${compiledSections.length} sections', 0.0);
     final NarrationEngine tts;
     final String narratorEngineName;
-    if (settings.voiceEngine == OnDeviceVoiceEngine.kokoroOnnx) {
-      final kokoro = KokoroTtsEngine(voice: settings.kokoroVoice, acceleration: settings.kokoroAcceleration, cpuThreads: settings.kokoroCpuThreads, maleVoice: settings.maleVoice, femaleVoice: settings.femaleVoice, novelPlan: novelPlan);
+    ExpressivePrepared? expressive;
+    if (isExpressive) {
+      expressive = await prepareExpressive(
+        settings: settings,
+        pages: extraction.pages,
+        bookDir: bookDir,
+        modelsDir: modelsDir,
+        report: (stage, detail, fraction) => _report(stage, detail, fraction),
+      );
+      await File('$bookDir/character_roster.json').writeAsString(jsonEncode(
+          expressive.plan.toRosterJson(scannedPages: extraction.pages.length)));
+      tts = expressive.engine;
+      narratorEngineName = expressive.backend.engineName;
+      _report('synthesizing', 'Narration running on: ${expressive.backend.accelerationStatus}', 0.0);
+    } else if (settings.voiceEngine == OnDeviceVoiceEngine.kokoroOnnx) {
+      final kokoro = KokoroTtsEngine(voice: settings.kokoroVoice, acceleration: settings.kokoroAcceleration, cpuThreads: settings.kokoroCpuThreads, modelId: settings.ttsModelId, device: DeviceCapabilities(totalRamMb: settings.deviceRamMb, androidSdk: settings.androidSdk), maleVoice: settings.maleVoice, femaleVoice: settings.femaleVoice, novelPlan: novelPlan);
       await kokoro.ensureReady(
         onProgress: (progress, status) => _report('synthesizing', status, progress),
       );
+      if (kokoro.modelNote != null) _report('synthesizing', kokoro.modelNote!, 0.0);
+      _report('synthesizing', 'Narration running on: ${kokoro.accelerationStatus}', 0.0);
       tts = kokoro;
       narratorEngineName = 'kokoro_onnx';
     } else {
@@ -336,7 +355,7 @@ class MobileConversionPipeline {
     // played while the rest is still being narrated. Re-converting a book that
     // is already complete keeps its old manifest until the new one is ready.
     final checkpointFile = File('$bookDir/$_checkpointName');
-    final fingerprint = _fingerprint(compiledSections);
+    final fingerprint = _fingerprint(compiledSections) + (expressive == null ? '' : '|${expressive.signature.hashCode}');
     var startIndex = 0;
     try {
       if (await checkpointFile.exists()) {
@@ -382,6 +401,7 @@ class MobileConversionPipeline {
         sourcePdfPath: shippedSourcePdf,
         partial: partial,
         sectionsPlanned: compiledSections.length,
+        cast: expressive?.plan.toManifestJson(),
       );
       // Write beside, then rename: a reader never sees a half-written file.
       final staged = File('$bookDir/manifest.json.tmp');
@@ -411,6 +431,7 @@ class MobileConversionPipeline {
           sectionId: sectionId,
           segments: section.segments,
           sectionDir: sectionDir,
+          sourcePages: section.sourcePages,
         );
 
         if (audioSampleRate != null && audioSampleRate != result.segmentsFile.sampleRate) {

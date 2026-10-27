@@ -53,7 +53,8 @@ def _connect() -> sqlite3.Connection:
                 "model TEXT NOT NULL DEFAULT ''",
                 "content_mode TEXT NOT NULL DEFAULT 'illustrated'",
                 "research_characters INTEGER NOT NULL DEFAULT 0",
-                "character_traits TEXT NOT NULL DEFAULT ''"):
+                "character_traits TEXT NOT NULL DEFAULT ''",
+                "owner_uid TEXT NOT NULL DEFAULT ''"):
         try:
             conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
         except sqlite3.OperationalError:
@@ -70,7 +71,8 @@ def create_job(book_id: str, filename: str, title: str, pdf_path: str,
                provider: str = "nanogpt", chunk_pages: int = 0,
                local_model: str = "", model: str = "",
                content_mode: str = "illustrated",
-               research_characters: bool = False, character_traits: str = "") -> str:
+               research_characters: bool = False, character_traits: str = "",
+               owner_uid: str = "", job_id: str | None = None) -> str:
     """Queue a conversion. provider: 'nanogpt' (cloud endpoint) or 'local'
     (on-server GPU model via FIREBRAT_LOCAL_LLM_URL). chunk_pages > 0
     overrides FIREBRAT_CHUNK_PAGES for this job only (smaller chunks fit
@@ -78,20 +80,22 @@ def create_job(book_id: str, filename: str, title: str, pdf_path: str,
     (the loaded server-side model serves all local jobs). model is a
     cloud-model override for this job only (both LLM tiers use it);
     empty preserves the FIREBRAT_SPARK/DEEPSEEK_MODEL env defaults."""
-    if content_mode not in ("illustrated", "novel"):
-        raise ValueError("content_mode must be illustrated or novel")
+    if content_mode not in ("illustrated", "novel", "cast"):
+        raise ValueError("content_mode must be illustrated, novel or cast")
     if provider not in ("nanogpt", "local"):
         provider = "nanogpt"
-    job_id = uuid.uuid4().hex[:16]
+    # Callers may pre-allocate the id (the upload route names the stored file
+    # after it so two uploads can never share a path).
+    job_id = job_id or uuid.uuid4().hex[:16]
     now = _now()
     conn = _connect()
     try:
         conn.execute(
-            "INSERT INTO jobs (job_id, book_id, filename, title, pdf_path, state, retry_count, created_at, updated_at, provider, chunk_pages, local_model, model, content_mode, research_characters, character_traits) "
-            "VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO jobs (job_id, book_id, filename, title, pdf_path, state, retry_count, created_at, updated_at, provider, chunk_pages, local_model, model, content_mode, research_characters, character_traits, owner_uid) "
+            "VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (job_id, book_id, filename, title, pdf_path, now, now,
              provider, chunk_pages, local_model, model, content_mode,
-             1 if research_characters else 0, character_traits),
+             1 if research_characters else 0, character_traits, owner_uid or ""),
         )
         conn.commit()
     finally:

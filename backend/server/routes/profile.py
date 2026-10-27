@@ -14,10 +14,15 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 
 from server import config
-from server.auth import require_user
+from server.auth import require_role, require_user
 
 log = logging.getLogger("firebrat.server.profile")
 router = APIRouter()
+
+# With IAM on, avatar storage needs an active account with a role (disabled or
+# role-less Google accounts must not get free storage); identical to
+# require_user when IAM is off.
+_active_role = require_role("admin", "user", "viewer")
 
 _EXTS = (".png", ".jpg", ".webp")
 _MEDIA = {".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp"}
@@ -50,16 +55,37 @@ def _find(uid: str) -> str | None:
 @router.get("/me")
 def me(user: dict = Depends(require_user)):
     path = _find(user["uid"])
-    return {
+    base = {
         "uid": user["uid"],
         "email": user.get("email"),
+        "name": user.get("name") or "",
+        "role": None,
         "has_avatar": path is not None,
         "avatar_updated_at": int(os.path.getmtime(path)) if path else None,
+    }
+    if not config.iam_enabled():
+        return {**base, "iam_enabled": False, "needs_setup": False}
+    # First sign-in with a verified invited email links the uid and
+    # activates the user; existing users just get last_seen refreshed.
+    from server import iam as _iam
+    _iam.claim_invite(user)
+    _iam.try_email_bootstrap(user)  # FIREBRAT_ADMIN_EMAILS, verified emails only
+    needs = _iam.needs_setup()
+    if needs:
+        _iam.ensure_setup_code()
+    row = _iam.get_user(user["uid"]) or {}
+    return {
+        **base,
+        "name": user.get("name") or row.get("name") or "",
+        "role": _iam.get_role(user),
+        "status": row.get("status"),
+        "iam_enabled": True,
+        "needs_setup": needs,
     }
 
 
 @router.put("/me/avatar")
-async def put_avatar(file: UploadFile, user: dict = Depends(require_user)):
+async def put_avatar(file: UploadFile, user: dict = Depends(_active_role)):
     limit = config.MAX_AVATAR_KB * 1024
     data = await file.read(limit + 1)
     if len(data) > limit:
@@ -84,7 +110,7 @@ async def put_avatar(file: UploadFile, user: dict = Depends(require_user)):
 
 
 @router.get("/me/avatar")
-def get_avatar(user: dict = Depends(require_user)):
+def get_avatar(user: dict = Depends(_active_role)):
     path = _find(user["uid"])
     if path is None:
         raise HTTPException(status_code=404, detail="no avatar set")
@@ -93,7 +119,7 @@ def get_avatar(user: dict = Depends(require_user)):
 
 
 @router.delete("/me/avatar", status_code=204)
-def delete_avatar(user: dict = Depends(require_user)):
+def delete_avatar(user: dict = Depends(_active_role)):
     path = _find(user["uid"])
     if path is not None:
         os.remove(path)

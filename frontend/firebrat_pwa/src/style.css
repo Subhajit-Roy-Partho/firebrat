@@ -5,3 +5,17 @@
 .brand{display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap}.brand-icon{width:2rem;height:2rem;border-radius:.5rem;flex-shrink:0}#connection{flex:1;min-width:0;text-align:center;font-size:.8rem}
 
 .information-links{max-width:1000px;margin:0 auto 30px;padding:20px 18px;display:flex;flex-wrap:wrap;gap:12px 24px;border-top:1px solid #555d80;font-size:.9rem}.information-links a{color:var(--muted)}
+
+#community{padding:0}#community-bar{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:.4rem 1rem}#community-bar p{margin:0;font-size:.85rem}#community-open{font-size:.85rem;white-space:nowrap}#community-frame{display:block;width:100%;height:calc(100dvh - 9.5rem);min-height:480px;border:0;background:var(--bg);opacity:0;transition:opacity .25s ease}#community-frame.ready{opacity:1}
+
+/* Server administration (INTEGRATION2): same surfaces, no new palette. */
+#server-admin .card{margin:16px 0}
+#server-admin h3{margin-top:0}
+.admin-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--bg);border:1px solid #555d80;border-radius:12px;padding:10px 12px;margin:8px 0}
+.admin-row span{flex:1;min-width:140px}
+.admin-row select{width:auto;min-width:110px;flex:0 1 auto}
+.admin-row button{min-height:40px;padding:8px 12px}
+#setup-block{max-width:650px}
+#server-admin .warn,#set-llm-note.warn,#set-tts-note.warn{color:#ffd37a}
+#server-admin fieldset.quiet{border:1px solid #555d80;border-radius:12px;margin:12px 0}
+#server-admin legend{padding:0 6px}

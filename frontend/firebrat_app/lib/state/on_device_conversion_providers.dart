@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart' show AcceleratorPreference, kDefaultTtsModelId;
 import '../utils/server_url.dart';
 
 /// How the app should convert a new PDF: send it to a Firebrat server
@@ -46,11 +47,20 @@ class ConversionModeSettings {
   final String voiceEngine;
   /// Kokoro preset voice name (kKokoroVoices), only used for kokoroOnnx.
   final String kokoroVoice;
+  /// 'auto' | 'gpuNpu' | 'cpu' (see AcceleratorPreference). Legacy saved
+  /// values 'cpu'/'nnapi' are migrated on load.
   final String kokoroAcceleration;
+  /// Catalog id of the Kokoro model file (tts_model_catalog.dart).
+  final String ttsModelId;
   final int kokoroCpuThreads;
   final String maleVoice;
   final String femaleVoice;
   final Map<String, String> characterVoices;
+  /// Expressive on-device mode: speech engine 'piper' | 'kokoro', Kokoro v1.0
+  /// graph id (kokoro1-int8|fp16|fp32) and an optional narrator voice id.
+  final String expressiveEngine;
+  final String expressiveKokoroModelId;
+  final String? expressiveNarratorVoice;
 
   const ConversionModeSettings({
     this.mode = ConversionModePref.offline,
@@ -72,11 +82,15 @@ class ConversionModeSettings {
     this.onDeviceGpuLayers = 0,
     this.voiceEngine = 'kokoroOnnx',
     this.kokoroVoice = 'Bella',
-    this.kokoroAcceleration = 'cpu',
+    this.kokoroAcceleration = 'auto',
+    this.ttsModelId = kDefaultTtsModelId,
     this.kokoroCpuThreads = 2,
     this.maleVoice = 'Adam',
     this.femaleVoice = 'Sarah',
     this.characterVoices = const {},
+    this.expressiveEngine = 'piper',
+    this.expressiveKokoroModelId = 'kokoro1-fp16',
+    this.expressiveNarratorVoice,
   });
 
   ConversionModeSettings copyWith({
@@ -100,8 +114,13 @@ class ConversionModeSettings {
     String? voiceEngine,
     String? kokoroVoice,
     String? kokoroAcceleration,
+    String? ttsModelId,
     int? kokoroCpuThreads,
     String? maleVoice, String? femaleVoice, Map<String, String>? characterVoices,
+    String? expressiveEngine,
+    String? expressiveKokoroModelId,
+    String? expressiveNarratorVoice,
+    bool clearExpressiveNarrator = false,
   }) =>
       ConversionModeSettings(
         mode: mode ?? this.mode,
@@ -124,13 +143,17 @@ class ConversionModeSettings {
         voiceEngine: voiceEngine ?? this.voiceEngine,
         kokoroVoice: kokoroVoice ?? this.kokoroVoice,
         kokoroAcceleration: kokoroAcceleration ?? this.kokoroAcceleration,
+        ttsModelId: ttsModelId ?? this.ttsModelId,
         kokoroCpuThreads: kokoroCpuThreads ?? this.kokoroCpuThreads,
         maleVoice: maleVoice ?? this.maleVoice, femaleVoice: femaleVoice ?? this.femaleVoice,
         characterVoices: characterVoices ?? this.characterVoices,
+        expressiveEngine: expressiveEngine ?? this.expressiveEngine,
+        expressiveKokoroModelId: expressiveKokoroModelId ?? this.expressiveKokoroModelId,
+        expressiveNarratorVoice: clearExpressiveNarrator ? null : (expressiveNarratorVoice ?? this.expressiveNarratorVoice),
       );
 
   bool get isOnDeviceConfigured =>
-      contentMode == 'novel' || !allowCloudFallback || (onDeviceLlmUrl.trim().isNotEmpty && onDeviceLlmApiKey.trim().isNotEmpty && onDeviceLlmModel.trim().isNotEmpty);
+      contentMode == 'novel' || contentMode == 'expressive' || !allowCloudFallback || (onDeviceLlmUrl.trim().isNotEmpty && onDeviceLlmApiKey.trim().isNotEmpty && onDeviceLlmModel.trim().isNotEmpty);
 
   bool get isKokoroVoice => voiceEngine == 'kokoroOnnx';
 }
@@ -183,16 +206,24 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
       onDeviceGpuLayers: prefs.getInt(_kGpuLayers) ?? 0,
       voiceEngine: prefs.getString(_kVoiceEngine) ?? 'kokoroOnnx',
       kokoroVoice: prefs.getString(_kKokoroVoice) ?? 'Bella',
-      kokoroAcceleration: prefs.getString('conversion.kokoroAcceleration') ?? 'cpu',
+      kokoroAcceleration: AcceleratorPreference.parse(prefs.getString('conversion.kokoroAcceleration')).storageValue,
+      ttsModelId: prefs.getString('conversion.ttsModelId') ?? kDefaultTtsModelId,
       kokoroCpuThreads: (prefs.getInt('conversion.kokoroCpuThreads') ?? 2).clamp(1, 4),
       maleVoice: prefs.getString('conversion.maleVoice') ?? 'Adam',
       femaleVoice: prefs.getString('conversion.femaleVoice') ?? 'Sarah',
       characterVoices: Map<String, String>.from(jsonDecode(prefs.getString('conversion.characterVoices') ?? '{}') as Map),
+      expressiveEngine: prefs.getString('conversion.expressiveEngine') ?? 'piper',
+      expressiveKokoroModelId: prefs.getString('conversion.expressiveKokoroModelId') ?? 'kokoro1-fp16',
+      expressiveNarratorVoice: prefs.getString('conversion.expressiveNarratorVoice'),
     );
   }
 
   Future<void> setContentMode(String mode) async {
-    if (mode != 'illustrated' && mode != 'novel') throw ArgumentError.value(mode);
+    // 'cast' is the SERVER's expressive upload mode; 'expressive' is the
+    // on-device LLM-cast multi-voice mode (experimental, Balanced phones and up).
+    if (mode != 'illustrated' && mode != 'novel' && mode != 'cast' && mode != 'expressive') {
+      throw ArgumentError.value(mode);
+    }
     state = state.copyWith(contentMode: mode);
     await (await SharedPreferences.getInstance()).setString('conversion.contentMode', mode);
   }
@@ -203,9 +234,14 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
   }
 
   Future<void> setKokoroAcceleration(String value) async {
-    if (value != 'cpu' && value != 'nnapi') throw ArgumentError.value(value);
-    state = state.copyWith(kokoroAcceleration: value);
-    await (await SharedPreferences.getInstance()).setString('conversion.kokoroAcceleration', value);
+    final parsed = AcceleratorPreference.parse(value).storageValue; // also maps legacy 'nnapi'
+    state = state.copyWith(kokoroAcceleration: parsed);
+    await (await SharedPreferences.getInstance()).setString('conversion.kokoroAcceleration', parsed);
+  }
+
+  Future<void> setTtsModel(String id) async {
+    state = state.copyWith(ttsModelId: id);
+    await (await SharedPreferences.getInstance()).setString('conversion.ttsModelId', id);
   }
 
   Future<void> setKokoroCpuThreads(int value) async {
@@ -298,6 +334,28 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
     await prefs.setString('conversion.maleVoice', state.maleVoice);
     await prefs.setString('conversion.femaleVoice', state.femaleVoice);
     await prefs.setString('conversion.characterVoices', jsonEncode(state.characterVoices));
+  }
+
+  Future<void> setExpressiveEngine(String engine) async {
+    state = state.copyWith(expressiveEngine: engine, clearExpressiveNarrator: true);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('conversion.expressiveEngine', engine);
+    await prefs.remove('conversion.expressiveNarratorVoice');
+  }
+
+  Future<void> setExpressiveKokoroModel(String id) async {
+    state = state.copyWith(expressiveKokoroModelId: id);
+    await (await SharedPreferences.getInstance()).setString('conversion.expressiveKokoroModelId', id);
+  }
+
+  Future<void> setExpressiveNarrator(String? voice) async {
+    state = state.copyWith(expressiveNarratorVoice: voice, clearExpressiveNarrator: voice == null);
+    final prefs = await SharedPreferences.getInstance();
+    if (voice == null) {
+      await prefs.remove('conversion.expressiveNarratorVoice');
+    } else {
+      await prefs.setString('conversion.expressiveNarratorVoice', voice);
+    }
   }
 
   Future<void> setKokoroVoice(String voice) async {

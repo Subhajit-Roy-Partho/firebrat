@@ -20,6 +20,7 @@
     <ul class="nav-links" id="nav-links">
       <li><a href="index.html">Home</a></li>
       <li><a href="guide.html" aria-current="page">Get started</a></li>
+      <li><a href="community.html">Community</a></li>
       <li><a href="architecture.html">How it works</a></li>
       <li><a href="about.html">Accessibility mission</a></li>
       <li><a href="https://github.com/Subhajit-Roy-Partho/firebrat">GitHub</a></li>
@@ -46,6 +47,7 @@
       <a class="btn btn-primary" href="#free-llm">Set up a free LLM</a>
       <a class="btn btn-ghost" href="#private">Stay private and offline</a>
       <a class="btn btn-ghost" href="#drive">Google Drive sync</a>
+      <a class="btn btn-ghost" href="#android-update">What&rsquo;s new</a>
     </div>
   </div>
 </header>
@@ -143,7 +145,7 @@
     <div class="section-head">
       <span class="eyebrow">On-device</span>
       <h2>Choosing a local model for your phone</h2>
-      <p>Bigger models read hard passages better but need more memory and time. Listed from lightest to heaviest (approximate RAM while converting). If Android closes the app or conversion stalls, step down a size or set the GPU acceleration slider to 0.</p>
+      <p>Bigger models read hard passages better but need more memory and time. Listed from lightest to heaviest (approximate RAM while converting). The app now offers more, larger models than this table shows; see <a href="#android-update">what&rsquo;s new</a>. If Android closes the app or conversion stalls, step down a size or set the GPU acceleration slider to 0.</p>
     </div>
     <div class="prose" style="max-width:820px;margin:auto">
       <table style="width:100%;border-collapse:collapse">
@@ -216,6 +218,44 @@ Queen of Hearts=female stern</code></pre>
   </div>
 </section>
 
+<section id="android-update">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">What&rsquo;s new in the Android app</span>
+      <h2>Community, bigger model choices, and server administration</h2>
+      <p>Recent additions. Items marked <span class="status-pill untested">Not yet tried on a device</span> are covered by unit tests and static analysis but have not been run on a phone.</p>
+    </div>
+    <div class="grid grid-2" style="align-items:start">
+      <div class="card">
+        <h3>Community screen <span class="status-pill untested">Not yet tried on a device</span></h3>
+        <p>Open <strong>Community</strong> from your library to browse the <a href="community.html">free, copyright-free library</a> and choose <strong>Add to my library</strong>. Downloads come only from archive.org. The library is new and may have few books yet.</p>
+      </div>
+      <div class="card">
+        <h3>Focus mode shows section figures</h3>
+        <p>Focus (zoomed-in) mode now shows a figure or table linked to the whole section, not only one tied to the sentence being read, and thumbnails are shown uncropped on white. This was checked on a Pixel 9a with a book whose figures had been re-linked by their captions.</p>
+      </div>
+      <div class="card">
+        <h3>On-device model catalogue <span class="status-pill untested">Not yet tried on a device</span></h3>
+        <p>The language-model list grew to 13 models, grouped by tier: <strong>Light</strong>, <strong>Balanced</strong>, <strong>Powerful</strong> and <strong>Desktop-class</strong>. Each shows its size, an estimated minimum RAM and its licence, and the app recommends the largest one your phone should handle and warns when a choice looks too big. The RAM figures are estimates, and a very large model can still be closed by Android. Llama and Gemma models carry their own non-permissive licences, shown in the list.</p>
+        <p>The Kokoro voice has three variants: <strong>int8</strong> (the default, the one that has been used on a phone), <strong>fp16</strong> and <strong>fp32</strong>, plus five extra voices, for 11 voices in all. Only int8 has been run on a device.</p>
+      </div>
+      <div class="card">
+        <h3>Speech accelerator: Auto, GPU/NPU or CPU</h3>
+        <p>Conversion settings has a choice for the speech engine. <strong>Auto</strong> uses the CPU for the default model. <strong>GPU / NPU</strong> asks Android&rsquo;s accelerator interface first and falls back to the CPU automatically if it fails. <strong>CPU</strong> always uses the CPU. A <strong>Running on</strong> line shows what was actually used after a narration.</p>
+        <p><strong>Please expect little gain.</strong> Kokoro GPU or NPU acceleration could not be verified: the available packages cannot reach a phone&rsquo;s GPU or NPU for this model in a way we could confirm, and the Android interface does not handle the model&rsquo;s changing input sizes well. In measurements on a Pixel 9a the accelerator request fell back to the CPU and was slower; CPU stays recommended. See <a href="benchmarks.html">the benchmarks</a>.</p>
+      </div>
+      <div class="card">
+        <h3>Download over: Wi-Fi or cellular <span class="status-pill untested">Not yet tried on a device</span></h3>
+        <p>At the bottom of Conversion settings, <strong>Download over</strong> lets you choose <strong>Wi-Fi only</strong>, <strong>Wi-Fi and cellular</strong> (the default) or <strong>Ask on cellular</strong> for downloads over 50 MB. When a download is not allowed it waits for Wi-Fi and resumes by itself. It covers model downloads, book downloads, Drive sync and Community downloads. The app cannot see Android&rsquo;s metered-connection flag, so a metered hotspot looks like Wi-Fi.</p>
+      </div>
+      <div class="card">
+        <h3>Server administration screens <span class="status-pill untested">Not yet tried on a device</span></h3>
+        <p>If you run your own server with accounts turned on (see <a href="architecture.html#server-admin">server administration</a>), the app shows a setup screen for the first admin and, for admins, <strong>Server administration</strong> with Users, Models, Run pattern and Queue. Viewers see &ldquo;Your account can only listen&rdquo; and no upload button. The <strong>Expressive voices</strong> book type appears only when the server offers it and your role allows uploads.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="alt" id="app-guide">
   <div class="wrap">
     <div class="section-head">
@@ -250,6 +290,7 @@ Queen of Hearts=female stern</code></pre>
     <p>Firebrat is licensed under the <a href="https://github.com/Subhajit-Roy-Partho/firebrat/blob/master/LICENSE">GNU AGPL-3.0</a>.</p>
     <ul class="footer-links">
       <li><a href="guide.html">Get started</a></li>
+      <li><a href="community.html">Community</a></li>
       <li><a href="architecture.html">How it works</a></li>
       <li><a href="about.html">Accessibility mission</a></li>
       <li><a href="https://github.com/Subhajit-Roy-Partho/firebrat">GitHub</a></li>

@@ -61,6 +61,55 @@ def _job_log_path(book_id: str) -> str:
     return os.path.join(config.OUTPUT_DIR, book_id, "convert_stdout.log")
 
 
+# Poll interval for the cast scheduler state files (seconds). Tests with a
+# fake scheduler dir monkeypatch this down so the mirror loop stays fast.
+_CAST_POLL_S = 2.0
+
+
+def _run_cast_job(job_id: str, job: dict, pkg_dir: str) -> None:
+    """Run a cast job: write the scheduler inbox entry, then mirror the
+    scheduler's progress into status.json until it reports done/failed.
+
+    The scheduler owns retries/resume (its state.json is resumable) — a
+    re-enqueued cast job just rewrites the same inbox entry and picks up
+    where the scheduler left off. Never raises: all failures mark the job
+    failed with a readable reason instead of killing the worker thread.
+    """
+    from server import cast_bridge
+    try:
+        slug = cast_bridge.write_inbox_entry(
+            job["book_id"], job["title"], job["pdf_path"])
+    except Exception as e:
+        log.exception("Cast job %s failed to write inbox entry", job_id)
+        jobs.set_state(job_id, "failed", error=str(e))
+        return
+    cast_bridge.mirror_status(pkg_dir, cast_bridge.cast_job_view(slug))
+    log.info("Cast job %s (%s) handed to scheduler as %s", job_id, job["book_id"], slug)
+    while True:
+        time.sleep(_CAST_POLL_S)
+        if (jobs.get_job(job_id) or {}).get("state") == "cancelled":
+            # Cancelled while waiting: keep the terminal cancelled state.
+            log.info("Cast job %s (%s) was cancelled, leaving state", job_id, job["book_id"])
+            return
+        try:
+            view = cast_bridge.cast_job_view(slug)
+        except Exception:
+            log.exception("Cast job %s progress read failed", job_id)
+            continue
+        try:
+            cast_bridge.mirror_status(pkg_dir, view)
+        except Exception:
+            log.exception("Cast job %s status mirror failed", job_id)
+        if view["terminal"] == "done":
+            jobs.set_state(job_id, "done")
+            log.info("Cast job %s (%s) finished successfully", job_id, job["book_id"])
+            return
+        if view["terminal"] == "failed":
+            jobs.set_state(job_id, "failed", error=view["error"] or "cast scheduler reported failure")
+            log.error("Cast job %s (%s) failed: %s", job_id, job["book_id"], view["error"])
+            return
+
+
 def skip_extraction_arg_for_stage(stage: str | None) -> list[str]:
     """Shared with server/routes/jobs.py's retry/resume endpoints so both
     apply the same "never redo a stage that already produced output" rule.
@@ -85,13 +134,20 @@ def _run_job(job_id: str, extra_args: list[str]) -> None:
     jobs.set_state(job_id, "running")
     pkg_dir = os.path.join(config.OUTPUT_DIR, job["book_id"])
     os.makedirs(pkg_dir, exist_ok=True)
+    if (job.get("content_mode") or "") == "cast":
+        # Expressive-cast jobs never run convert.py: the scheduler owns the
+        # pipeline, this worker only feeds it and mirrors its progress.
+        _run_cast_job(job_id, job, pkg_dir)
+        return
     log_path = _job_log_path(job["book_id"])
 
     cmd = [
         config.CONVERT_PY, config.CONVERT_SCRIPT, job["pdf_path"],
         "--output", config.OUTPUT_DIR,
         "--book-id", job["book_id"],
-        "--title", job["title"],
+        # `--opt=value` form: a user-chosen title starting with "-" must
+        # not be parsed as another option by argparse.
+        f"--title={job['title']}",
         *extra_args,
     ]
     if job.get("content_mode") == "novel":
@@ -100,7 +156,7 @@ def _run_job(job_id: str, extra_args: list[str]) -> None:
             cmd += ["--research-characters"]
         for line in (job.get("character_traits") or "").splitlines():
             if line.strip():
-                cmd += ["--character-trait", line.strip()]
+                cmd += [f"--character-trait={line.strip()}"]
     # Per-job conversion options (see jobs.create_job): a local-provider
     # job points the pipeline at the on-server LLM shim, and a chunk_pages
     # override rides along as FIREBRAT_CHUNK_PAGES for this subprocess
@@ -179,7 +235,7 @@ def _run_job(job_id: str, extra_args: list[str]) -> None:
             except Exception:
                 log.exception("FCM notify failed for job %s", job_id)
         else:
-            jobs.set_state(job_id, "failed", error=f"convert.py exited {returncode} — see {log_path}")
+            jobs.set_state(job_id, "failed", error=f"convert.py exited {returncode} — see the job log")
             log.error("Job %s (%s) failed with exit code %d", job_id, job["book_id"], returncode)
             try:
                 from server import auth as _auth

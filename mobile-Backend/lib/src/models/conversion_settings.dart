@@ -26,7 +26,8 @@ class CloudModeSettings {
 /// (`OnDeviceTts`, no download, no cloning) or Kokoro-82M, a real neural
 /// voice model run on-device via ONNX Runtime (`KokoroTtsEngine`,
 /// one-time model download, six exposed preset voices, still no cloning).
-enum BookContentMode { illustrated, novel }
+/// [expressive]: LLM-cast multi-voice novel (experimental, Balanced phones and up).
+enum BookContentMode { illustrated, novel, expressive }
 
 enum OnDeviceVoiceEngine { stockTts, kokoroOnnx }
 
@@ -76,11 +77,27 @@ class OnDeviceModeSettings {
   /// Kokoro preset voice name (see `tts/kokoro_tts_engine.dart`'s
   /// `kKokoroVoices`), only used when [voiceEngine] is `kokoroOnnx`.
   final String kokoroVoice;
+
+  /// `auto`, `gpuNpu` or `cpu` (legacy `nnapi` is read as `gpuNpu`).
   final String kokoroAcceleration;
+
+  /// Catalog id of the Kokoro model file (`tts_model_catalog.dart`).
+  final String ttsModelId;
+
+  /// Probed by the app so background code can plan accelerators / warnings
+  /// without device plugins. Null when unknown.
+  final int? deviceRamMb;
+  final int? androidSdk;
   final int kokoroCpuThreads;
   final String maleVoice;
   final String femaleVoice;
   final Map<String, String> characterVoices;
+
+  /// Expressive mode: speech engine (`kokoro` | `piper`), Kokoro v1.0 graph id
+  /// (`kokoro1-int8|fp16|fp32`) and an optional narrator voice id.
+  final String expressiveEngine;
+  final String expressiveKokoroModelId;
+  final String? expressiveNarratorVoice;
 
   const OnDeviceModeSettings({
     this.allowCloudFallback = false,
@@ -96,10 +113,16 @@ class OnDeviceModeSettings {
     this.voiceEngine = OnDeviceVoiceEngine.kokoroOnnx,
     this.kokoroVoice = 'Bella',
     this.kokoroAcceleration = 'cpu',
+    this.ttsModelId = 'kokoro-int8',
+    this.deviceRamMb,
+    this.androidSdk,
     this.kokoroCpuThreads = 2,
     this.maleVoice = 'Adam',
     this.femaleVoice = 'Sarah',
     this.characterVoices = const {},
+    this.expressiveEngine = 'piper',
+    this.expressiveKokoroModelId = 'kokoro1-fp16',
+    this.expressiveNarratorVoice,
   });
 }
 

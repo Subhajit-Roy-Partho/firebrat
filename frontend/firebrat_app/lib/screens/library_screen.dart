@@ -19,6 +19,7 @@ import '../widgets/app_drawer.dart';
 import '../widgets/book_card.dart';
 import '../widgets/book_cover.dart';
 import 'chapter_reader_screen.dart';
+import 'community_screen.dart';
 import '../state/cast_provider.dart';
 import 'cast_screen.dart';
 import 'conversions_screen.dart';
@@ -84,6 +85,13 @@ class LibraryScreen extends ConsumerWidget {
               PopupMenuItem(value: ThemeMode.light, child: Text('Light')),
               PopupMenuItem(value: ThemeMode.dark, child: Text('Dark')),
             ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.public_rounded),
+            tooltip: 'Community',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const CommunityScreen()),
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.cloud_upload_rounded),
@@ -382,6 +390,10 @@ class LibraryScreen extends ConsumerWidget {
   /// Long-press action sheet for a book card: open/download plus delete
   /// from device and/or server (each behind a confirm dialog — server
   /// deletion is irreversible).
+  // NOTE: no "Share to Community" entry here — sharing goes through the
+  // community website submit flow
+  // (https://subhajit-roy-partho.github.io/firebrat/community/#/submit),
+  // not the app, so there is nothing trivial to wire into this sheet.
   Future<void> _showBookActions(
       BuildContext context, WidgetRef ref, BookSummary book, bool isLocal) async {
     // Load the cast first: a provider read inside the sheet would still be empty.

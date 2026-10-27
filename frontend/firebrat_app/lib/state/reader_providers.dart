@@ -64,10 +64,22 @@ class ReaderState {
 
   ManifestSection get section => manifest.sections[sectionIndex];
 
+  /// Figures/tables linked to the section as a whole (e.g. relinked by caption)
+  /// are not tied to a narrated segment, so no `figure_callout` ever selects
+  /// them. When the narration has not reached a visual, Focus Mode and the
+  /// lock-screen art fall back to the section's first linked picture instead
+  /// of showing text only.
+  String? get _sectionFallbackVisualId {
+    for (final id in [...section.figureRefs, ...section.tableRefs]) {
+      if (assetPaths.containsKey(id)) return id;
+    }
+    return null;
+  }
+
   /// The image/formula that should be on screen right now (Focus Mode,
   /// lock-screen art), or null if the section hasn't reached one yet.
   VisualItem? get currentVisual {
-    final id = currentVisualId;
+    final id = currentVisualId ?? _sectionFallbackVisualId;
     if (id == null) return null;
     final path = assetPaths[id];
     if (path == null) return null;

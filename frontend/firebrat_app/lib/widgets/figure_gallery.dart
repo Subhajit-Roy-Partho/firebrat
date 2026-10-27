@@ -61,9 +61,10 @@ class _FigureCard extends StatelessWidget {
           children: [
             Expanded(
               child: Container(
-                color: scheme.surfaceContainerHighest,
+                // Diagrams and tables are drawn for white paper; show them whole (not cropped) on white.
+                color: Colors.white,
                 child: File(item.imagePath).existsSync()
-                    ? Image.file(File(item.imagePath), fit: BoxFit.cover, width: double.infinity)
+                    ? Image.file(File(item.imagePath), fit: BoxFit.contain, width: double.infinity)
                     : const Center(child: Icon(Icons.image_not_supported_outlined)),
               ),
             ),

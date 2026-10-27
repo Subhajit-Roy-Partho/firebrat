@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Community library — Firebrat</title>
+<meta name="description" content="Firebrat Community is a free library of copyright-free audiobooks hosted on the Internet Archive. How to listen, how to submit a book, what counts as copyright-free, and how takedown notices work.">
+<link rel="icon" href="assets/favicon-64.png" type="image/png">
+<link rel="apple-touch-icon" href="assets/favicon-180.png">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<nav class="site-nav">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <img class="mark" src="assets/favicon-64.png" alt="" aria-hidden="true">
+      Firebrat
+    </a>
+    <ul class="nav-links" id="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="guide.html">Get started</a></li>
+      <li><a href="community.html" aria-current="page">Community</a></li>
+      <li><a href="architecture.html">How it works</a></li>
+      <li><a href="about.html">Accessibility mission</a></li>
+      <li><a href="https://github.com/Subhajit-Roy-Partho/firebrat">GitHub</a></li>
+    </ul>
+    <div class="nav-actions">
+      <button class="icon-btn" id="theme-toggle" aria-label="Toggle theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+      <button class="icon-btn nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <a class="btn btn-primary" href="https://github.com/Subhajit-Roy-Partho/firebrat/releases/latest">Get the app</a>
+    </div>
+  </div>
+</nav>
+
+<header class="page-header">
+  <div class="wrap">
+    <span class="eyebrow">Free to listen · free to share</span>
+    <h1 class="wide">Firebrat Community: a free library of copyright-free audiobooks</h1>
+    <p>Anyone can listen, download and rate books. Anyone with a copyright-free audiobook in the Firebrat format can add one. The audio itself lives on the Internet Archive, so the library does not depend on a server of ours.</p>
+    <div class="hero-actions" style="margin-top:22px">
+      <a class="btn btn-primary" href="../community/">Open the live library</a>
+      <a class="btn btn-ghost" href="#submit">How to submit a book</a>
+    </div>
+    <ul class="toc" aria-label="On this page">
+      <li><a href="#what">What it is</a></li>
+      <li><a href="#listen">Listen and download</a></li>
+      <li><a href="#submit">Submit a book</a></li>
+      <li><a href="#provenance">How this audio was made</a></li>
+      <li><a href="#copyright-free">What counts as copyright-free</a></li>
+      <li><a href="#feedback">Ratings, comments, reports</a></li>
+      <li><a href="#takedown">Copyright takedown</a></li>
+    </ul>
+  </div>
+</header>
+
+<section style="padding-top:24px">
+  <div class="wrap prose" style="max-width:820px">
+    <div class="note">
+      <p><strong>The library is new.</strong> The first books are still being produced, so the shelves may be empty or nearly empty when you visit. That is expected for now. This page describes how the library works, not what is on its shelves.</p>
+    </div>
+  </div>
+</section>
+
+<section id="what" style="padding-top:24px">
+  <div class="wrap prose" style="max-width:820px">
+    <h2>What it is</h2>
+    <p>Firebrat Community is a small website with one job: help people find and share audiobooks that anyone may freely copy and listen to. It has three parts that fit together.</p>
+    <ul>
+      <li><strong>The audio is hosted on the <a href="https://archive.org">Internet Archive</a>.</strong> A book is one item there: a zip (or a folder) in the ordinary Firebrat book format. Downloads come straight from archive.org.</li>
+      <li><strong>The listings are kept in Firestore.</strong> Title, author, language, category, licence, the chapter list, ratings, comments and reports live in the project&rsquo;s Firebase database. No audio is stored there.</li>
+      <li><strong>It is a static website</strong> with sign-in through Firebase Auth (Google or email). The same site is built into the web app as the <em>Discover</em> tab and into the Android app as the <em>Community</em> screen.</li>
+    </ul>
+    <p>Because every book uses the standard package format, a book from the library opens in Firebrat exactly like one you converted yourself: sentence-by-sentence highlighting, tap-to-seek, and offline playback once downloaded. See <a href="https://github.com/Subhajit-Roy-Partho/firebrat/blob/master/docs/DATA_SCHEMA.md">DATA_SCHEMA.md</a> for the format.</p>
+  </div>
+</section>
+
+<section class="alt" id="listen">
+  <div class="wrap prose" style="max-width:820px">
+    <h2>Listen and download</h2>
+    <p>You can browse the library without an account. Signing in is needed to rate, comment, report, submit or save favourites.</p>
+    <h3>On the web</h3>
+    <ul>
+      <li>Open the <a href="../community/">live library</a> directly, or use the <strong>Discover</strong> tab inside the Firebrat web app.</li>
+      <li>Search by title or tag, and filter by category, language and licence. Sort by newest, top rated or longest.</li>
+      <li>A book page shows the cover, rating, the &ldquo;How this audio was made&rdquo; card, and a chapter list. Chapters play right in the page, and a mini-player stays at the bottom while you browse.</li>
+      <li><strong>Download</strong> gives you the zip from the Internet Archive. Import it in the Firebrat app (the import button in your library) and it works fully offline.</li>
+    </ul>
+    <h3>On Android</h3>
+    <ul>
+      <li>Open <strong>Community</strong> from the library screen, pick a book and choose <strong>Add to my library</strong>. It downloads from archive.org hosts only, and respects the <a href="guide.html#android-update">Download over</a> setting (Wi-Fi only, Wi-Fi and cellular, or ask on cellular).</li>
+      <li>A download that is interrupted restarts from the beginning.</li>
+      <li><span class="status-pill untested">Not yet tried on a device</span> The Community screen is covered by unit tests and static analysis, but has not yet been exercised on a phone.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="submit">
+  <div class="wrap prose" style="max-width:820px">
+    <h2>Submit a book</h2>
+    <p>You need a Firebrat account, a finished audiobook package, and the right to share it (see <a href="#copyright-free">what counts as copyright-free</a>). The <strong>Submit</strong> page is a four-step wizard: Source, Package check, Details and provenance, then Rights attestation and review.</p>
+
+    <h3>The package</h3>
+    <p>A zip (or an unzipped folder) containing <code>manifest.json</code> (schema version 1.0, book id, title, author, narrator voice, sections), <code>sections/&lt;id&gt;/audio.m4a</code> with its <code>segments.json</code>, and an <code>assets/</code> folder. This is the same output the Firebrat converter makes, so any book you converted yourself already has the right shape. The wizard validates the manifest before you go on.</p>
+
+    <h3>Two routes</h3>
+    <div class="grid grid-2" style="margin:18px 0 24px">
+      <div class="card">
+        <h3>Route A: I already have it on the Internet Archive</h3>
+        <p>Paste the archive.org URL (a <code>/details/</code> or <code>/download/</code> link). The site checks live, through the Archive&rsquo;s metadata API, that the item really contains your package.</p>
+      </div>
+      <div class="card">
+        <h3>Route B: upload it for me</h3>
+        <p>The site uploads your zip to the Internet Archive from your browser, using <em>your own</em> Internet Archive S3 keys from <a href="https://archive.org/account/s3.php">archive.org/account/s3.php</a>. The keys are kept in memory only: never stored, never logged, never sent to Firebrat&rsquo;s database. If the upload fails, the page falls back to manual upload instructions and then to route A.</p>
+      </div>
+    </div>
+    <div class="note">
+      <p><strong>Why you choose your local file.</strong> archive.org downloads send no CORS headers, so a web page cannot read <code>manifest.json</code> from the Archive after the fact. Instead the wizard reads the manifest from your <em>local</em> copy of the zip or file, in your browser only, and stores the chapter list with the listing. Nothing from your machine is uploaded in route A. Audio then streams from the Archive with a plain audio element, which needs no CORS.</p>
+      <p><strong>Status.</strong> Uploading from the browser (route B) has not yet been run against the live Internet Archive; only the preflight request was checked.</p>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="provenance">
+  <div class="wrap prose" style="max-width:820px">
+    <h2>The &ldquo;How this audio was made&rdquo; section</h2>
+    <p>Every submission must say how its audio was produced. It is shown to listeners on the book page, so nobody has to guess whether a voice is human or synthetic. You provide:</p>
+    <div class="table-scroll">
+    <table class="doc-table">
+      <thead><tr><th>Field</th><th>What to enter</th></tr></thead>
+      <tbody>
+        <tr><td>Generation method</td><td>Firebrat TTS, human-narrated, mixed, or other.</td></tr>
+        <tr><td>Narration engine and models</td><td>Which voice engine and which models (for example, the language model that cast the characters) were used.</td></tr>
+        <tr><td>Pipeline notes</td><td>Anything a listener or reviewer should know about how the book was made.</td></tr>
+        <tr><td>Source text</td><td>The title and a link to the text the audio was made from.</td></tr>
+        <tr><td>Licence</td><td>Public domain, CC0, CC BY or CC BY-SA, with a link to the licence or the evidence for it.</td></tr>
+        <tr><td>Attestation</td><td>A required tick box: you confirm you have the right to share the work under that licence.</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
+<section id="copyright-free">
+  <div class="wrap prose" style="max-width:820px">
+    <h2>What counts as copyright-free</h2>
+    <p>Only submit works you are confident anyone may copy and share. In practice that means:</p>
+    <ul>
+      <li><strong>Public domain in the United States.</strong> Works first published in the US before 1931, and older works generally.</li>
+      <li><strong>CC0</strong> (public-domain dedication) and <strong>CC BY</strong> or <strong>CC BY-SA</strong> works, where you give the credit those licences require.</li>
+    </ul>
+    <div class="note note-warn">
+      <p><strong>Read these cautions before you submit.</strong></p>
+      <p><strong>Public domain is not the same everywhere.</strong> A work that is free in the United States may still be protected elsewhere, for example in countries where copyright lasts for 70 years after the author&rsquo;s death. If the author died less than 70 years ago, think carefully, because the audiobook may not be freely shareable worldwide.</p>
+      <p><strong>Translations and editions can be copyrighted</strong> even when the original is not. A modern translation, an annotated edition, an introduction or an illustrator&rsquo;s work can each carry its own copyright. Use a source whose own licence you can point to.</p>
+      <p><strong>Project Gutenberg.</strong> Most Gutenberg texts of public-domain works are free to use, but the &ldquo;Project Gutenberg&rdquo; name is a trademark and its boilerplate and licence text come with conditions. Do not use the name to suggest endorsement, and follow the licence shown with the text you used. A stripped, clean text is still the same work; check the individual book&rsquo;s licence page.</p>
+    </div>
+    <p>This page is general guidance, not legal advice. If you are unsure, do not submit.</p>
+  </div>
+</section>
+
+<section class="alt" id="feedback">
+  <div class="wrap prose" style="max-width:820px">
+    <h2>Ratings, comments, reports and bugs</h2>
+    <ul>
+      <li><strong>Ratings.</strong> Signed-in listeners give a book 1 to 5 stars. You can change your rating later.</li>
+      <li><strong>Comments.</strong> Signed-in listeners can comment on a book and delete their own comments.</li>
+      <li><strong>Report an offensive comment.</strong> Use the report link on a comment and choose offensive, spam, harassment, misleading or other. Admins review reports and can hide a comment.</li>
+      <li><strong>Report a book</strong> the same way if its description or audio is misleading.</li>
+      <li><strong>Bug reports and feedback.</strong> The <em>Report a bug</em> page sends a note to the admins. You can also <a href="https://github.com/Subhajit-Roy-Partho/firebrat/issues/new?template=bug_report.yml">open an issue on GitHub</a>.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="takedown">
+  <div class="wrap prose" style="max-width:820px">
+    <h2>Copyright takedown notices</h2>
+    <p>If you believe a book in the library infringes your copyright, you can send a notice. You do not need an account.</p>
+    <ol>
+      <li>Fill in the <a href="../community/#/legal/takedown">takedown form</a>: the book, who you are, the work you own, the links you believe infringe, a good-faith statement, an accuracy statement and your signature.</li>
+      <li>Admins review every notice. While it is open, an admin may disable the book by marking it <strong>disputed</strong>, so it stops being offered while the question is resolved.</li>
+      <li>If the book&rsquo;s submitter disagrees, a counter-notice can be sent through the GitHub issue link given on the legal page. No personal email address is published.</li>
+    </ol>
+    <p>Please be accurate. A knowingly false claim can have legal consequences for the person who files it.</p>
+    <p>The <a href="../community/#/legal/copyright">copyright</a>, <a href="../community/#/legal/terms">terms</a> and <a href="../community/#/legal/privacy">privacy</a> pages in the library carry the full wording.</p>
+    <div class="note">
+      <p><strong>What is not finished.</strong> The database security rules for the library are written but have not yet been run in the Firestore emulator, and there is no rate limiting because the site has no server-side functions. Both are on the to-do list before the library is widely promoted.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>Firebrat is licensed under the <a href="https://github.com/Subhajit-Roy-Partho/firebrat/blob/master/LICENSE">GNU AGPL-3.0</a>.</p>
+    <ul class="footer-links">
+      <li><a href="guide.html">Get started</a></li>
+      <li><a href="community.html">Community</a></li>
+      <li><a href="architecture.html">How it works</a></li>
+      <li><a href="about.html">Accessibility mission</a></li>
+      <li><a href="https://github.com/Subhajit-Roy-Partho/firebrat">GitHub</a></li>
+      <li><a href="https://github.com/Subhajit-Roy-Partho/firebrat/releases">Releases</a></li>
+    </ul>
+  </div>
+</footer>
+
+<script src="assets/main.js"></script>
+</body>
+</html>

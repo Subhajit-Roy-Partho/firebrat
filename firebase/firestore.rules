@@ -45,6 +45,161 @@ service cloud.firestore {
         && request.resource.data.serverUpdatedAt is timestamp
         && request.resource.data.serverUpdatedAt <= request.time;
     }
+    // ---------------- Community library ----------------
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    function d() { return request.resource.data; }
+    function str(k, mx) { return d()[k] is string && d()[k].size() <= mx; }
+    function optStr(k, mx) { return !(k in d()) || (d()[k] is string && d()[k].size() <= mx); }
+    function strList(k, maxItems) { return d()[k] is list && d()[k].size() <= maxItems; }
+    function validProvenance(p) {
+      return p is map
+        && p.generation in ['firebrat-tts', 'human-narrated', 'mixed', 'other']
+        && p.license in ['public-domain', 'cc0', 'cc-by', 'cc-by-sa']
+        && p.attested == true
+        && p.narrationEngine is string && p.narrationEngine.size() <= 120
+        && p.models is list && p.models.size() <= 10
+        && p.pipelineNotes is string && p.pipelineNotes.size() <= 2000
+        && p.sourceTitle is string && p.sourceTitle.size() <= 300
+        && p.sourceUrl is string && p.sourceUrl.size() <= 300
+        && p.licenseUrl is string && p.licenseUrl.size() <= 300;
+    }
+    function validBook() {
+      return d().keys().hasOnly(['title', 'author', 'description', 'language', 'category', 'tags',
+          'archiveId', 'archiveUrl', 'packageKind', 'packageFile', 'chapters', 'sizeBytes', 'sectionCount', 'totalDurationMs',
+          'provenance', 'submitterUid', 'submitterName', 'status', 'ratingSum', 'ratingCount',
+          'commentCount', 'createdAt', 'updatedAt'])
+        && str('title', 200) && d().title.size() > 0 && str('author', 200) && str('description', 4000)
+        && str('language', 10)
+        && d().category in ['fiction', 'nonfiction', 'science', 'history', 'poetry', 'children', 'education', 'other']
+        && strList('tags', 10)
+        && str('archiveId', 100) && d().archiveId.matches('[A-Za-z0-9][A-Za-z0-9._-]{2,99}')
+        && str('archiveUrl', 300) && d().archiveUrl.matches('https://archive\\.org/.*')
+        && d().packageKind in ['zip', 'folder']
+        && optStr('packageFile', 300)
+        && d().chapters is list && d().chapters.size() > 0 && d().chapters.size() <= 1500
+        && d().sizeBytes is int && d().sizeBytes >= 0
+        && d().sectionCount is int && d().sectionCount > 0 && d().sectionCount <= 100000
+        && d().totalDurationMs is int && d().totalDurationMs >= 0
+        && validProvenance(d().provenance)
+        && d().submitterUid == request.auth.uid && str('submitterName', 80);
+    }
+    match /admins/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+    }
+    match /books/{bookId} {
+      allow read: if resource.data.status == 'published' || resource.data.status == 'disputed'
+        || isAdmin() || (signedIn() && resource.data.submitterUid == request.auth.uid);
+      allow create: if signedIn() && bookId.matches('[a-z0-9][a-z0-9-]{2,99}') && validBook()
+        && d().status == 'published' && d().ratingSum == 0 && d().ratingCount == 0
+        && d().commentCount == 0 && d().createdAt == request.time && d().updatedAt == request.time;
+      // Submitter may edit descriptive text only; admins may change status.
+      allow update: if
+        (signedIn() && resource.data.submitterUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['title', 'author', 'description', 'language', 'category', 'tags', 'updatedAt'])
+          && request.resource.data.updatedAt == request.time)
+        || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'updatedAt'])
+          && request.resource.data.status in ['published', 'removed', 'disputed'])
+        // Rating aggregate: must match the rating doc written in the same batch.
+        || (signedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ratingSum', 'ratingCount'])
+          && getAfter(/databases/$(database)/documents/books/$(bookId)/ratings/$(request.auth.uid)).data.value is int
+          && request.resource.data.ratingCount ==
+              resource.data.ratingCount + (exists(/databases/$(database)/documents/books/$(bookId)/ratings/$(request.auth.uid)) ? 0 : 1)
+          && request.resource.data.ratingSum ==
+              resource.data.ratingSum
+              + getAfter(/databases/$(database)/documents/books/$(bookId)/ratings/$(request.auth.uid)).data.value
+              - (exists(/databases/$(database)/documents/books/$(bookId)/ratings/$(request.auth.uid))
+                  ? get(/databases/$(database)/documents/books/$(bookId)/ratings/$(request.auth.uid)).data.value : 0))
+        // Comment counter: +1 with a new comment, -1 when one is deleted (same batch).
+        || (signedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount'])
+          && (request.resource.data.commentCount == resource.data.commentCount + 1
+              || request.resource.data.commentCount == resource.data.commentCount - 1)
+          && request.resource.data.commentCount >= 0);
+      allow delete: if isAdmin();
+
+      match /ratings/{uid} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['value', 'updatedAt'])
+          && request.resource.data.value is int && request.resource.data.value >= 1 && request.resource.data.value <= 5
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+      }
+      match /comments/{cid} {
+        allow read: if resource.data.status == 'visible' || isAdmin()
+          || (signedIn() && resource.data.uid == request.auth.uid);
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'text', 'status', 'createdAt', 'reportCount'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.name is string && request.resource.data.name.size() <= 80
+          && request.resource.data.text is string && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.status == 'visible' && request.resource.data.reportCount == 0
+          && request.resource.data.createdAt == request.time;
+        allow update: if isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+        allow delete: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+      }
+    }
+    match /reports/{id} {
+      allow read, update, delete: if isAdmin();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['kind', 'bookId', 'commentId', 'reason', 'details',
+            'reporterUid', 'createdAt', 'resolved'])
+        && request.resource.data.kind in ['comment', 'book']
+        && request.resource.data.bookId is string && request.resource.data.bookId.size() <= 120
+        && (!('commentId' in request.resource.data)
+            || (request.resource.data.commentId is string && request.resource.data.commentId.size() <= 120))
+        && request.resource.data.reason in ['offensive', 'spam', 'harassment', 'misleading', 'other']
+        && request.resource.data.details is string && request.resource.data.details.size() <= 1000
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.resolved == false && request.resource.data.createdAt == request.time;
+    }
+    match /bugs/{id} {
+      allow read, update, delete: if isAdmin();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['kind', 'bookId', 'page', 'message', 'userAgent',
+            'appVersion', 'reporterUid', 'createdAt', 'status'])
+        && request.resource.data.kind in ['bug', 'error', 'feedback']
+        && (!('bookId' in request.resource.data)
+            || (request.resource.data.bookId is string && request.resource.data.bookId.size() <= 120))
+        && request.resource.data.page is string && request.resource.data.page.size() <= 200
+        && request.resource.data.message is string && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 3000
+        && request.resource.data.userAgent is string && request.resource.data.userAgent.size() <= 300
+        && request.resource.data.appVersion is string && request.resource.data.appVersion.size() <= 40
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.status == 'open' && request.resource.data.createdAt == request.time;
+    }
+    // Copyright notices: no sign-in required so rights holders can always reach us.
+    match /takedowns/{id} {
+      allow read, update, delete: if isAdmin();
+      allow create: if request.resource.data.keys().hasOnly(['bookId', 'claimantName', 'claimantEmail',
+            'rightsHolder', 'workDescription', 'infringingUrls', 'goodFaith', 'accuracy', 'signature',
+            'status', 'createdAt'])
+        && request.resource.data.bookId is string && request.resource.data.bookId.size() <= 120
+        && request.resource.data.claimantName is string && request.resource.data.claimantName.size() > 0
+        && request.resource.data.claimantName.size() <= 120
+        && request.resource.data.claimantEmail is string && request.resource.data.claimantEmail.matches('.+@.+\\..+')
+        && request.resource.data.claimantEmail.size() <= 200
+        && request.resource.data.rightsHolder is string && request.resource.data.rightsHolder.size() <= 200
+        && request.resource.data.workDescription is string && request.resource.data.workDescription.size() > 0
+        && request.resource.data.workDescription.size() <= 2000
+        && request.resource.data.infringingUrls is string && request.resource.data.infringingUrls.size() <= 2000
+        && request.resource.data.goodFaith == true && request.resource.data.accuracy == true
+        && request.resource.data.signature is string && request.resource.data.signature.size() > 0
+        && request.resource.data.signature.size() <= 120
+        && request.resource.data.status == 'open' && request.resource.data.createdAt == request.time;
+    }
+    match /users/{uid}/favorites/{bookId} {
+      allow read, write: if signedIn() && request.auth.uid == uid && bookId.size() <= 120;
+    }
+
     match /{document=**} { allow read, write: if false; }
   }
 }

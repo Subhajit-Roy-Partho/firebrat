@@ -67,12 +67,31 @@ RUN python -m venv /opt/venvs/serve && \
     /opt/venvs/serve/bin/pip install --no-cache-dir \
         fastapi "uvicorn[standard]" python-multipart pydantic requests pydub pypdf pytest httpx firebase-admin
 
+# ── optional: expressive multi-voice pipeline (firebrat_cast) ───────────
+# Two more venvs because the Qwen3.5 text model (transformers>=5) and the Qwen3-TTS package want different
+# transformers versions, and each stage runs as its own process so the GPU holds one large model at a time.
+# Off by default (adds several GB); the GPU CI variant turns it on. Weights download at first use into HF_HOME.
+ARG WITH_CAST=0
+ARG CAST_TORCH_INDEX_URL=https://download.pytorch.org/whl/cu128
+RUN if [ "$WITH_CAST" = "1" ]; then \
+      python -m venv /opt/venvs/cast-llm && \
+      /opt/venvs/cast-llm/bin/pip install --no-cache-dir --upgrade pip && \
+      /opt/venvs/cast-llm/bin/pip install --no-cache-dir --index-url "$CAST_TORCH_INDEX_URL" torch torchvision && \
+      /opt/venvs/cast-llm/bin/pip install --no-cache-dir transformers accelerate bitsandbytes pillow numpy pymupdf pydantic requests && \
+      python -m venv /opt/venvs/cast-tts && \
+      /opt/venvs/cast-tts/bin/pip install --no-cache-dir --upgrade pip && \
+      /opt/venvs/cast-tts/bin/pip install --no-cache-dir --index-url "$CAST_TORCH_INDEX_URL" torch torchaudio && \
+      /opt/venvs/cast-tts/bin/pip install --no-cache-dir qwen-tts soundfile numpy pydantic requests pydub; \
+    fi
+
 COPY backend/ /app/backend/
 
 ENV FIREBRAT_EXTRACT_PY=/opt/venvs/extract/bin/python \
     FIREBRAT_TTS_PY=/opt/venvs/tts/bin/python \
     FIREBRAT_SERVE_PY=/opt/venvs/serve/bin/python \
     FIREBRAT_CONVERT_PY=/opt/venvs/extract/bin/python \
+    FIREBRAT_CAST_LLM_PY=/opt/venvs/cast-llm/bin/python \
+    FIREBRAT_CAST_TTS_PY=/opt/venvs/cast-tts/bin/python \
     FIREBRAT_OUTPUT_DIR=/data/output \
     FIREBRAT_UPLOAD_DIR=/data/uploads \
     FIREBRAT_JOBS_DB=/data/jobs.sqlite3 \

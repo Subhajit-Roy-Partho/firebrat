@@ -5,6 +5,8 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart' show Servi
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart';
 import 'package:path_provider/path_provider.dart';
+import '../services/app_network_gate.dart';
+import '../services/device_probe.dart';
 import 'library_providers.dart';
 import 'on_device_conversion_providers.dart';
 
@@ -136,6 +138,31 @@ Future<void> _removePartialBook(ConversionRequest request) async {
   } catch (_) {}
 }
 
+/// Bytes of on-device model files this conversion would still download.
+Future<int> _missingModelBytes(ConversionModeSettings settings) async {
+  var total = 0;
+  try {
+    final base = '${(await getApplicationSupportDirectory()).path}/firebrat_models';
+    final expressive = settings.contentMode == 'expressive';
+    final needsLlm = expressive || (settings.contentMode != 'novel' && !(settings.allowCloudFallback && settings.cloudForAll));
+    if (needsLlm) {
+      final m = findOnDeviceLlmModel(settings.onDeviceLlmModelId);
+      final f = File('$base/llm/${m.fileName}');
+      final ok = await f.exists() && ((await f.length()) - m.approxSizeBytes).abs() < m.approxSizeBytes * 0.02;
+      if (!ok) total += m.approxSizeBytes;
+    }
+    if (expressive) {
+      final assets = await ExpressiveAssets.forApp();
+      total += await assets.missingBytes(
+          ExpressiveEngine.parse(settings.expressiveEngine), findKokoroV1Model(settings.expressiveKokoroModelId));
+    } else if (settings.isKokoroVoice) {
+      if (!await KokoroTtsEngine.isDownloaded()) total += 110 * 1024 * 1024;
+      total += await KokoroAssets.missingBytes(findTtsModel(settings.ttsModelId));
+    }
+  } catch (_) {}
+  return total;
+}
+
 /// Same as [runOnDeviceConversion] but driven by a container, so it can run
 /// from the queue without any screen being open.
 Future<String> runOnDeviceConversionIn(ProviderContainer container, List<String> pdfPaths,
@@ -149,6 +176,18 @@ Future<String> runOnDeviceConversionIn(ProviderContainer container, List<String>
   }
   final notifier = container.read(onDeviceRunProvider.notifier);
   notifier.set(OnDeviceRunState(stage: 'starting', detail: 'preparing', startedAt: DateTime.now()));
+
+  // Models the conversion would download on its own: hold them to the
+  // "Download over" rule BEFORE the background service starts (it shows
+  // "Waiting for Wi-Fi" instead of failing, and starts when allowed).
+  final missing = await _missingModelBytes(settings);
+  if (missing > 0) {
+    await AppNetworkGate.instance.waitUntilAllowed(missing, onWaiting: (label) {
+      final prev = container.read(onDeviceRunProvider) ?? const OnDeviceRunState();
+      notifier.set(prev.next(stage: 'starting', detail: label ?? 'preparing'));
+    });
+  }
+  final device = await probeDeviceCapabilities();
 
   await BackgroundConversionRunner.requestPermissions();
   final booksDir = await container.read(downloadManagerProvider).booksDir();
@@ -213,8 +252,14 @@ Future<String> runOnDeviceConversionIn(ProviderContainer container, List<String>
     voiceEngine: settings.voiceEngine,
     kokoroVoice: settings.kokoroVoice,
         kokoroAcceleration: settings.kokoroAcceleration,
+        ttsModelId: settings.ttsModelId,
+        deviceRamMb: device.totalRamMb,
+        androidSdk: device.androidSdk,
         kokoroCpuThreads: settings.kokoroCpuThreads,
         maleVoice: settings.maleVoice, femaleVoice: settings.femaleVoice, characterVoices: settings.characterVoices,
+    expressiveEngine: settings.expressiveEngine,
+    expressiveKokoroModelId: settings.expressiveKokoroModelId,
+    expressiveNarratorVoice: settings.expressiveNarratorVoice,
   );
   final result = await BackgroundConversionRunner.start(request);
   if (result is ServiceRequestFailure) {

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import '../models/book.dart';
 import '../models/job.dart';
+import '../models/server_admin.dart';
 import 'auth_service.dart';
 
 /// Server answered a byte-range request from an unexpected offset (or with
@@ -21,6 +22,9 @@ class DownloadIntegrityException implements Exception {
 class ApiClient {
   final Dio _dio;
   final String baseUrl;
+
+  /// Test seam: lets tests swap the Dio HTTP adapter for a fake.
+  Dio get dio => _dio;
 
   ApiClient({required this.baseUrl})
       : _dio = Dio(BaseOptions(baseUrl: baseUrl, connectTimeout: const Duration(seconds: 10))) {
@@ -86,6 +90,196 @@ class ApiClient {
       return resp.data as Map<String, dynamic>;
     }
     return {};
+  }
+
+  /// True when the server can take `content_mode=cast` uploads
+  /// (GET /settings `cast_available`). Missing key or any error means false
+  /// — older servers without the flag simply hide the cast option.
+  Future<bool> isCastAvailable() async {
+    try {
+      final settings = await getSettings();
+      return settings['cast_available'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// True when the server enforces accounts/roles (GET /settings
+  /// `iam_enabled`). Missing key or any error means false — older servers
+  /// and IAM-off deployments hide all admin UI.
+  Future<bool> isIamEnabled() async {
+    try {
+      final settings = await getSettings();
+      return settings['iam_enabled'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// The signed-in account's profile (works without a role). Never logs.
+  Future<MeProfile> getMe() async {
+    final resp = await _dio.get('/me');
+    return MeProfile.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  /// First-run setup: the first signed-in account to present the one-time
+  /// setup code becomes admin. The code itself is never logged.
+  Future<void> bootstrapSetup(String code) async {
+    await _dio.post('/admin/bootstrap', data: {'code': code});
+  }
+
+  /// Admin user list (pre-authorized invites included).
+  Future<List<AdminUser>> listAdminUsers() async {
+    final resp = await _dio.get('/admin/users');
+    final data = resp.data;
+    final list = data is List ? data : (data is Map ? data['users'] : null);
+    if (list is! List) return const [];
+    final users = list
+        .whereType<Map>()
+        .map((e) => AdminUser.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+    // Pending invites ({email, role, claimed_uid}) ride along in the same
+    // response; unclaimed ones show as "invited, not signed in yet".
+    final invites = data is Map ? data['invites'] : null;
+    if (invites is List) {
+      for (final inv in invites.whereType<Map>()) {
+        final m = Map<String, dynamic>.from(inv);
+        final claimed = (m['claimed_uid']?.toString() ?? '').isNotEmpty;
+        final email = m['email']?.toString() ?? '';
+        if (claimed || email.isEmpty || users.any((u) => u.email == email)) {
+          continue;
+        }
+        users.add(
+          AdminUser.fromJson({
+            'email': email,
+            'role': m['role'],
+            'status': 'active',
+            'invited_by': m['invited_by'],
+            'created_at': m['created_at'],
+          }),
+        );
+      }
+    }
+    return users;
+  }
+
+  /// Pre-authorizes `email + role`; the account activates on first sign-in.
+  Future<void> inviteUser({required String email, required String role}) async {
+    await _dio.post('/admin/users', data: {'email': email, 'role': role});
+  }
+
+  /// Changes role and/or status ('active' | 'disabled') by uid or email.
+  Future<void> updateUser(
+    String uidOrEmail, {
+    String? role,
+    String? status,
+  }) async {
+    final body = <String, dynamic>{};
+    if (role != null) body['role'] = role;
+    if (status != null) body['status'] = status;
+    await _dio.patch(
+      '/admin/users/${Uri.encodeComponent(uidOrEmail)}',
+      data: body,
+    );
+  }
+
+  Future<void> removeUser(String uidOrEmail) async {
+    await _dio.delete('/admin/users/${Uri.encodeComponent(uidOrEmail)}');
+  }
+
+  Future<List<AuditEntry>> getAudit({int limit = 100}) async {
+    final resp = await _dio.get(
+      '/admin/audit',
+      queryParameters: {'limit': limit},
+    );
+    final data = resp.data;
+    final list = data is List
+        ? data
+        : (data is Map ? data['entries'] ?? data['audit'] : null);
+    if (list is! List) return const [];
+    return list
+        .whereType<Map>()
+        .map((e) => AuditEntry.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  }
+
+  /// Device-controlled settings catalog (values/options/availability/notes).
+  Future<AdminSettings> getAdminSettings() async {
+    final resp = await _dio.get('/admin/settings');
+    return AdminSettings.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  /// Persists validated settings values (server picks from its catalog).
+  Future<void> putAdminSettings(Map<String, dynamic> values) async {
+    await _dio.put('/admin/settings', data: {'values': values});
+  }
+
+  /// Scheduler status + per-book stages.
+  Future<QueueStatus> getQueue() async {
+    final resp = await _dio.get('/admin/queue');
+    return QueueStatus.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  Future<void> pauseQueue() async {
+    await _dio.post('/admin/queue/pause');
+  }
+
+  Future<void> resumeQueue() async {
+    await _dio.post('/admin/queue/resume');
+  }
+
+  Future<void> cancelQueuedBook(String slug) async {
+    await _dio.post('/admin/queue/${Uri.encodeComponent(slug)}/cancel');
+  }
+
+  Future<void> prioritizeQueuedBook(String slug) async {
+    await _dio.post(
+      '/admin/queue/${Uri.encodeComponent(slug)}/priority',
+      data: {'top': true},
+    );
+  }
+
+  /// Server error detail (409 last-admin, 403 forbidden, ...) or a plain
+  /// fallback; used by the admin screens.
+  static String friendlyAdminError(Object e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      final detail = data is Map ? data['detail']?.toString() : null;
+      if (detail != null && detail.isNotEmpty) return detail;
+      if (e.response?.statusCode == 403) {
+        return 'Only server admins can do that.';
+      }
+      if (e.response?.statusCode == 410) {
+        return 'This server is already set up.';
+      }
+      if (e.response?.statusCode == 429) {
+        return 'Too many attempts. Wait a few minutes and try again.';
+      }
+      return e.message ?? 'Request failed';
+    }
+    return '$e';
+  }
+
+  /// Human message for an upload failure. A 400 refusing `cast` (expressive
+  /// voices not enabled on this server) is surfaced verbatim instead of a
+  /// bare "Upload failed: DioException ...". A 403 (viewer role) surfaces
+  /// the server's detail, or a listen-only fallback when it has none.
+  static String friendlyUploadError(Object e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      final detail = data is Map ? data['detail']?.toString() : null;
+      if (e.response?.statusCode == 400 &&
+          detail != null &&
+          detail.isNotEmpty) {
+        return detail;
+      }
+      if (e.response?.statusCode == 403) {
+        if (detail != null && detail.isNotEmpty) return detail;
+        return 'Your account can only listen — uploads need a user or admin role.';
+      }
+      if (detail != null && detail.isNotEmpty) return 'Upload failed: $detail';
+    }
+    return 'Upload failed: $e';
   }
 
   /// Accepts the shapes GET /models and GET /settings might use: a bare

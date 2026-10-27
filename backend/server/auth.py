@@ -21,7 +21,7 @@ from the status it already polls).
 import logging
 import os
 
-from fastapi import Header, HTTPException
+from fastapi import Depends, Header, HTTPException
 
 log = logging.getLogger("firebrat.auth")
 
@@ -94,7 +94,14 @@ def get_current_user(authorization: str | None = None) -> dict | None:
         else:
             from firebase_admin import auth as fb_auth
             decoded = fb_auth.verify_id_token(token)
-        return {"uid": decoded.get("uid"), "email": decoded.get("email")}
+        user = {"uid": decoded.get("uid"), "email": decoded.get("email")}
+        # Passed through for IAM matching (iam.py only trusts email when
+        # email_verified is truthy) and the /me display name. Absent in
+        # older tokens — callers must treat both as optional.
+        for key in ("email_verified", "name"):
+            if decoded.get(key) is not None:
+                user[key] = decoded.get(key)
+        return user
     except Exception:
         return None
 
@@ -106,11 +113,40 @@ def require_user(authorization: str | None = Header(default=None)) -> dict:
         raise HTTPException(status_code=401, detail="sign-in required")
     # Optional deployment boundary for a private/reviewer server. An empty
     # allowlist preserves the shared-server behaviour used by existing installs.
-    allowed = {uid.strip() for uid in os.environ.get(
-        "FIREBRAT_ALLOWED_USER_IDS", "").split(",") if uid.strip()}
-    if allowed and user["uid"] not in allowed:
-        raise HTTPException(status_code=403, detail="account not authorized for this server")
+    # With FIREBRAT_IAM=1 roles replace the allowlist (legacy uids become
+    # admins, see iam.materialize_legacy_admins), so it is not enforced twice.
+    if os.environ.get("FIREBRAT_IAM", "").strip() != "1":
+        allowed = {uid.strip() for uid in os.environ.get(
+            "FIREBRAT_ALLOWED_USER_IDS", "").split(",") if uid.strip()}
+        if allowed and user["uid"] not in allowed:
+            raise HTTPException(status_code=403, detail="account not authorized for this server")
     return user
+
+
+def require_role(*roles: str):
+    """Dependency factory: signed in AND (when FIREBRAT_IAM=1) an active
+    account whose role is one of `roles`. With IAM off it behaves exactly
+    like require_user (fully backward compatible).
+
+    Tests override `require_user` via app.dependency_overrides; this
+    dependency calls it through Depends so such overrides still apply.
+    """
+    allowed = set(roles)
+
+    def _dep(user: dict = Depends(require_user)) -> dict:
+        if os.environ.get("FIREBRAT_IAM", "").strip() != "1":
+            return user
+        from server import iam
+        if iam.is_disabled(user):
+            raise HTTPException(status_code=403, detail="account is disabled")
+        role = iam.get_role(user)
+        if role is None:
+            raise HTTPException(status_code=403, detail="no role on this server: ask an admin")
+        if allowed and role not in allowed:
+            raise HTTPException(status_code=403, detail="insufficient role")
+        return user
+
+    return _dep
 
 
 def _messaging():

@@ -79,6 +79,7 @@ class OnDeviceTts implements NarrationEngine {
     required List<CompiledSegment> segments,
     required String sectionDir,
     int pauseMs = 260,
+    List<int> sourcePages = const [],
   }) async {
     await _ensureConfigured();
     await Directory(sectionDir).create(recursive: true);

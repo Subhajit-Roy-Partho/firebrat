@@ -1,0 +1,2120 @@
+{
+ "note": "Reference labels produced by Qwen3.5-9B (server casting) on public-domain text (Project Gutenberg). NOT human-verified: use as a relative quality benchmark for on-device LLMs. Each case: a passage with numbered quotes; expected speaker name and emotion per quote.",
+ "emotions": [
+  "neutral",
+  "joy",
+  "sadness",
+  "anger",
+  "fear",
+  "surprise",
+  "tenderness",
+  "sarcasm",
+  "disgust",
+  "awe",
+  "suspense"
+ ],
+ "books": {
+  "alices-adventures-in-wonderland-carroll": {
+   "title": "Alice's Adventures in Wonderland",
+   "roster": [
+    {
+     "name": "Alice",
+     "gender": "female",
+     "age": "child",
+     "accent": "american",
+     "description": "Young girl's voice, mid-to-high pitch, fluctuating between timid and frantic. Pace is erratic: slow and confused during identity crises, then rapid and breathless during panic. British accent. Personality is earnest, self-doubting, and emotionally volatile."
+    },
+    {
+     "name": "The Gryphon",
+     "gender": "male",
+     "age": "adult",
+     "accent": "british",
+     "description": "Boisterous and energetic. Mid-high pitch with a barking quality. Fast-paced, interrupting frequently, using a teasing and slightly rude tone."
+    },
+    {
+     "name": "The Mock Turtle",
+     "gender": "male",
+     "age": "adult",
+     "accent": "british",
+     "description": "Deep, hollow, and resonant. Very slow pace, often broken by sobs or long pauses. Sounds weary and sad, with a distinct drawl."
+    },
+    {
+     "name": "The Hatter",
+     "gender": "male",
+     "age": "adult",
+     "accent": "british",
+     "description": "Deep, raspy male voice. Slow, dragging pace with heavy pauses. British accent. Sounds weary, slightly slurred, and emotionally unstable."
+    },
+    {
+     "name": "Caterpillar",
+     "gender": "unknown",
+     "age": "elder",
+     "accent": "british",
+     "description": "Deep, resonant, and slow voice. Low pitch, very measured and languid pace. Sounds bored, condescending, and authoritative, like a grumpy elder."
+    },
+    {
+     "name": "Gryphon",
+     "gender": "male",
+     "age": "adult",
+     "accent": "british",
+     "description": "Deep, resonant, and slightly gravelly voice. Low pitch, brisk and impatient pace, with a distinct British accent. Sounds authoritative and energetic."
+    },
+    {
+     "name": "Mouse",
+     "gender": "male",
+     "age": "adult",
+     "accent": "british",
+     "description": "Small, high-pitched voice with a shrill, tremulous quality. Pace is fast when angry, slow and lecturing when telling stories. British accent. Personality is easily offended, stern, and dramatic."
+    },
+    {
+     "name": "The March Hare",
+     "gender": "male",
+     "age": "adult",
+     "accent": "british",
+     "description": "High-pitched, rapid-fire male voice. Very brisk pace with erratic rhythm. British accent. Sounds manic, slightly nasal, and perpetually annoyed."
+    },
+    {
+     "name": "The Queen of Hearts",
+     "gender": "female",
+     "age": "elder",
+     "accent": "british",
+     "description": "Sharp, commanding female voice. Loud, staccato pace. British accent. Sounds aggressive, high-pitched, and dangerously volatile."
+    },
+    {
+     "name": "Cheshire Cat",
+     "gender": "unknown",
+     "age": "adult",
+     "accent": "british",
+     "description": "Playful, slightly raspy voice. Mid pitch, conversational but erratic pace. Sounds confident and teasing, often fading in and out."
+    },
+    {
+     "name": "Mock Turtle",
+     "gender": "male",
+     "age": "elder",
+     "accent": "british",
+     "description": "High-pitched, thin, and reedy voice, mimicking an old, frail creature. Drawling pace with frequent pauses, British accent. Sounds sad and overly serious."
+    },
+    {
+     "name": "Pigeon",
+     "gender": "female",
+     "age": "adult",
+     "accent": "british",
+     "description": "Sharp, high-pitched, and nasal voice. Fast, jerky pace with sudden stops. Sounds frantic, defensive, and easily offended, like a nervous bird."
+    }
+   ],
+   "cases": [
+    {
+     "page": 14,
+     "text": "“Would it be of any use, now,” thought Alice, “to speak to this mouse? Everything is so out-of-the-way down here, that I should think very likely it can talk: at any rate, there’s no harm in trying.” So she began: “O Mouse, do you know the way out of this pool? I am very tired of swimming about here, O Mouse!” (Alice thought this must be the right way of speaking to a mouse: she had never done such a thing before, but she remembered having seen in her brother’s Latin Grammar, “A mouse—of a mouse—to a mouse—a mouse—O mouse!”) The Mouse looked at her rather inquisitively, and seemed to her to wink with one of its little eyes, but it said nothing.\n\n“Perhaps it doesn’t understand English,” thought Alice; “I daresay it’s a French mouse, come over with William the Conqueror.” (For, with all her knowledge of history, Alice had no very clear notion how long ago anything had happened.) So she began again: “Où est ma chatte?” which was the first sentence in her French lesson-book. The Mouse gave a sudden leap out of the water, and seemed to quiver all over with fright. “Oh, I beg your pardon!” cried Alice hastily, afraid that she had hurt the poor animal’s feelings. “I quite forgot you didn’t like cats.”\n\n“Not like cats!” cried the Mouse, in a shrill, passionate voice. “Would you like cats if you were me?”",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "NARRATOR",
+       "emotion": "suspense",
+       "delivery": "thinking"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "NARRATOR",
+       "emotion": "neutral",
+       "delivery": "thinking"
+      },
+      {
+       "quote_index": 4,
+       "speaker": "NARRATOR",
+       "emotion": "neutral",
+       "delivery": "speaking"
+      },
+      {
+       "quote_index": 6,
+       "speaker": "NARRATOR",
+       "emotion": "neutral",
+       "delivery": "calling out"
+      },
+      {
+       "quote_index": 8,
+       "speaker": "NARRATOR",
+       "emotion": "suspense",
+       "delivery": "thinking"
+      },
+      {
+       "quote_index": 10,
+       "speaker": "NARRATOR",
+       "emotion": "neutral",
+       "delivery": "speculating"
+      },
+      {
+       "quote_index": 12,
+       "speaker": "NARRATOR",
+       "emotion": "neutral",
+       "delivery": "reciting"
+      },
+      {
+       "quote_index": 14,
+       "speaker": "NARRATOR",
+       "emotion": "fear",
+       "delivery": "apologetic"
+      },
+      {
+       "quote_index": 16,
+       "speaker": "Alice",
+       "emotion": "sarcasm",
+       "delivery": "hastily"
+      },
+      {
+       "quote_index": 17,
+       "speaker": "Mouse",
+       "emotion": "anger",
+       "delivery": "shrill, passionate"
+      },
+      {
+       "quote_index": 19,
+       "speaker": "Alice",
+       "emotion": "tenderness",
+       "delivery": "soothing"
+      }
+     ]
+    },
+    {
+     "page": 15,
+     "text": "“Well, perhaps not,” said Alice in a soothing tone: “don’t be angry about it. And yet I wish I could show you our cat Dinah: I think you’d take a fancy to cats if you could only see her. She is such a dear quiet thing,” Alice went on, half to herself, as she swam lazily about in the pool, “and she sits purring so nicely by the fire, licking her paws and washing her face—and she is such a nice soft thing to nurse—and she’s such a capital one for catching mice—oh, I beg your pardon!” cried Alice again, for this time the Mouse was bristling all over, and she felt certain it must be really offended. “We won’t talk about her any more if you’d rather not.”\n\n“We indeed!” cried the Mouse, who was trembling down to the end of his tail. “As if I would talk on such a subject! Our family always hated cats: nasty, low, vulgar things! Don’t let me hear the name again!”\n\n“I won’t indeed!” said Alice, in a great hurry to change the subject of conversation. “Are you—are you fond—of—of dogs?” The Mouse did not answer, so Alice went on eagerly: “There is such a nice little dog near our house I should like to show you! A little bright-eyed terrier, you know, with oh, such long curly brown hair! And it’ll fetch things when you throw them, and it’ll sit up and beg for its dinner, and all sorts of things—I can’t remember half of them—and it belongs to a farmer, you know, and he says it’s so useful, it’s worth a hundred pounds! He says it kills all the rats and—oh dear!” cried Alice in a sorrowful tone, “I’m afraid I’ve offended it again!” For the Mouse was swimming away from her as hard as it could go, and making quite a commotion in the pool as it went.",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "Alice",
+       "emotion": "tenderness",
+       "delivery": "soothing"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "Alice",
+       "emotion": "tenderness",
+       "delivery": "eagerly"
+      },
+      {
+       "quote_index": 4,
+       "speaker": "Alice",
+       "emotion": "joy",
+       "delivery": "eagerly"
+      },
+      {
+       "quote_index": 6,
+       "speaker": "Alice",
+       "emotion": "sarcasm",
+       "delivery": "hurried"
+      },
+      {
+       "quote_index": 7,
+       "speaker": "Mouse",
+       "emotion": "anger",
+       "delivery": "trembling"
+      },
+      {
+       "quote_index": 9,
+       "speaker": "Mouse",
+       "emotion": "disgust",
+       "delivery": "furious"
+      },
+      {
+       "quote_index": 10,
+       "speaker": "Alice",
+       "emotion": "sarcasm",
+       "delivery": "hurried"
+      },
+      {
+       "quote_index": 12,
+       "speaker": "Alice",
+       "emotion": "sarcasm",
+       "delivery": "eagerly"
+      },
+      {
+       "quote_index": 14,
+       "speaker": "Alice",
+       "emotion": "joy",
+       "delivery": "eagerly"
+      },
+      {
+       "quote_index": 15,
+       "speaker": "Alice",
+       "emotion": "sadness",
+       "delivery": "sorrowful"
+      },
+      {
+       "quote_index": 17,
+       "speaker": "Alice",
+       "emotion": "sadness",
+       "delivery": "sorrowful"
+      }
+     ]
+    },
+    {
+     "page": 18,
+     "text": "“I thought you did,” said the Mouse. “—I proceed. ‘Edwin and Morcar, the earls of Mercia and Northumbria, declared for him: and even Stigand, the patriotic archbishop of Canterbury, found it advisable—’”\n\n“Found what?” said the Duck.\n\n“Found it,” the Mouse replied rather crossly: “of course you know what ‘it’ means.”\n\n“I know what ‘it’ means well enough, when I find a thing,” said the Duck: “it’s generally a frog or a worm. The question is, what did the archbishop find?”\n\nThe Mouse did not notice this question, but hurriedly went on, “‘—found it advisable to go with Edgar Atheling to meet William and offer him the crown. William’s conduct at first was moderate. But the insolence of his Normans—’ How are you getting on now, my dear?” it continued, turning to Alice as it spoke.\n\n“As wet as ever,” said Alice in a melancholy tone: “it doesn’t seem to dry me at all.”\n\n“In that case,” said the Dodo solemnly, rising to its feet, “I move that the meeting adjourn, for the immediate adoption of more energetic remedies—”\n\n“Speak English!” said the Eaglet. “I don’t know the meaning of half those long words, and, what’s more, I don’t believe you do either!” And the Eaglet bent down its head to hide a smile: some of the other birds tittered audibly.\n\n“What I was going to say,” said the Dodo in an offended tone, “was, that the best thing to get us dry would be a Caucus-race.”\n\n“What is a Caucus-race?” said Alice; not that she wanted much to know, but the Dodo had paused as if it thought that somebody ought to speak, and no one else seemed inclined to say anything.\n\n“Why,” said the Dodo, “the best way to explain it is to do it.” (And, as you might like to try the thing yourself, some winter day, I will tell you how the Dodo managed it.)",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "Mouse",
+       "emotion": "neutral",
+       "delivery": "smoothing voice"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "Mouse",
+       "emotion": "neutral",
+       "delivery": "rapidly"
+      },
+      {
+       "quote_index": 3,
+       "speaker": "Duck",
+       "emotion": "suspense",
+       "delivery": "confused"
+      },
+      {
+       "quote_index": 5,
+       "speaker": "Mouse",
+       "emotion": "anger",
+       "delivery": "crossly"
+      },
+      {
+       "quote_index": 7,
+       "speaker": "Duck",
+       "emotion": "sarcasm",
+       "delivery": "casually"
+      },
+      {
+       "quote_index": 8,
+       "speaker": "Duck",
+       "emotion": "sarcasm",
+       "delivery": "casually"
+      },
+      {
+       "quote_index": 10,
+       "speaker": "Duck",
+       "emotion": "suspense",
+       "delivery": "curiously"
+      },
+      {
+       "quote_index": 12,
+       "speaker": "Mouse",
+       "emotion": "neutral",
+       "delivery": "hurriedly"
+      },
+      {
+       "quote_index": 14,
+       "speaker": "Alice",
+       "emotion": "sadness",
+       "delivery": "melancholy"
+      },
+      {
+       "quote_index": 16,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "complaining"
+      },
+      {
+       "quote_index": 17,
+       "speaker": "The Dodo",
+       "emotion": "neutral",
+       "delivery": "solemnly"
+      },
+      {
+       "quote_index": 19,
+       "speaker": "The Dodo",
+       "emotion": "neutral",
+       "delivery": "authoritatively"
+      },
+      {
+       "quote_index": 20,
+       "speaker": "Eaglet",
+       "emotion": "anger",
+       "delivery": "annoyed"
+      },
+      {
+       "quote_index": 22,
+       "speaker": "Eaglet",
+       "emotion": "sarcasm",
+       "delivery": "mocking"
+      },
+      {
+       "quote_index": 24,
+       "speaker": "The Dodo",
+       "emotion": "neutral",
+       "delivery": "offended"
+      },
+      {
+       "quote_index": 26,
+       "speaker": "The Dodo",
+       "emotion": "joy",
+       "delivery": "excitedly"
+      },
+      {
+       "quote_index": 27,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "curious"
+      },
+      {
+       "quote_index": 29,
+       "speaker": "The Dodo",
+       "emotion": "neutral",
+       "delivery": "decisively"
+      },
+      {
+       "quote_index": 31,
+       "speaker": "The Dodo",
+       "emotion": "neutral",
+       "delivery": "encouragingly"
+      }
+     ]
+    },
+    {
+     "page": 19,
+     "text": "First it marked out a race-course, in a sort of circle, (“the exact shape doesn’t matter,” it said,) and then all the party were placed along the course, here and there. There was no “One, two, three, and away,” but they began running when they liked, and left off when they liked, so that it was not easy to know when the race was over. However, when they had been running half an hour or so, and were quite dry again, the Dodo suddenly called out “The race is over!” and they all crowded round it, panting, and asking, “But who has won?”\n\nThis question the Dodo could not answer without a great deal of thought, and it sat for a long time with one finger pressed upon its forehead (the position in which you usually see Shakespeare, in the pictures of him), while the rest waited in silence. At last the Dodo said, “Everybody has won, and all must have prizes.”\n\n“But who is to give the prizes?” quite a chorus of voices asked.\n\n“Why, she, of course,” said the Dodo, pointing to Alice with one finger; and the whole party at once crowded round her, calling out in a confused way, “Prizes! Prizes!”\n\nAlice had no idea what to do, and in despair she put her hand in her pocket, and pulled out a box of comfits, (luckily the salt water had not got into it), and handed them round as prizes. There was exactly one a-piece, all round.\n\n“But she must have a prize herself, you know,” said the Mouse.\n\n“Of course,” the Dodo replied very gravely. “What else have you got in your pocket?” he went on, turning to Alice.\n\n“Only a thimble,” said Alice sadly.\n\n“Hand it over here,” said the Dodo.\n\nThen they all crowded round her once more, while the Dodo solemnly presented the thimble, saying “We beg your acceptance of this elegant thimble;” and, when it had finished this short speech, they all cheered.",
+     "labels": [
+      {
+       "quote_index": 1,
+       "speaker": "The Dodo",
+       "emotion": "neutral",
+       "delivery": "casually"
+      },
+      {
+       "quote_index": 3,
+       "speaker": "The Dodo",
+       "emotion": "joy",
+       "delivery": "energetically"
+      },
+      {
+       "quote_index": 5,
+       "speaker": "The Dodo",
+       "emotion": "neutral",
+       "delivery": "solemnly"
+      },
+      {
+       "quote_index": 7,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "curiously"
+      },
+      {
+       "quote_index": 9,
+       "speaker": "The Dodo",
+       "emotion": "joy",
+       "delivery": "cheerfully"
+      },
+      {
+       "quote_index": 10,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "curiously"
+      },
+      {
+       "quote_index": 12,
+       "speaker": "The Dodo",
+       "emotion": "joy",
+       "delivery": "pointing"
+      },
+      {
+       "quote_index": 14,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "enthusiastically"
+      },
+      {
+       "quote_index": 16,
+       "speaker": "Mouse",
+       "emotion": "tenderness",
+       "delivery": "gently"
+      },
+      {
+       "quote_index": 18,
+       "speaker": "The Dodo",
+       "emotion": "neutral",
+       "delivery": "gravely"
+      },
+      {
+       "quote_index": 20,
+       "speaker": "Alice",
+       "emotion": "sadness",
+       "delivery": "sadly"
+      },
+      {
+       "quote_index": 22,
+       "speaker": "The Dodo",
+       "emotion": "neutral",
+       "delivery": "commanding"
+      },
+      {
+       "quote_index": 24,
+       "speaker": "The Dodo",
+       "emotion": "neutral",
+       "delivery": "solemnly"
+      },
+      {
+       "quote_index": 26,
+       "speaker": "The Dodo",
+       "emotion": "sarcasm",
+       "delivery": "pretentiously"
+      }
+     ]
+    },
+    {
+     "page": 23,
+     "text": "CHAPTER IV.\n\nThe Rabbit Sends in a Little Bill\n\nIt was the White Rabbit, trotting slowly back again, and looking anxiously about as it went, as if it had lost something; and she heard it muttering to itself “The Duchess! The Duchess! Oh my dear paws! Oh my fur and whiskers! She’ll get me executed, as sure as ferrets are ferrets! Where can I have dropped them, I wonder?” Alice guessed in a moment that it was looking for the fan and the pair of white kid gloves, and she very good-naturedly began hunting about for them, but they were nowhere to be seen—everything seemed to have changed since her swim in the pool, and the great hall, with the glass table and the little door, had vanished completely.\n\nVery soon the Rabbit noticed Alice, as she went hunting about, and called out to her in an angry tone, “Why, Mary Ann, what are you doing out here? Run home this moment, and fetch me a pair of gloves and a fan! Quick, now!” And Alice was so much frightened that she ran off at once in the direction it pointed to, without trying to explain the mistake it had made.\n\n“He took me for his housemaid,” she said to herself as she ran. “How surprised he’ll be when he finds out who I am! But I’d better take him his fan and gloves—that is, if I can find them.” As she said this, she came upon a neat little house, on the door of which was a bright brass plate with the name “W. RABBIT,” engraved upon it. She went in without knocking, and hurried upstairs, in great fear lest she should meet the real Mary Ann, and be turned out of the house before she had found the fan and gloves.",
+     "labels": [
+      {
+       "quote_index": 1,
+       "speaker": "The White Rabbit",
+       "emotion": "fear",
+       "delivery": "panicked"
+      },
+      {
+       "quote_index": 4,
+       "speaker": "Mouse",
+       "emotion": "anger",
+       "delivery": "sharply, commanding"
+      },
+      {
+       "quote_index": 6,
+       "speaker": "Alice",
+       "emotion": "joy",
+       "delivery": "whispering to herself"
+      },
+      {
+       "quote_index": 8,
+       "speaker": "Alice",
+       "emotion": "suspense",
+       "delivery": "thinking aloud"
+      },
+      {
+       "quote_index": 10,
+       "speaker": "Alice",
+       "emotion": "fear",
+       "delivery": "calling out"
+      }
+     ]
+    },
+    {
+     "page": 26,
+     "text": "And so she went on, taking first one side and then the other, and making quite a conversation of it altogether; but after a few minutes she heard a voice outside, and stopped to listen.\n\n“Mary Ann! Mary Ann!” said the voice. “Fetch me my gloves this moment!” Then came a little pattering of feet on the stairs. Alice knew it was the Rabbit coming to look for her, and she trembled till she shook the house, quite forgetting that she was now about a thousand times as large as the Rabbit, and had no reason to be afraid of it.\n\nPresently the Rabbit came up to the door, and tried to open it; but, as the door opened inwards, and Alice’s elbow was pressed hard against it, that attempt proved a failure. Alice heard it say to itself “Then I’ll go round and get in at the window.”\n\n“That you won’t!” thought Alice, and, after waiting till she fancied she heard the Rabbit just under the window, she suddenly spread out her hand, and made a snatch in the air. She did not get hold of anything, but she heard a little shriek and a fall, and a crash of broken glass, from which she concluded that it was just possible it had fallen into a cucumber-frame, or something of the sort.\n\nNext came an angry voice—the Rabbit’s—“Pat! Pat! Where are you?” And then a voice she had never heard before, “Sure then I’m here! Digging for apples, yer honour!”\n\n“Digging for apples, indeed!” said the Rabbit angrily. “Here! Come and help me out of this!” (Sounds of more broken glass.)\n\n“Now tell me, Pat, what’s that in the window?”\n\n“Sure, it’s an arm, yer honour!” (He pronounced it “arrum.”)\n\n“An arm, you goose! Who ever saw one that size? Why, it fills the whole window!”\n\n“Sure, it does, yer honour: but it’s an arm for all that.”\n\n“Well, it’s got no business there, at any rate: go and take it away!”",
+     "labels": [
+      {
+       "quote_index": 1,
+       "speaker": "Alice",
+       "emotion": "fear",
+       "delivery": "panicked"
+      },
+      {
+       "quote_index": 3,
+       "speaker": "Alice",
+       "emotion": "fear",
+       "delivery": "commanding"
+      },
+      {
+       "quote_index": 6,
+       "speaker": "Alice",
+       "emotion": "suspense",
+       "delivery": "planning"
+      },
+      {
+       "quote_index": 7,
+       "speaker": "Alice",
+       "emotion": "fear",
+       "delivery": "defiant"
+      },
+      {
+       "quote_index": 10,
+       "speaker": "Mouse",
+       "emotion": "suspense",
+       "delivery": "calling out"
+      },
+      {
+       "quote_index": 12,
+       "speaker": "Mouse",
+       "emotion": "joy",
+       "delivery": "cheerful"
+      },
+      {
+       "quote_index": 13,
+       "speaker": "The White Rabbit",
+       "emotion": "anger",
+       "delivery": "angry"
+      },
+      {
+       "quote_index": 15,
+       "speaker": "The White Rabbit",
+       "emotion": "anger",
+       "delivery": "commanding"
+      },
+      {
+       "quote_index": 17,
+       "speaker": "Mouse",
+       "emotion": "suspense",
+       "delivery": "answering"
+      },
+      {
+       "quote_index": 18,
+       "speaker": "The White Rabbit",
+       "emotion": "surprise",
+       "delivery": "shocked"
+      },
+      {
+       "quote_index": 20,
+       "speaker": "Mouse",
+       "emotion": "neutral",
+       "delivery": "pronouncing"
+      },
+      {
+       "quote_index": 22,
+       "speaker": "The White Rabbit",
+       "emotion": "anger",
+       "delivery": "insulting"
+      },
+      {
+       "quote_index": 23,
+       "speaker": "Mouse",
+       "emotion": "suspense",
+       "delivery": "defensive"
+      },
+      {
+       "quote_index": 24,
+       "speaker": "The White Rabbit",
+       "emotion": "anger",
+       "delivery": "commanding"
+      }
+     ]
+    },
+    {
+     "page": 27,
+     "text": "There was a long silence after this, and Alice could only hear whispers now and then; such as, “Sure, I don’t like it, yer honour, at all, at all!” “Do as I tell you, you coward!” and at last she spread out her hand again, and made another snatch in the air. This time there were two little shrieks, and more sounds of broken glass. “What a number of cucumber-frames there must be!” thought Alice. “I wonder what they’ll do next! As for pulling me out of the window, I only wish they could! I’m sure I don’t want to stay in here any longer!”\n\nShe waited for some time without hearing anything more: at last came a rumbling of little cartwheels, and the sound of a good many voices all talking together: she made out the words: “Where’s the other ladder?—Why, I hadn’t to bring but one; Bill’s got the other—Bill! fetch it here, lad!—Here, put ’em up at this corner—No, tie ’em together first—they don’t reach half high enough yet—Oh! they’ll do well enough; don’t be particular—Here, Bill! catch hold of this rope—Will the roof bear?—Mind that loose slate—Oh, it’s coming down! Heads below!” (a loud crash)—“Now, who did that?—It was Bill, I fancy—Who’s to go down the chimney?—Nay, I shan’t! You do it!—That I won’t, then!—Bill’s to go down—Here, Bill! the master says you’re to go down the chimney!”\n\n“Oh! So Bill’s got to come down the chimney, has he?” said Alice to herself. “Shy, they seem to put everything upon Bill! I wouldn’t be in Bill’s place for a good deal: this fireplace is narrow, to be sure; but I think I can kick a little!”",
+     "labels": [
+      {
+       "quote_index": 1,
+       "speaker": "Mouse",
+       "emotion": "fear",
+       "delivery": "fearful"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "The White Rabbit",
+       "emotion": "anger",
+       "delivery": "scolding"
+      },
+      {
+       "quote_index": 4,
+       "speaker": "Alice",
+       "emotion": "awe",
+       "delivery": "wondering"
+      },
+      {
+       "quote_index": 6,
+       "speaker": "Alice",
+       "emotion": "joy",
+       "delivery": "excitedly"
+      },
+      {
+       "quote_index": 8,
+       "speaker": "Mouse",
+       "emotion": "neutral",
+       "delivery": "commanding"
+      },
+      {
+       "quote_index": 9,
+       "speaker": "Mouse",
+       "emotion": "fear",
+       "delivery": "panicked"
+      },
+      {
+       "quote_index": 11,
+       "speaker": "Mouse",
+       "emotion": "anger",
+       "delivery": "authoritative"
+      },
+      {
+       "quote_index": 12,
+       "speaker": "Alice",
+       "emotion": "surprise",
+       "delivery": "thinking aloud"
+      },
+      {
+       "quote_index": 14,
+       "speaker": "Alice",
+       "emotion": "sarcasm",
+       "delivery": "mocking"
+      }
+     ]
+    },
+    {
+     "page": 35,
+     "text": "“But I’m not used to it!” pleaded poor Alice in a piteous tone. And she thought of herself, “I wish the creatures wouldn’t be so easily offended!”\n\n“You’ll get used to it in time,” said the Caterpillar; and it put the hookah into its mouth and began smoking again.\n\nThis time Alice waited patiently until it chose to speak again. In a minute or two the Caterpillar took the hookah out of its mouth and yawned once or twice, and shook itself. Then it got down off the mushroom, and crawled away in the grass, merely remarking as it went, “One side will make you grow taller, and the other side will make you grow shorter.”\n\n“One side of what? The other side of what?” thought Alice to herself.\n\n“Of the mushroom,” said the Caterpillar, just as if she had asked it aloud; and in another moment it was out of sight.\n\nAlice remained looking thoughtfully at the mushroom for a minute, trying to make out which were the two sides of it; and as it was perfectly round, she found this a very difficult question. However, at last she stretched her arms round it as far as they would go, and broke off a bit of the edge with each hand.\n\n“And now which is which?” she said to herself, and nibbled a little of the right-hand bit to try the effect: the next moment she felt a violent blow underneath her chin: it had struck her foot!\n\nShe was a good deal frightened by this very sudden change, but she felt that there was no time to be lost, as she was shrinking rapidly; so she set to work at once to eat some of the other bit. Her chin was pressed so closely against her foot, that there was hardly room to open her mouth; but she did it at last, and managed to swallow a morsel of the lefthand bit.\n\n* * * * * * *\n\n* * * * * *\n\n* * * * * * *",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "Alice",
+       "emotion": "sadness",
+       "delivery": "piteously"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "Alice",
+       "emotion": "sarcasm",
+       "delivery": "complaining"
+      },
+      {
+       "quote_index": 3,
+       "speaker": "Caterpillar",
+       "emotion": "neutral",
+       "delivery": "smoking"
+      },
+      {
+       "quote_index": 6,
+       "speaker": "Caterpillar",
+       "emotion": "neutral",
+       "delivery": "explaining"
+      },
+      {
+       "quote_index": 7,
+       "speaker": "Alice",
+       "emotion": "suspense",
+       "delivery": "thinking"
+      },
+      {
+       "quote_index": 9,
+       "speaker": "Caterpillar",
+       "emotion": "neutral",
+       "delivery": "answering"
+      },
+      {
+       "quote_index": 12,
+       "speaker": "Alice",
+       "emotion": "suspense",
+       "delivery": "deciding"
+      }
+     ]
+    },
+    {
+     "page": 50,
+     "text": "“Why should it?” muttered the Hatter. “Does your watch tell you what year it is?”\n\n“Of course not,” Alice replied very readily: “but that’s because it stays the same year for such a long time together.”\n\n“Which is just the case with mine,” said the Hatter.\n\nAlice felt dreadfully puzzled, The Hatter’s remark seemed to have no sort of meaning in it, and yet it was certainly English. “I don’t quite understand you,” she said, as politely as she could.\n\n“The Dormouse is asleep again,” said the Hatter, and he poured a little hot tea upon its nose.\n\nThe Dormouse shook its head impatiently, and said, without opening its eyes, “Of course, of course; just what I was going to remark myself.”\n\n“Have you guessed the riddle yet?” the Hatter said, turning to Alice again.\n\n“No, I give it up,” Alice replied: “what’s the answer?”\n\n“I haven’t the slightest idea,” said the Hatter.\n\n“Nor I,” said the March Hare.\n\nAlice sighed wearily. “I think you might do something better with the time,” she said, “than waste it in asking riddles that have no answers.”\n\n“If you knew Time as well as I do,” said the Hatter, “you wouldn’t talk about wasting it. It’s him.”\n\n“I don’t know what you mean,” said Alice.\n\n“Of course you don’t!” the Hatter said, tossing his head contemptuously. “I dare say you never even spoke to Time!”\n\n“Perhaps not,” Alice cautiously replied: “but I know I have to beat time when I learn music.”\n\n“Ah! that accounts for it,” said the Hatter. “He won’t stand beating. Now, if you only kept on good terms with him, he’d do almost anything you liked with the clock. For instance, suppose it were nine o’clock in the morning, just time to begin lessons: you’d only have to whisper a hint to Time, and round goes the clock in a twinkling! Half-past one, time for dinner!”",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "The Hatter",
+       "emotion": "sarcasm",
+       "delivery": ""
+      },
+      {
+       "quote_index": 2,
+       "speaker": "Alice",
+       "emotion": "suspense",
+       "delivery": "curiously"
+      },
+      {
+       "quote_index": 3,
+       "speaker": "The Gryphon",
+       "emotion": "neutral",
+       "delivery": "smiling"
+      },
+      {
+       "quote_index": 5,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "politely"
+      },
+      {
+       "quote_index": 6,
+       "speaker": "The Hatter",
+       "emotion": "neutral",
+       "delivery": "mysteriously"
+      },
+      {
+       "quote_index": 8,
+       "speaker": "Alice",
+       "emotion": "suspense",
+       "delivery": "confused"
+      },
+      {
+       "quote_index": 10,
+       "speaker": "The Hatter",
+       "emotion": "neutral",
+       "delivery": "casually"
+      },
+      {
+       "quote_index": 12,
+       "speaker": "The Gryphon",
+       "emotion": "neutral",
+       "delivery": "amused"
+      },
+      {
+       "quote_index": 13,
+       "speaker": "The Hatter",
+       "emotion": "neutral",
+       "delivery": "inquiring"
+      },
+      {
+       "quote_index": 15,
+       "speaker": "Alice",
+       "emotion": "suspense",
+       "delivery": "resigned"
+      },
+      {
+       "quote_index": 17,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "curious"
+      },
+      {
+       "quote_index": 18,
+       "speaker": "The Hatter",
+       "emotion": "neutral",
+       "delivery": "apologetic"
+      },
+      {
+       "quote_index": 20,
+       "speaker": "The March Hare",
+       "emotion": "neutral",
+       "delivery": "agreeing"
+      },
+      {
+       "quote_index": 22,
+       "speaker": "Alice",
+       "emotion": "suspense",
+       "delivery": "admonishing"
+      },
+      {
+       "quote_index": 24,
+       "speaker": "The Hatter",
+       "emotion": "neutral",
+       "delivery": "arrogant"
+      },
+      {
+       "quote_index": 25,
+       "speaker": "The Hatter",
+       "emotion": "neutral",
+       "delivery": "assertive"
+      },
+      {
+       "quote_index": 27,
+       "speaker": "Alice",
+       "emotion": "suspense",
+       "delivery": "confused"
+      },
+      {
+       "quote_index": 28,
+       "speaker": "The Hatter",
+       "emotion": "anger",
+       "delivery": "contemptuous"
+      },
+      {
+       "quote_index": 30,
+       "speaker": "The Hatter",
+       "emotion": "suspense",
+       "delivery": "challenging"
+      },
+      {
+       "quote_index": 32,
+       "speaker": "Alice",
+       "emotion": "fear",
+       "delivery": "cautious"
+      },
+      {
+       "quote_index": 33,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "defensive"
+      },
+      {
+       "quote_index": 35,
+       "speaker": "The Hatter",
+       "emotion": "neutral",
+       "delivery": "insightful"
+      },
+      {
+       "quote_index": 36,
+       "speaker": "The Hatter",
+       "emotion": "neutral",
+       "delivery": "philosophical"
+      },
+      {
+       "quote_index": 38,
+       "speaker": "The Hatter",
+       "emotion": "neutral",
+       "delivery": "illustrative"
+      }
+     ]
+    },
+    {
+     "page": 56,
+     "text": "CHAPTER VIII.\n\nThe Queen’s Croquet-Ground\n\nA large rose-tree stood near the entrance of the garden: the roses growing on it were white, but there were three gardeners at it, busily painting them red. Alice thought this a very curious thing, and she went nearer to watch them, and just as she came up to them she heard one of them say, “Look out now, Five! Don’t go splashing paint over me like that!”\n\n“I couldn’t help it,” said Five, in a sulky tone; “Seven jogged my elbow.”\n\nOn which Seven looked up and said, “That’s right, Five! Always lay the blame on others!”\n\n“You’d better not talk!” said Five. “I heard the Queen say only yesterday you deserved to be beheaded!”\n\n“What for?” said the one who had spoken first.\n\n“That’s none of your business, Two!” said Seven.\n\n“Yes, it is his business!” said Five, “and I’ll tell him—it was for bringing the cook tulip-roots instead of onions.”\n\nSeven flung down his brush, and had just begun “Well, of all the unjust things—” when his eye chanced to fall upon Alice, as she stood watching them, and he checked himself suddenly: the others looked round also, and all of them bowed low.\n\n“Would you tell me,” said Alice, a little timidly, “why you are painting those roses?”",
+     "labels": [
+      {
+       "quote_index": 1,
+       "speaker": "Five",
+       "emotion": "anger",
+       "delivery": "shocked, defensive"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "Five",
+       "emotion": "sadness",
+       "delivery": "sulky, guilty"
+      },
+      {
+       "quote_index": 4,
+       "speaker": "Seven",
+       "emotion": "sarcasm",
+       "delivery": "mocking, accusatory"
+      },
+      {
+       "quote_index": 6,
+       "speaker": "Five",
+       "emotion": "anger",
+       "delivery": "defensive, aggressive"
+      },
+      {
+       "quote_index": 7,
+       "speaker": "Five",
+       "emotion": "fear",
+       "delivery": "threatened, serious"
+      },
+      {
+       "quote_index": 9,
+       "speaker": "Five",
+       "emotion": "neutral",
+       "delivery": "inquisitive, bold"
+      },
+      {
+       "quote_index": 10,
+       "speaker": "Seven",
+       "emotion": "neutral",
+       "delivery": "defensive, dismissive"
+      },
+      {
+       "quote_index": 12,
+       "speaker": "Five",
+       "emotion": "anger",
+       "delivery": "defiant, accusatory"
+      },
+      {
+       "quote_index": 14,
+       "speaker": "Five",
+       "emotion": "neutral",
+       "delivery": "explaining, matter-of-fact"
+      },
+      {
+       "quote_index": 16,
+       "speaker": "Seven",
+       "emotion": "neutral",
+       "delivery": "angry, abrupt"
+      },
+      {
+       "quote_index": 18,
+       "speaker": "Alice",
+       "emotion": "sarcasm",
+       "delivery": "complaining"
+      },
+      {
+       "quote_index": 20,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "timidly"
+      },
+      {
+       "quote_index": 22,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "curious"
+      }
+     ]
+    },
+    {
+     "page": 60,
+     "text": "“Get to your places!” shouted the Queen in a voice of thunder, and people began running about in all directions, tumbling up against each other; however, they got settled down in a minute or two, and the game began. Alice thought she had never seen such a curious croquet-ground in her life; it was all ridges and furrows; the balls were live hedgehogs, the mallets live flamingoes, and the soldiers had to double themselves up and to stand on their hands and feet, to make the arches.\n\nThe chief difficulty Alice found at first was in managing her flamingo: she succeeded in getting its body tucked away, comfortably enough, under her arm, with its legs hanging down, but generally, just as she had got its neck nicely straightened out, and was going to give the hedgehog a blow with its head, it would twist itself round and look up in her face, with such a puzzled expression that she could not help bursting out laughing: and when she had got its head down, and was going to begin again, it was very provoking to find that the hedgehog had unrolled itself, and was in the act of crawling away: besides all this, there was generally a ridge or furrow in the way wherever she wanted to send the hedgehog to, and, as the doubled-up soldiers were always getting up and walking off to other parts of the ground, Alice soon came to the conclusion that it was a very difficult game indeed.\n\nThe players all played at once without waiting for turns, quarrelling all the while, and fighting for the hedgehogs; and in a very short time the Queen was in a furious passion, and went stamping about, and shouting “Off with his head!” or “Off with her head!” about once in a minute.",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "The Queen of Hearts",
+       "emotion": "anger",
+       "delivery": "shouting"
+      },
+      {
+       "quote_index": 7,
+       "speaker": "The King of Hearts",
+       "emotion": "anger",
+       "delivery": "shouting"
+      },
+      {
+       "quote_index": 9,
+       "speaker": "Queen of Hearts",
+       "emotion": "anger",
+       "delivery": "shouting"
+      }
+     ]
+    },
+    {
+     "page": 67,
+     "text": "“I quite agree with you,” said the Duchess; “and the moral of that is—‘Be what you would seem to be’—or if you’d like it put more simply—‘Never imagine yourself not to be otherwise than what it might appear to others that what you were or might have been was not otherwise than what you had been would have appeared to them to be otherwise.’”\n\n“I think I should understand that better,” Alice said very politely, “if I had it written down: but I can’t quite follow it as you say it.”\n\n“That’s nothing to what I could say if I chose,” the Duchess replied, in a pleased tone.\n\n“Pray don’t trouble yourself to say it any longer than that,” said Alice.\n\n“Oh, don’t talk about trouble!” said the Duchess. “I make you a present of everything I’ve said as yet.”\n\n“A cheap sort of present!” thought Alice. “I’m glad they don’t give birthday presents like that!” But she did not venture to say it out loud.\n\n“Thinking again?” the Duchess asked, with another dig of her sharp little chin.\n\n“I’ve a right to think,” said Alice sharply, for she was beginning to feel a little worried.\n\n“Just about as much right,” said the Duchess, “as pigs have to fly; and the m—”\n\nBut here, to Alice’s great surprise, the Duchess’s voice died away, even in the middle of her favourite word ‘moral,’ and the arm that was linked into hers began to tremble. Alice looked up, and there stood the Queen in front of them, with her arms folded, frowning like a thunderstorm.\n\n“A fine day, your Majesty!” the Duchess began in a low, weak voice.\n\n“Now, I give you fair warning,” shouted the Queen, stamping on the ground as she spoke; “either you or your head must be off, and that in about half no time! Take your choice!”\n\nThe Duchess took her choice, and was gone in a moment.",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "The Duchess",
+       "emotion": "neutral",
+       "delivery": "agreeable"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "Cheshire Cat",
+       "emotion": "neutral",
+       "delivery": "slowly, with a smile"
+      },
+      {
+       "quote_index": 3,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "politely"
+      },
+      {
+       "quote_index": 5,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "politely"
+      },
+      {
+       "quote_index": 6,
+       "speaker": "The Duchess",
+       "emotion": "joy",
+       "delivery": "smugly"
+      },
+      {
+       "quote_index": 8,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "polite"
+      },
+      {
+       "quote_index": 10,
+       "speaker": "The Duchess",
+       "emotion": "sarcasm",
+       "delivery": "mocking"
+      },
+      {
+       "quote_index": 12,
+       "speaker": "The Duchess",
+       "emotion": "joy",
+       "delivery": "pleased"
+      },
+      {
+       "quote_index": 13,
+       "speaker": "Alice",
+       "emotion": "sarcasm",
+       "delivery": "thoughtful"
+      },
+      {
+       "quote_index": 15,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "internal"
+      },
+      {
+       "quote_index": 17,
+       "speaker": "The Duchess",
+       "emotion": "suspense",
+       "delivery": "sharp"
+      },
+      {
+       "quote_index": 19,
+       "speaker": "Alice",
+       "emotion": "fear",
+       "delivery": "sharply"
+      },
+      {
+       "quote_index": 21,
+       "speaker": "The Duchess",
+       "emotion": "suspense",
+       "delivery": "abruptly"
+      },
+      {
+       "quote_index": 23,
+       "speaker": "The Duchess",
+       "emotion": "fear",
+       "delivery": "dying away"
+      },
+      {
+       "quote_index": 25,
+       "speaker": "The Duchess",
+       "emotion": "awe",
+       "delivery": "weakly"
+      },
+      {
+       "quote_index": 27,
+       "speaker": "Queen of Hearts",
+       "emotion": "anger",
+       "delivery": "shouting"
+      },
+      {
+       "quote_index": 29,
+       "speaker": "The Duchess",
+       "emotion": "fear",
+       "delivery": "panicked"
+      }
+     ]
+    },
+    {
+     "page": 71,
+     "text": "“Yes,” said Alice, “we learned French and music.”\n\n“And washing?” said the Mock Turtle.\n\n“Certainly not!” said Alice indignantly.\n\n“Ah! then yours wasn’t a really good school,” said the Mock Turtle in a tone of great relief. “Now at ours they had at the end of the bill, ‘French, music, and washing—extra.’”\n\n“You couldn’t have wanted it much,” said Alice; “living at the bottom of the sea.”\n\n“I couldn’t afford to learn it.” said the Mock Turtle with a sigh. “I only took the regular course.”\n\n“What was that?” inquired Alice.\n\n“Reeling and Writhing, of course, to begin with,” the Mock Turtle replied; “and then the different branches of Arithmetic—Ambition, Distraction, Uglification, and Derision.”\n\n“I never heard of ‘Uglification,’” Alice ventured to say. “What is it?”\n\nThe Gryphon lifted up both its paws in surprise. “What! Never heard of uglifying!” it exclaimed. “You know what to beautify is, I suppose?”\n\n“Yes,” said Alice doubtfully: “it means—to—make—anything—prettier.”\n\n“Well, then,” the Gryphon went on, “if you don’t know what to uglify is, you are a simpleton.”\n\nAlice did not feel encouraged to ask any more questions about it, so she turned to the Mock Turtle, and said “What else had you to learn?”\n\n“Well, there was Mystery,” the Mock Turtle replied, counting off the subjects on his flappers, “—Mystery, ancient and modern, with Seaography: then Drawling—the Drawling-master was an old conger-eel, that used to come once a week: he taught us Drawling, Stretching, and Fainting in Coils.”\n\n“What was that like?” said Alice.\n\n“Well, I can’t show it you myself,” the Mock Turtle said: “I’m too stiff. And the Gryphon never learnt it.”\n\n“Hadn’t time,” said the Gryphon: “I went to the Classics master, though. He was an old crab, he was.”",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "confident"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "The Mock Turtle",
+       "emotion": "neutral",
+       "delivery": "curious"
+      },
+      {
+       "quote_index": 3,
+       "speaker": "Alice",
+       "emotion": "anger",
+       "delivery": "indignant"
+      },
+      {
+       "quote_index": 5,
+       "speaker": "The Mock Turtle",
+       "emotion": "neutral",
+       "delivery": "relieved"
+      },
+      {
+       "quote_index": 7,
+       "speaker": "The Mock Turtle",
+       "emotion": "neutral",
+       "delivery": "relieved"
+      },
+      {
+       "quote_index": 9,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "matter-of-fact"
+      },
+      {
+       "quote_index": 10,
+       "speaker": "The Mock Turtle",
+       "emotion": "sadness",
+       "delivery": "sighing"
+      },
+      {
+       "quote_index": 12,
+       "speaker": "The Mock Turtle",
+       "emotion": "neutral",
+       "delivery": "resigned"
+      },
+      {
+       "quote_index": 13,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "inquiring"
+      },
+      {
+       "quote_index": 15,
+       "speaker": "The Mock Turtle",
+       "emotion": "neutral",
+       "delivery": "informative"
+      },
+      {
+       "quote_index": 16,
+       "speaker": "The Mock Turtle",
+       "emotion": "neutral",
+       "delivery": "informative"
+      },
+      {
+       "quote_index": 18,
+       "speaker": "The Mock Turtle",
+       "emotion": "neutral",
+       "delivery": "informative"
+      },
+      {
+       "quote_index": 20,
+       "speaker": "Alice",
+       "emotion": "surprise",
+       "delivery": "doubtful"
+      },
+      {
+       "quote_index": 21,
+       "speaker": "Cheshire Cat",
+       "emotion": "surprise",
+       "delivery": "astonished"
+      },
+      {
+       "quote_index": 23,
+       "speaker": "Cheshire Cat",
+       "emotion": "sarcasm",
+       "delivery": "mocking"
+      },
+      {
+       "quote_index": 25,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "doubtful"
+      },
+      {
+       "quote_index": 27,
+       "speaker": "Cheshire Cat",
+       "emotion": "neutral",
+       "delivery": "explaining"
+      },
+      {
+       "quote_index": 28,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "doubtful"
+      },
+      {
+       "quote_index": 30,
+       "speaker": "Cheshire Cat",
+       "emotion": "sarcasm",
+       "delivery": "mocking"
+      },
+      {
+       "quote_index": 31,
+       "speaker": "Cheshire Cat",
+       "emotion": "anger",
+       "delivery": "condescending"
+      },
+      {
+       "quote_index": 33,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "defensive"
+      },
+      {
+       "quote_index": 35,
+       "speaker": "The Mock Turtle",
+       "emotion": "neutral",
+       "delivery": "enthusiastic"
+      },
+      {
+       "quote_index": 36,
+       "speaker": "The Mock Turtle",
+       "emotion": "neutral",
+       "delivery": "listing"
+      },
+      {
+       "quote_index": 38,
+       "speaker": "The Mock Turtle",
+       "emotion": "neutral",
+       "delivery": "descriptive"
+      },
+      {
+       "quote_index": 39,
+       "speaker": "Alice",
+       "emotion": "neutral",
+       "delivery": "inquiring"
+      },
+      {
+       "quote_index": 41,
+       "speaker": "The Mock Turtle",
+       "emotion": "sadness",
+       "delivery": "apologetic"
+      },
+      {
+       "quote_index": 43,
+       "speaker": "Gryphon",
+       "emotion": "neutral",
+       "delivery": ""
+      },
+      {
+       "quote_index": 44,
+       "speaker": "Gryphon",
+       "emotion": "neutral",
+       "delivery": ""
+      },
+      {
+       "quote_index": 46,
+       "speaker": "Gryphon",
+       "emotion": "neutral",
+       "delivery": ""
+      }
+     ]
+    },
+    {
+     "page": 79,
+     "text": "“Oh, a song, please, if the Mock Turtle would be so kind,” Alice replied, so eagerly that the Gryphon said, in a rather offended tone, “Hm! No accounting for tastes! Sing her ‘Turtle Soup,’ will you, old fellow?”\n\nThe Mock Turtle sighed deeply, and began, in a voice sometimes choked with sobs, to sing this:—\n\n“Beautiful Soup, so rich and green,\n\nWaiting in a hot tureen!\n\nWho for such dainties would not stoop?\n\nSoup of the evening, beautiful Soup!\n\nSoup of the evening, beautiful Soup!\n\nBeau—ootiful Soo—oop!\n\nBeau—ootiful Soo—oop!\n\nSoo—oop of the e—e—evening,\n\nBeautiful, beautiful Soup!\n\n“Beautiful Soup! Who cares for fish,\n\nGame, or any other dish?\n\nWho would not give all else for two p\n\nennyworth only of beautiful Soup?\n\nPennyworth only of beautiful Soup?\n\nBeau—ootiful Soo—oop!\n\nBeau—ootiful Soo—oop!\n\nSoo—oop of the e—e—evening,\n\nBeautiful, beauti—FUL SOUP!”\n\n“Chorus again!” cried the Gryphon, and the Mock Turtle had just begun to repeat it, when a cry of “The trial’s beginning!” was heard in the distance.\n\n“Come on!” cried the Gryphon, and, taking Alice by the hand, it hurried off, without waiting for the end of the song.\n\n“What trial is it?” Alice panted as she ran; but the Gryphon only answered “Come on!” and ran the faster, while more and more faintly came, carried on the breeze that followed them, the melancholy words:—\n\n“Soo—oop of the e—e—evening,\n\nBeautiful, beautiful Soup!”",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "Alice",
+       "emotion": "joy",
+       "delivery": "eager request"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "The Gryphon",
+       "emotion": "sarcasm",
+       "delivery": "mocking her taste"
+      },
+      {
+       "quote_index": 4,
+       "speaker": "Mock Turtle",
+       "emotion": "awe",
+       "delivery": "singing with emotion"
+      },
+      {
+       "quote_index": 5,
+       "speaker": "Mock Turtle",
+       "emotion": "awe",
+       "delivery": "singing chorus"
+      },
+      {
+       "quote_index": 6,
+       "speaker": "The Gryphon",
+       "emotion": "suspense",
+       "delivery": "urging for chorus"
+      },
+      {
+       "quote_index": 8,
+       "speaker": "The Gryphon",
+       "emotion": "suspense",
+       "delivery": "announcing trial"
+      },
+      {
+       "quote_index": 10,
+       "speaker": "The Gryphon",
+       "emotion": "suspense",
+       "delivery": "urging to hurry"
+      },
+      {
+       "quote_index": 12,
+       "speaker": "Alice",
+       "emotion": "fear",
+       "delivery": "asking question while running"
+      },
+      {
+       "quote_index": 14,
+       "speaker": "The Gryphon",
+       "emotion": "suspense",
+       "delivery": "urging to hurry"
+      },
+      {
+       "quote_index": 16,
+       "speaker": "Mock Turtle",
+       "emotion": "awe",
+       "delivery": "singing final line"
+      }
+     ]
+    }
+   ]
+  },
+  "pride-and-prejudice-austen": {
+   "title": "Pride and Prejudice",
+   "roster": [
+    {
+     "name": "Elizabeth Bennet",
+     "gender": "female",
+     "age": "young",
+     "accent": "british",
+     "description": "Youthful female voice, mid-to-high pitch. Initially brisk and defensive, becoming softer and more introspective. Clear articulation with a natural, unpretentious British accent. Personality shifts from sharp and indignant to vulnerable and ashamed."
+    },
+    {
+     "name": "George Saintsbury",
+     "gender": "male",
+     "age": "adult",
+     "accent": "british",
+     "description": "Intellectual, articulate male voice. Mid-to-high pitch, steady and measured pace. British accent. Sounds like a distinguished literary historian or professor, confident and slightly amused by the subject matter."
+    },
+    {
+     "name": "Mr. Darcy",
+     "gender": "male",
+     "age": "young",
+     "accent": "british",
+     "description": "Deep, resonant, and slow-paced voice. Low pitch with a clipped, formal diction. The tone is often cool and measured, occasionally softening to show hidden warmth or irritation, but always maintaining a sense of aristocratic restraint."
+    },
+    {
+     "name": "Mr. Bennet",
+     "gender": "male",
+     "age": "young",
+     "accent": "british",
+     "description": "Bright, articulate female voice. Mid-high pitch with a clear, crisp articulation. Pace is brisk and intelligent, often cutting through others' rambling. British accent. Personality is witty, critical, and emotionally resilient."
+    },
+    {
+     "name": "Jane Bennet",
+     "gender": "female",
+     "age": "young",
+     "accent": "british",
+     "description": "Soft, melodic female voice. Mid-low pitch, smooth and unobtrusive. Pace is slow and measured, often pausing to show hesitation or sadness. British accent. Personality is kind, reserved, and emotionally sensitive."
+    },
+    {
+     "name": "Lady Catherine de Bourgh",
+     "gender": "female",
+     "age": "elder",
+     "accent": "british",
+     "description": "High, sharp, and commanding voice. Very measured and deliberate pace, emphasizing every syllable to sound authoritative. British accent with a clipped, aristocratic quality. Conveys arrogance and unyielding confidence."
+    },
+    {
+     "name": "Lydia Bennet",
+     "gender": "female",
+     "age": "young",
+     "accent": "british",
+     "description": "Light, youthful female voice, high pitch, fast and somewhat breathless. Speaks with a carefree, slightly nasal tone, often lacking depth or seriousness. Quick, erratic cadence reflecting her impulsivity."
+    },
+    {
+     "name": "William Collins",
+     "gender": "male",
+     "age": "young",
+     "accent": "british",
+     "description": "High-pitched, breathy, and overly polite. Fast-paced but with exaggerated pauses for effect. Affecting a formal, upper-class British accent that sounds slightly affected and unnatural. Sounds self-important and eager to please."
+    },
+    {
+     "name": "Mr. Bingley",
+     "gender": "male",
+     "age": "young",
+     "accent": "british",
+     "description": "Smooth, slightly higher pitch than average, with a practiced, affected tone. British accent. Voice sounds overly polite on the surface but carries an undercurrent of sharpness and competitiveness."
+    },
+    {
+     "name": "Mr. Wickham",
+     "gender": "male",
+     "age": "young",
+     "accent": "british",
+     "description": "Smooth, youthful male voice, mid-to-high pitch, fast and engaging pace. Charismatic and slightly flirtatious tone, with a deceptive lightness. Speaks with confidence and a hint of charm."
+    },
+    {
+     "name": "Mrs. Gardiner",
+     "gender": "female",
+     "age": "adult",
+     "accent": "british",
+     "description": "Warm, mature female voice, mid-range pitch, steady and reassuring pace. Speaks with empathy and clarity, often softening her tone to comfort others. Slightly hurried when discussing urgent matters."
+    },
+    {
+     "name": "Colonel Fitzwilliam",
+     "gender": "male",
+     "age": "young",
+     "accent": "british",
+     "description": "Smooth, mid-range voice with a relaxed, conversational pace. Slightly higher pitch than Darcy, sounding friendly and approachable. The tone is light and teasing, often acting as a bridge between the more serious characters."
+    }
+   ],
+   "cases": [
+    {
+     "page": 43,
+     "text": "“The entreaties of several” [Copyright 1894 by George Allen.]\n\nOn his approaching them soon afterwards, though without seeming to have any intention of speaking, Miss Lucas defied her friend to mention such a subject to him, which immediately provoking Elizabeth to do it, she turned to him and said,—\n\n“Did not you think, Mr. Darcy, that I expressed myself uncommonly well just now, when I was teasing Colonel Forster to give us a ball at Meryton?”\n\n“With great energy; but it is a subject which always makes a lady energetic.”\n\n“You are severe on us.”\n\n“It will be her turn soon to be teased,” said Miss Lucas. “I am going to open the instrument, Eliza, and you know what follows.”\n\n“You are a very strange creature by way of a friend!—always wanting me to play and sing before anybody and everybody! If my vanity had taken a musical turn, you would have been invaluable; but as it is, I would really rather not sit down before those who must be in the habit of hearing the very best performers.” On Miss Lucas’s persevering, however, she added, “Very well; if it must be so, it must.” And gravely glancing at Mr. Darcy, “There is a very fine old saying, which everybody here is of course familiar with—‘Keep your breath to cool your porridge,’—and I shall keep mine to swell my song.”\n\nHer performance was pleasing, though by no means capital. After a song or two, and before she could reply to the entreaties of several that she would sing again, she was eagerly succeeded at the instrument by her sister Mary, who having, in consequence of being the only plain one in the family, worked hard for knowledge and accomplishments, was always impatient for display.",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "sarcasm",
+       "delivery": "playfully"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "joy",
+       "delivery": "smiling"
+      },
+      {
+       "quote_index": 3,
+       "speaker": "Mr. Darcy",
+       "emotion": "sarcasm",
+       "delivery": "dryly"
+      },
+      {
+       "quote_index": 4,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "joy",
+       "delivery": "teasing"
+      },
+      {
+       "quote_index": 5,
+       "speaker": "Charlotte Collins",
+       "emotion": "sarcasm",
+       "delivery": "teasing"
+      },
+      {
+       "quote_index": 7,
+       "speaker": "Charlotte Collins",
+       "emotion": "sarcasm",
+       "delivery": "teasing"
+      },
+      {
+       "quote_index": 8,
+       "speaker": "Charlotte Collins",
+       "emotion": "anger",
+       "delivery": "defiantly"
+      },
+      {
+       "quote_index": 10,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "sarcasm",
+       "delivery": "resigned"
+      },
+      {
+       "quote_index": 12,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "joy",
+       "delivery": "confidently"
+      }
+     ]
+    },
+    {
+     "page": 45,
+     "text": "“I had once some thoughts of fixing in town myself, for I am fond of superior society; but I did not feel quite certain that the air of London would agree with Lady Lucas.”\n\nHe paused in hopes of an answer: but his companion was not disposed to make any; and Elizabeth at that instant moving towards them, he was struck with the notion of doing a very gallant thing, and called out to her,—\n\n“My dear Miss Eliza, why are not you dancing? Mr. Darcy, you must allow me to present this young lady to you as a very desirable partner. You cannot refuse to dance, I am sure, when so much beauty is before you.” And, taking her hand, he would have given it to Mr. Darcy, who, though extremely surprised, was not unwilling to receive it, when she instantly drew back, and said with some discomposure to Sir William,—\n\n“Indeed, sir, I have not the least intention of dancing. I entreat you not to suppose that I moved this way in order to beg for a partner.”\n\nMr. Darcy, with grave propriety, requested to be allowed the honour of her hand, but in vain. Elizabeth was determined; nor did Sir William at all shake her purpose by his attempt at persuasion.\n\n“You excel so much in the dance, Miss Eliza, that it is cruel to deny me the happiness of seeing you; and though this gentleman dislikes the amusement in general, he can have no objection, I am sure, to oblige us for one half hour.”\n\n“Mr. Darcy is all politeness,” said Elizabeth, smiling.\n\n“He is, indeed: but considering the inducement, my dear Miss Eliza, we cannot wonder at his complaisance; for who would object to such a partner?”\n\nElizabeth looked archly, and turned away. Her resistance had not injured her with the gentleman, and he was thinking of her with some complacency, when thus accosted by Miss Bingley,—",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "Sir William Lucas",
+       "emotion": "neutral",
+       "delivery": "self-deprecating"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "Mr. Bingley",
+       "emotion": "joy",
+       "delivery": "eager"
+      },
+      {
+       "quote_index": 4,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "anger",
+       "delivery": "firm"
+      },
+      {
+       "quote_index": 6,
+       "speaker": "Mr. Bingley",
+       "emotion": "joy",
+       "delivery": "persuasive"
+      },
+      {
+       "quote_index": 7,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "sarcasm",
+       "delivery": "smiling"
+      },
+      {
+       "quote_index": 9,
+       "speaker": "Mr. Bingley",
+       "emotion": "joy",
+       "delivery": "flattering"
+      }
+     ]
+    },
+    {
+     "page": 52,
+     "text": "“We will go as far as Meryton with you,” said Catherine and Lydia. Elizabeth accepted their company, and the three young ladies set off together.\n\n“If we make haste,” said Lydia, as they walked along, “perhaps we may see something of Captain Carter, before he goes.”\n\nIn Meryton they parted: the two youngest repaired to the lodgings of one of the officers’ wives, and Elizabeth continued her walk alone, crossing field after field at a quick pace, jumping over stiles and springing over puddles, with impatient activity, and finding herself at last within view of the house, with weary ancles, dirty stockings, and a face glowing with the warmth of exercise.\n\nShe was shown into the breakfast parlour, where all but Jane were assembled, and where her appearance created a great deal of surprise. That she should have walked three miles so early in the day in such dirty weather, and by herself, was almost incredible to Mrs. Hurst and Miss Bingley; and Elizabeth was convinced that they held her in contempt for it. She was received, however, very politely by them; and in their brother’s manners there was something better than politeness—there was good-humour and kindness. Mr. Darcy said very little, and Mr. Hurst nothing at all. The former was divided between admiration of the brilliancy which exercise had given to her complexion and doubt as to the occasion’s justifying her coming so far alone. The latter was thinking only of his breakfast.",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "Catherine Bennet",
+       "emotion": "joy",
+       "delivery": "eagerly"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "Kitty Bennet",
+       "emotion": "joy",
+       "delivery": "excitedly"
+      },
+      {
+       "quote_index": 4,
+       "speaker": "Kitty Bennet",
+       "emotion": "joy",
+       "delivery": "excitedly"
+      }
+     ]
+    },
+    {
+     "page": 62,
+     "text": "“You may depend upon it, madam,” said Miss Bingley, with cold civility, “that Miss Bennet shall receive every possible attention while she remains with us.”\n\nMrs. Bennet was profuse in her acknowledgments.\n\n“I am sure,” she added, “if it was not for such good friends, I do not know what would become of her, for she is very ill indeed, and suffers a vast deal, though with the greatest patience in the world, which is always the way with her, for she has, without exception, the sweetest temper I ever met with. I often tell my other girls they are nothing to her. You have a sweet room here, Mr. Bingley, and a charming prospect over that gravel walk. I do not know a place in the country that is equal to Netherfield. You will not think of quitting it in a hurry, I hope, though you have but a short lease.”\n\n“Whatever I do is done in a hurry,” replied he; “and therefore if I should resolve to quit Netherfield, I should probably be off in five minutes. At present, however, I consider myself as quite fixed here.”\n\n“That is exactly what I should have supposed of you,” said Elizabeth.\n\n“You begin to comprehend me, do you?” cried he, turning towards her.\n\n“Oh yes—I understand you perfectly.”\n\n“I wish I might take this for a compliment; but to be so easily seen through, I am afraid, is pitiful.”\n\n“That is as it happens. It does not necessarily follow that a deep, intricate character is more or less estimable than such a one as yours.”\n\n“Lizzy,” cried her mother, “remember where you are, and do not run on in the wild manner that you are suffered to do at home.”\n\n“I did not know before,” continued Bingley, immediately, “that you were a studier of character. It must be an amusing study.”\n\n“Yes; but intricate characters are the most amusing. They have at least that advantage.”",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "Mrs. Jenkinson",
+       "emotion": "neutral",
+       "delivery": "politely"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "Mrs. Jenkinson",
+       "emotion": "neutral",
+       "delivery": ""
+      },
+      {
+       "quote_index": 4,
+       "speaker": "Mrs. Jenkinson",
+       "emotion": "neutral",
+       "delivery": ""
+      },
+      {
+       "quote_index": 6,
+       "speaker": "Mrs. Jenkinson",
+       "emotion": "sarcasm",
+       "delivery": "coldly"
+      },
+      {
+       "quote_index": 7,
+       "speaker": "Mrs. Jenkinson",
+       "emotion": "sarcasm",
+       "delivery": "smiling"
+      },
+      {
+       "quote_index": 8,
+       "speaker": "Mr. Bingley",
+       "emotion": "neutral",
+       "delivery": "casually"
+      },
+      {
+       "quote_index": 10,
+       "speaker": "Mr. Bingley",
+       "emotion": "neutral",
+       "delivery": "smiling"
+      },
+      {
+       "quote_index": 11,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "neutral",
+       "delivery": ""
+      },
+      {
+       "quote_index": 13,
+       "speaker": "Mr. Bingley",
+       "emotion": "joy",
+       "delivery": ""
+      },
+      {
+       "quote_index": 15,
+       "speaker": "Mr. Bingley",
+       "emotion": "joy",
+       "delivery": ""
+      },
+      {
+       "quote_index": 16,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "sarcasm",
+       "delivery": ""
+      },
+      {
+       "quote_index": 17,
+       "speaker": "Mr. Darcy",
+       "emotion": "neutral",
+       "delivery": ""
+      },
+      {
+       "quote_index": 18,
+       "speaker": "Mr. Bennet",
+       "emotion": "neutral",
+       "delivery": ""
+      },
+      {
+       "quote_index": 20,
+       "speaker": "Mr. Bennet",
+       "emotion": "neutral",
+       "delivery": ""
+      },
+      {
+       "quote_index": 21,
+       "speaker": "Mr. Bingley",
+       "emotion": "neutral",
+       "delivery": ""
+      },
+      {
+       "quote_index": 23,
+       "speaker": "Mr. Bingley",
+       "emotion": "joy",
+       "delivery": ""
+      },
+      {
+       "quote_index": 24,
+       "speaker": "Mr. Darcy",
+       "emotion": "neutral",
+       "delivery": ""
+      }
+     ]
+    },
+    {
+     "page": 105,
+     "text": "“Oh no—it is not for me to be driven away by Mr. Darcy. If he wishes to avoid seeing me he must go. We are not on friendly terms, and it always gives me pain to meet him, but I have no reason for avoiding him but what I might proclaim to all the world—a sense of very great ill-usage, and most painful regrets at his being what he is. His father, Miss Bennet, the late Mr. Darcy, was one of the best men that ever breathed, and the truest friend I ever had; and I can never be in company with this Mr. Darcy without being grieved to the soul by a thousand tender recollections. His behaviour to myself has been scandalous; but I verily believe I could forgive him anything and everything, rather than his disappointing the hopes and disgracing the memory of his father.”\n\nElizabeth found the interest of the subject increase, and listened with all her heart; but the delicacy of it prevented further inquiry.\n\nMr. Wickham began to speak on more general topics, Meryton, the neighbourhood, the society, appearing highly pleased with all that he had yet seen, and speaking of the latter, especially, with gentle but very intelligible gallantry.",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "William Collins",
+       "emotion": "sadness",
+       "delivery": ""
+      },
+      {
+       "quote_index": 1,
+       "speaker": "William Collins",
+       "emotion": "sadness",
+       "delivery": ""
+      },
+      {
+       "quote_index": 2,
+       "speaker": "William Collins",
+       "emotion": "sadness",
+       "delivery": ""
+      }
+     ]
+    },
+    {
+     "page": 109,
+     "text": "“We were born in the same parish, within the same park; the greatest part of our youth was passed together: inmates of the same house, sharing the same amusements, objects of the same parental care. My father began life in the profession which your uncle, Mr. Philips, appears to do so much credit to; but he gave up everything to be of use to the late Mr. Darcy, and devoted all his time to the care of the Pemberley property. He was most highly esteemed by Mr. Darcy, a most intimate, confidential friend. Mr. Darcy often acknowledged himself to be under the greatest obligations to my father’s active superintendence; and when, immediately before my father’s death, Mr. Darcy gave him a voluntary promise of providing for me, I am convinced that he felt it to be as much a debt of gratitude to him as of affection to myself.”\n\n“How strange!” cried Elizabeth. “How abominable! I wonder that the very pride of this Mr. Darcy has not made him just to you. If from no better motive, that he should not have been too proud to be dishonest,—for dishonesty I must call it.”\n\n“It is wonderful,” replied Wickham; “for almost all his actions may be traced to pride; and pride has often been his best friend. It has connected him nearer with virtue than any other feeling. But we are none of us consistent; and in his behaviour to me there were stronger impulses even than pride.”\n\n“Can such abominable pride as his have ever done him good?”",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "William Collins",
+       "emotion": "neutral",
+       "delivery": "calmly recounting"
+      },
+      {
+       "quote_index": 1,
+       "speaker": "William Collins",
+       "emotion": "neutral",
+       "delivery": "descriptive"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "William Collins",
+       "emotion": "neutral",
+       "delivery": "concluding his story"
+      },
+      {
+       "quote_index": 3,
+       "speaker": "Lydia Bennet",
+       "emotion": "surprise",
+       "delivery": "exclaiming"
+      },
+      {
+       "quote_index": 5,
+       "speaker": "Lydia Bennet",
+       "emotion": "anger",
+       "delivery": "indignant"
+      },
+      {
+       "quote_index": 6,
+       "speaker": "William Collins",
+       "emotion": "sarcasm",
+       "delivery": "dryly"
+      },
+      {
+       "quote_index": 8,
+       "speaker": "William Collins",
+       "emotion": "sarcasm",
+       "delivery": "defensive"
+      },
+      {
+       "quote_index": 9,
+       "speaker": "Lydia Bennet",
+       "emotion": "sarcasm",
+       "delivery": "challenging"
+      }
+     ]
+    },
+    {
+     "page": 196,
+     "text": "“Pray, my dear aunt, what is the difference in matrimonial affairs, between the mercenary and the prudent motive? Where does discretion end, and avarice begin? Last Christmas you were afraid of his marrying me, because it would be imprudent; and now, because he is trying to get a girl with only ten thousand pounds, you want to find out that he is mercenary.”\n\n“If you will only tell me what sort of girl Miss King is, I shall know what to think.”\n\n“She is a very good kind of girl, I believe. I know no harm of her.”\n\n“But he paid her not the smallest attention till her grandfather’s death made her mistress of this fortune?”\n\n“No—why should he? If it were not allowable for him to gain my affections, because I had no money, what occasion could there be for making love to a girl whom he did not care about, and who was equally poor?”\n\n“But there seems indelicacy in directing his attentions towards her so soon after this event.”\n\n“A man in distressed circumstances has not time for all those elegant decorums which other people may observe. If she does not object to it, why should we?”\n\n“Her not objecting does not justify him. It only shows her being deficient in something herself—sense or feeling.”\n\n“Well,” cried Elizabeth, “have it as you choose. He shall be mercenary, and she shall be foolish.”\n\n“No, Lizzy, that is what I do not choose. I should be sorry, you know, to think ill of a young man who has lived so long in Derbyshire.”",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "sarcasm",
+       "delivery": "insistent, questioning"
+      },
+      {
+       "quote_index": 1,
+       "speaker": "Mrs. Gardiner",
+       "emotion": "suspense",
+       "delivery": "defensive, evasive"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "suspense",
+       "delivery": "pressing, curious"
+      },
+      {
+       "quote_index": 3,
+       "speaker": "Mrs. Gardiner",
+       "emotion": "neutral",
+       "delivery": "hesitant, vague"
+      },
+      {
+       "quote_index": 4,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "suspense",
+       "delivery": "sharp, accusatory"
+      },
+      {
+       "quote_index": 5,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "sarcasm",
+       "delivery": "with a sharp, mocking tone"
+      },
+      {
+       "quote_index": 6,
+       "speaker": "Mrs. Gardiner",
+       "emotion": "neutral",
+       "delivery": "calmly, reasoning"
+      },
+      {
+       "quote_index": 7,
+       "speaker": "Mrs. Gardiner",
+       "emotion": "neutral",
+       "delivery": "reasoning further"
+      },
+      {
+       "quote_index": 8,
+       "speaker": "Mrs. Gardiner",
+       "emotion": "disgust",
+       "delivery": "with a critical edge"
+      },
+      {
+       "quote_index": 9,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "joy",
+       "delivery": "laughing lightly"
+      },
+      {
+       "quote_index": 11,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "sarcasm",
+       "delivery": "mocking her aunt's prudishness"
+      },
+      {
+       "quote_index": 12,
+       "speaker": "Mrs. Gardiner",
+       "emotion": "sarcasm",
+       "delivery": "defensive and sharp"
+      }
+     ]
+    },
+    {
+     "page": 197,
+     "text": "“Oh, if that is all, I have a very poor opinion of young men who live in Derbyshire; and their intimate friends who live in Hertfordshire are not much better. I am sick of them all. Thank heaven! I am going to-morrow where I shall find a man who has not one agreeable quality, who has neither manners nor sense to recommend him. Stupid men are the only ones worth knowing, after all.”\n\n“Take care, Lizzy; that speech savours strongly of disappointment.”\n\nBefore they were separated by the conclusion of the play, she had the unexpected happiness of an invitation to accompany her uncle and aunt in a tour of pleasure which they proposed taking in the summer.\n\n“We have not quite determined how far it shall carry us,” said Mrs. Gardiner; “but perhaps, to the Lakes.”\n\nNo scheme could have been more agreeable to Elizabeth, and her acceptance of the invitation was most ready and grateful. “My dear, dear aunt,” she rapturously cried, “what delight! what felicity! You give me fresh life and vigour. Adieu to disappointment and spleen. What are men to rocks and mountains? Oh, what hours of transport we shall spend! And when we do return, it shall not be like other travellers, without being able to give one accurate idea of anything. We will know where we have gone—we will recollect what we have seen. Lakes, mountains, and rivers, shall not be jumbled together in our imaginations; nor, when we attempt to describe any particular scene, will we begin quarrelling about its relative situation. Let our first effusions be less insupportable than those of the generality of travellers.”\n\n“At the door.”\n\nCHAPTERXXVIII.",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "sarcasm",
+       "delivery": "mocking men with a sigh"
+      },
+      {
+       "quote_index": 1,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "sarcasm",
+       "delivery": "concluding her rant"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "Mrs. Gardiner",
+       "emotion": "suspense",
+       "delivery": "warning gently"
+      },
+      {
+       "quote_index": 4,
+       "speaker": "Mrs. Gardiner",
+       "emotion": "joy",
+       "delivery": "enthusiastic"
+      },
+      {
+       "quote_index": 6,
+       "speaker": "Mrs. Gardiner",
+       "emotion": "joy",
+       "delivery": "suggesting the destination"
+      },
+      {
+       "quote_index": 8,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "awe",
+       "delivery": "ecstatic and breathless"
+      },
+      {
+       "quote_index": 10,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "joy",
+       "delivery": "dreaming of the trip"
+      },
+      {
+       "quote_index": 11,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "joy",
+       "delivery": "planning enthusiastically"
+      },
+      {
+       "quote_index": 12,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "joy",
+       "delivery": "making a final promise"
+      },
+      {
+       "quote_index": 13,
+       "speaker": "Servant",
+       "emotion": "neutral",
+       "delivery": "announcing departure"
+      }
+     ]
+    },
+    {
+     "page": 203,
+     "text": "At length there was nothing more to be said; the ladies drove on, and the others returned into the house. Mr. Collins no sooner saw the two girls than he began to congratulate them on their good fortune, which Charlotte explained by letting them know that the whole party was asked to dine at Rosings the next day.\n\n“Lady Catherine, said she, you have given me a treasure.”\n\nCHAPTER XXIX.\n\nMR. COLLINS’S triumph, in consequence of this invitation, was complete. The power of displaying the grandeur of his patroness to his wondering visitors, and of letting them see her civility towards himself and his wife, was exactly what he had wished for; and that an opportunity of doing it should be given so soon was such an instance of Lady Catherine’s condescension as he knew not how to admire enough.\n\n“I confess,” said he, “that I should not have been at all surprised by her Ladyship’s asking us on Sunday to drink tea and spend the evening at Rosings. I rather expected, from my knowledge of her affability, that it would happen. But who could have foreseen such an attention as this? Who could have imagined that we should receive an invitation to dine there (an invitation, moreover, including the whole party) so immediately after your arrival?”\n\n“I am the less surprised at what has happened,” replied Sir William, “from that knowledge of what the manners of the great really are, which my situation in life has allowed me to acquire. About the court, such instances of elegant breeding are not uncommon.”\n\nScarcely anything was talked of the whole day or next morning but their visit to Rosings. Mr. Collins was carefully instructing them in what they were to expect, that the sight of such rooms, so many servants, and so splendid a dinner, might not wholly overpower them.",
+     "labels": [
+      {
+       "quote_index": 1,
+       "speaker": "Lady Lucas",
+       "emotion": "joy",
+       "delivery": "beaming with delight"
+      },
+      {
+       "quote_index": 4,
+       "speaker": "Lady Lucas",
+       "emotion": "joy",
+       "delivery": "eagerly"
+      },
+      {
+       "quote_index": 6,
+       "speaker": "Lady Lucas",
+       "emotion": "joy",
+       "delivery": "enthusiastically"
+      },
+      {
+       "quote_index": 7,
+       "speaker": "Sir William Lucas",
+       "emotion": "surprise",
+       "delivery": "amused, slightly incredulous"
+      },
+      {
+       "quote_index": 8,
+       "speaker": "Sir William Lucas",
+       "emotion": "sarcasm",
+       "delivery": "smugly, self-satisfied"
+      },
+      {
+       "quote_index": 10,
+       "speaker": "Sir William Lucas",
+       "emotion": "sarcasm",
+       "delivery": "condescendingly"
+      }
+     ]
+    },
+    {
+     "page": 276,
+     "text": "Miss Bennet’s astonishment was soon lessened by the strong sisterly partiality which made any admiration of Elizabeth appear perfectly natural; and all surprise was shortly lost in other feelings. She was sorry that Mr. Darcy should have delivered his sentiments in a manner so little suited to recommend them; but still more was she grieved for the unhappiness which her sister’s refusal must have given him.\n\n“His being so sure of succeeding was wrong,” said she, “and certainly ought not to have appeared; but consider how much it must increase his disappointment.”\n\n“Indeed,” replied Elizabeth, “I am heartily sorry for him; but he has other feelings which will probably soon drive away his regard for me. You do not blame me, however, for refusing him?”\n\n“Blame you! Oh, no.”\n\n“But you blame me for having spoken so warmly of Wickham?”\n\n“No—I do not know that you were wrong in saying what you did.”\n\n“But you will know it, when I have told you what happened the very next day.”\n\nShe then spoke of the letter, repeating the whole of its contents as far as they concerned George Wickham. What a stroke was this for poor Jane, who would willingly have gone through the world without believing that so much wickedness existed in the whole race of mankind as was here collected in one individual! Nor was Darcy’s vindication, though grateful to her feelings, capable of consoling her for such discovery. Most earnestly did she labour to prove the probability of error, and seek to clear one, without involving the other.",
+     "labels": [
+      {
+       "quote_index": 2,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "sarcasm",
+       "delivery": "with a sharp tone"
+      },
+      {
+       "quote_index": 4,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "sarcasm",
+       "delivery": "continuing her critique"
+      },
+      {
+       "quote_index": 5,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "sarcasm",
+       "delivery": "emphatic"
+      },
+      {
+       "quote_index": 7,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "suspense",
+       "delivery": "seeking reassurance"
+      },
+      {
+       "quote_index": 8,
+       "speaker": "George Saintsbury",
+       "emotion": "joy",
+       "delivery": "relieved and dismissive"
+      },
+      {
+       "quote_index": 9,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "suspense",
+       "delivery": "challenging"
+      },
+      {
+       "quote_index": 10,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "suspense",
+       "delivery": "confident"
+      },
+      {
+       "quote_index": 11,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "suspense",
+       "delivery": "dramatic pause"
+      }
+     ]
+    },
+    {
+     "page": 279,
+     "text": "“That it ought not to be attempted. Mr. Darcy has not authorized me to make his communication public. On the contrary, every particular relative to his sister was meant to be kept as much as possible to myself; and if I endeavour to undeceive people as to the rest of his conduct, who will believe me? The general prejudice against Mr. Darcy is so violent, that it would be the death of half the good people in Meryton, to attempt to place him in an amiable light. I am not equal to it. Wickham will soon be gone; and, therefore, it will not signify to anybody here what he really is. Some time hence it will be all found out, and then we may laugh at their stupidity in not knowing it before. At present I will say nothing about it.”\n\n“You are quite right. To have his errors made public might ruin him for ever. He is now, perhaps, sorry for what he has done, and anxious to re-establish a character. We must not make him desperate.”",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "neutral",
+       "delivery": "resolutely"
+      },
+      {
+       "quote_index": 1,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "neutral",
+       "delivery": "casually"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "neutral",
+       "delivery": "decidedly"
+      },
+      {
+       "quote_index": 3,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "neutral",
+       "delivery": ""
+      }
+     ]
+    },
+    {
+     "page": 344,
+     "text": "She was wild to be at home—to hear, to see, to be upon the spot to share with Jane in the cares that must now fall wholly upon her, in a family so deranged; a father absent, a mother incapable of exertion, and requiring constant attendance; and though almost persuaded that nothing could be done for Lydia, her uncle’s interference seemed of the utmost importance, and till he entered the room the misery of her impatience was severe. Mr. and Mrs. Gardiner had hurried back in alarm, supposing, by the servant’s account, that their niece was taken suddenly ill; but satisfying them instantly on that head, she eagerly communicated the cause of their summons, reading the two letters aloud, and dwelling on the postscript of the last with trembling energy. Though Lydia had never been a favourite with them, Mr. and Mrs. Gardiner could not but be deeply affected. Not Lydia only, but all were concerned in it; and after the first exclamations of surprise and horror, Mr. Gardiner readily promised every assistance in his power. Elizabeth, though expecting no less, thanked him with tears of gratitude; and all three being actuated by one spirit, everything relating to their journey was speedily settled. They were to be off as soon as possible. “But what is to be done about Pemberley?” cried Mrs. Gardiner. “John told us Mr. Darcy was here when you sent for us;—was it so?”\n\n“Yes; and I told him we should not be able to keep our engagement. That is all settled.”\n\n“What is all settled?” repeated the other, as she ran into her room to prepare. “And are they upon such terms as for her to disclose the real truth? Oh, that I knew how it was!”",
+     "labels": [
+      {
+       "quote_index": 5,
+       "speaker": "Mrs. Gardiner",
+       "emotion": "suspense",
+       "delivery": "anxiously"
+      },
+      {
+       "quote_index": 7,
+       "speaker": "E. Gardiner",
+       "emotion": "neutral",
+       "delivery": "calmly"
+      },
+      {
+       "quote_index": 8,
+       "speaker": "E. Gardiner",
+       "emotion": "joy",
+       "delivery": "with relief"
+      },
+      {
+       "quote_index": 9,
+       "speaker": "Mrs. Gardiner",
+       "emotion": "surprise",
+       "delivery": "shocked"
+      },
+      {
+       "quote_index": 11,
+       "speaker": "E. Gardiner",
+       "emotion": "awe",
+       "delivery": "longing"
+      }
+     ]
+    },
+    {
+     "page": 345,
+     "text": "But wishes were vain; or, at best, could serve only to amuse her in the hurry and confusion of the following hour. Had Elizabeth been at leisure to be idle, she would have remained certain that all employment was impossible to one so wretched as herself; but she had her share of business as well as her aunt, and amongst the rest there were notes to be written to all their friends at Lambton, with false excuses for their sudden departure. An hour, however, saw the whole completed; and Mr. Gardiner, meanwhile, having settled his account at the inn, nothing remained to be done but to go; and Elizabeth, after all the misery of the morning, found herself, in a shorter space of time than she could have supposed, seated in the carriage, and on the road to Longbourn.\n\n“The first pleasing earnest of their welcome.”\n\nCHAPTER XLVII.\n\n“I HAVE been thinking it over again, Elizabeth,” said her uncle, as they drove from the town; “and really, upon serious consideration, I am much more inclined than I was to judge as your eldest sister does of the matter. It appears to me so very unlikely that any young man should form such a design against a girl who is by no means unprotected or friendless, and who was actually staying in his Colonel’s family, that I am strongly inclined to hope the best. Could he expect that her friends would not step forward? Could he expect to be noticed again by the regiment, after such an affront to Colonel Forster? His temptation is not adequate to the risk.”\n\n“Do you really think so?” cried Elizabeth, brightening up for a moment.",
+     "labels": [
+      {
+       "quote_index": 3,
+       "speaker": "NARRATOR",
+       "emotion": "neutral",
+       "delivery": ""
+      },
+      {
+       "quote_index": 5,
+       "speaker": "Mrs. Gardiner",
+       "emotion": "neutral",
+       "delivery": ""
+      },
+      {
+       "quote_index": 7,
+       "speaker": "Mrs. Gardiner",
+       "emotion": "neutral",
+       "delivery": ""
+      },
+      {
+       "quote_index": 8,
+       "speaker": "Mrs. Gardiner",
+       "emotion": "neutral",
+       "delivery": ""
+      },
+      {
+       "quote_index": 9,
+       "speaker": "Mrs. Gardiner",
+       "emotion": "neutral",
+       "delivery": ""
+      },
+      {
+       "quote_index": 10,
+       "speaker": "Mr. Darcy",
+       "emotion": "surprise",
+       "delivery": ""
+      }
+     ]
+    },
+    {
+     "page": 432,
+     "text": "“Yes; and I had heard it before. But what is that to me? If there is no other objection to my marrying your nephew, I shall certainly not be kept from it by knowing that his mother and aunt wished him to marry Miss de Bourgh. You both did as much as you could in planning the marriage. Its completion depended on others. If Mr. Darcy is neither by honour nor inclination confined to his cousin, why is not he to make another choice? And if I am that choice, why may not I accept him?”\n\n“Because honour, decorum, prudence—nay, interest—forbid it. Yes, Miss Bennet, interest; for do not expect to be noticed by his family or friends, if you wilfully act against the inclinations of all. You will be censured, slighted, and despised, by everyone connected with him. Your alliance will be a disgrace; your name will never even be mentioned by any of us.”\n\n“These are heavy misfortunes,” replied Elizabeth. “But the wife of Mr. Darcy must have such extraordinary sources of happiness necessarily attached to her situation, that she could, upon the whole, have no cause to repine.”\n\n“Obstinate, headstrong girl! I am ashamed of you! Is this your gratitude for my attentions to you last spring? Is nothing due to me on that score? Let us sit down. You are to understand, Miss Bennet, that I came here with the determined resolution of carrying my purpose; nor will I be dissuaded from it. I have not been used to submit to any person’s whims. I have not been in the habit of brooking disappointment.”\n\n“That will make your Ladyship’s situation at present more pitiable; but it will have no effect on me.”",
+     "labels": [
+      {
+       "quote_index": 0,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "suspense",
+       "delivery": "defiant, logical"
+      },
+      {
+       "quote_index": 1,
+       "speaker": "Elizabeth Bennet",
+       "emotion": "suspense",
+       "delivery": "bold, assertive"
+      },
+      {
+       "quote_index": 2,
+       "speaker": "Lady Catherine de Bourgh",
+       "emotion": "suspense",
+       "delivery": "disdainful, threatening"
+      },
+      {
+       "quote_index": 3,
+       "speaker": "Lady Catherine de Bourgh",
+       "emotion": "suspense",
+       "delivery": "contemptuous, final"
+      },
+      {
+       "quote_index": 4,
+       "speaker": "Jane Bennet",
+       "emotion": "sadness",
+       "delivery": "with concern"
+      },
+      {
+       "quote_index": 6,
+       "speaker": "Jane Bennet",
+       "emotion": "neutral",
+       "delivery": "calmly"
+      },
+      {
+       "quote_index": 7,
+       "speaker": "Lady Catherine de Bourgh",
+       "emotion": "anger",
+       "delivery": "authoritatively"
+      },
+      {
+       "quote_index": 8,
+       "speaker": "Lady Catherine de Bourgh",
+       "emotion": "anger",
+       "delivery": "sternly"
+      },
+      {
+       "quote_index": 9,
+       "speaker": "Lady Catherine de Bourgh",
+       "emotion": "suspense",
+       "delivery": "firmly"
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

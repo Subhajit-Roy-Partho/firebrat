@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter_kokoro_tts/flutter_kokoro_tts.dart';
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
 // Upstream 0.0.1 is pinned: reuse its checksummed model/voice downloader.
 // ignore: implementation_imports
@@ -11,6 +10,8 @@ import '../util/ids.dart';
 import '../novel/novel_analyzer.dart';
 import 'narration_engine.dart';
 import 'wav_utils.dart';
+import '../models/device_capabilities.dart';
+import '../models/tts_model_catalog.dart';
 import 'kokoro_runtime.dart' show FirebratKokoroTts;
 
 typedef VoiceDownloadProgress = void Function(double? progress, String status);
@@ -18,7 +19,7 @@ typedef VoiceDownloadProgress = void Function(double? progress, String status);
 /// The catalog of preset voices `flutter_kokoro_tts` ships voice-embedding
 /// files for — re-exported here so the host app's Settings screen doesn't
 /// need to depend on `flutter_kokoro_tts` directly just to list them.
-const List<String> kKokoroVoices = kokoroVoices;
+final List<String> kKokoroVoices = [for (final v in kKokoroVoiceCatalog) v.name];
 
 /// Narrates using Kokoro-82M — a real neural TTS model run entirely
 /// on-device via ONNX Runtime (`flutter_onnxruntime`) with espeak-ng
@@ -29,10 +30,12 @@ const List<String> kKokoroVoices = kokoroVoices;
 /// replacement for it: this integration exposes six preset voices (no
 /// cloning), while the stock engine needs no ~90MB model download at all.
 ///
-/// Our small adaptation of the upstream Dart runtime uses CPU inference with
+/// Our adaptation of the upstream Dart runtime defaults to CPU inference with
 /// two intra-op threads and one inter-op thread, leaving capacity for Android
-/// and the reader. GPU offload in Settings applies to the separate GGUF LLM,
-/// not this speech session. Model files, phonemization and voices are unchanged.
+/// and the reader. The accelerator choice (Auto / GPU-NPU / CPU) selects the
+/// ONNX Runtime execution provider (NNAPI, XNNPACK) with automatic CPU
+/// fallback, see `accelerator.dart`; [accelerationStatus] reports what really
+/// ran. The GPU-layers slider in Settings applies to the separate GGUF LLM.
 ///
 class KokoroTtsEngine implements NarrationEngine {
   final String voice;
@@ -42,10 +45,18 @@ class KokoroTtsEngine implements NarrationEngine {
   final NovelBookPlan? novelPlan;
   final FirebratKokoroTts _tts;
   bool _initialized = false;
+  bool _statusRecorded = false;
+
+  /// "CPU", "NNAPI (...)", ... after [ensureReady]; check again after the first
+  /// narration (a run-time fallback to CPU can still happen there).
+  String get accelerationStatus => _tts.accelerationStatus;
+  List<String> get accelerationNotes => _tts.accelerationNotes;
+  String? get modelNote => _tts.modelNote;
 
   KokoroTtsEngine({this.voice = 'Bella', this.maleVoice = 'Adam', this.femaleVoice = 'Sarah', this.speed = 1.0, this.novelPlan,
-    int cpuThreads = 2, String acceleration = 'cpu'})
-      : _tts = FirebratKokoroTts(cpuThreads: cpuThreads, acceleration: acceleration);
+    int cpuThreads = 2, String acceleration = 'cpu', String modelId = kDefaultTtsModelId,
+    DeviceCapabilities device = DeviceCapabilities.unknown})
+      : _tts = FirebratKokoroTts(cpuThreads: cpuThreads, acceleration: acceleration, modelId: modelId, device: device);
 
   static Future<bool> isDownloaded() => KokoroModelManager().isReady();
 
@@ -59,7 +70,11 @@ class KokoroTtsEngine implements NarrationEngine {
   static Future<List<String>> availableAcceleration() async {
     try {
       final providers = await OnnxRuntime().getAvailableProviders();
-      return ['cpu', if (Platform.isAndroid && providers.contains(OrtProvider.NNAPI)) 'nnapi'];
+      return [
+        'cpu',
+        if (Platform.isAndroid && providers.contains(OrtProvider.XNNPACK)) 'xnnpack',
+        if (Platform.isAndroid && providers.contains(OrtProvider.NNAPI)) 'nnapi',
+      ];
     } catch (_) {
       return ['cpu'];
     }
@@ -79,6 +94,7 @@ class KokoroTtsEngine implements NarrationEngine {
     required List<CompiledSegment> segments,
     required String sectionDir,
     int pauseMs = 260,
+    List<int> sourcePages = const [],
   }) async {
     if (!_initialized) {
       throw StateError(
@@ -133,6 +149,10 @@ class KokoroTtsEngine implements NarrationEngine {
       }
     }
 
+    if (!_statusRecorded) {
+      _statusRecorded = true;
+      await _tts.recordStatus();
+    }
     final (:combined, :timing) = WavAudio.concatenate(clips, pauseMs: pauseMs);
     final audioPath = '$sectionDir/audio.wav';
     await File(audioPath).writeAsBytes(combined.toBytes());
@@ -184,8 +204,15 @@ class KokoroTtsEngine implements NarrationEngine {
   }
 }
 
+/// Automatic character casting keeps drawing from these six voices so books
+/// converted before the extra voices existed cast the same way. A newly added
+/// voice only joins a pool when the user picks it as their male/female preset.
 const kKokoroMaleVoices = ['Adam', 'Michael'];
 const kKokoroFemaleVoices = ['Default', 'Bella', 'Nicole', 'Sarah'];
+
+/// Every voice that may be chosen as the male / female preset.
+final List<String> kKokoroAllMaleVoices = [for (final v in kKokoroVoiceCatalog) if (!v.isFemale) v.name];
+final List<String> kKokoroAllFemaleVoices = [for (final v in kKokoroVoiceCatalog) if (v.isFemale) v.name];
 String resolveKokoroCharacterVoice(NovelCharacter? character,
     {required String narrator, required String male, required String female}) {
   final override = character?.voiceOverride;
@@ -195,9 +222,9 @@ String resolveKokoroCharacterVoice(NovelCharacter? character,
     }
   }
   final gender = character?.voiceGender;
-  final pool = gender == 'male' && kKokoroMaleVoices.contains(male)
+  final pool = gender == 'male' && kKokoroAllMaleVoices.contains(male)
       ? [male, ...kKokoroMaleVoices.where((v) => v != male)]
-      : gender == 'female' && kKokoroFemaleVoices.contains(female)
+      : gender == 'female' && kKokoroAllFemaleVoices.contains(female)
           ? [female, ...kKokoroFemaleVoices.where((v) => v != female)]
           : null;
   if (pool == null) return narrator;

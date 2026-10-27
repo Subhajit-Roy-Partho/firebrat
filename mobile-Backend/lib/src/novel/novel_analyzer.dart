@@ -110,6 +110,13 @@ class NovelBookPlan {
     'Colonel', 'Captain', 'Major', 'Professor', 'Reverend', 'Uncle', 'Aunt',
   };
 
+  /// The quoted-speech pattern shared with the expressive casting module.
+  static RegExp get dialoguePattern => _dialogue;
+
+  /// Speaker named by an adjacent dialogue tag ('said Alice'), or null. Public
+  /// so the casting fallback uses exactly the same regex rules as novel mode.
+  static String? taggedSpeaker(String text, RegExpMatch match) => _speaker(text, match);
+
   static String? _speaker(String text, RegExpMatch match) {
     // The tag must be adjacent to this quote, within the same paragraph.
     final tail = text.substring(match.end).split('\n').first;

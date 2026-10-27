@@ -33,9 +33,15 @@ class ConversionRequest {
   final String kokoroVoice;
   final String kokoroAcceleration;
   final int kokoroCpuThreads;
+  final String ttsModelId;
+  final int? deviceRamMb;
+  final int? androidSdk;
   final String maleVoice;
   final String femaleVoice;
   final Map<String, String> characterVoices;
+  final String expressiveEngine;
+  final String expressiveKokoroModelId;
+  final String? expressiveNarratorVoice;
 
   const ConversionRequest({
     required this.pdfPath,
@@ -57,9 +63,15 @@ class ConversionRequest {
     this.kokoroVoice = 'Bella',
     this.kokoroAcceleration = 'cpu',
     this.kokoroCpuThreads = 2,
+    this.ttsModelId = 'kokoro-int8',
+    this.deviceRamMb,
+    this.androidSdk,
     this.maleVoice = 'Adam',
     this.femaleVoice = 'Sarah',
     this.characterVoices = const {},
+    this.expressiveEngine = 'piper',
+    this.expressiveKokoroModelId = 'kokoro1-fp16',
+    this.expressiveNarratorVoice,
   });
 
   /// Every source PDF in chapter order — [pdfPaths] when set, else the
@@ -92,7 +104,13 @@ class ConversionRequest {
     'kokoroVoice': kokoroVoice,
     'kokoroAcceleration': kokoroAcceleration,
     'kokoroCpuThreads': kokoroCpuThreads,
+    'ttsModelId': ttsModelId,
+    'deviceRamMb': deviceRamMb,
+    'androidSdk': androidSdk,
     'maleVoice': maleVoice, 'femaleVoice': femaleVoice, 'characterVoices': characterVoices,
+    'expressiveEngine': expressiveEngine,
+    'expressiveKokoroModelId': expressiveKokoroModelId,
+    'expressiveNarratorVoice': expressiveNarratorVoice,
   };
 
   factory ConversionRequest.fromJson(Map<String, dynamic> json) =>
@@ -116,9 +134,15 @@ class ConversionRequest {
         kokoroVoice: json['kokoroVoice'] as String? ?? 'Bella',
         kokoroAcceleration: json['kokoroAcceleration'] as String? ?? 'cpu',
         kokoroCpuThreads: (json['kokoroCpuThreads'] as int? ?? 2).clamp(1, 4),
+        ttsModelId: json['ttsModelId'] as String? ?? 'kokoro-int8',
+        deviceRamMb: json['deviceRamMb'] as int?,
+        androidSdk: json['androidSdk'] as int?,
         maleVoice: json['maleVoice'] as String? ?? 'Adam',
         femaleVoice: json['femaleVoice'] as String? ?? 'Sarah',
         characterVoices: Map<String, String>.from(json['characterVoices'] as Map? ?? {}),
+        expressiveEngine: json['expressiveEngine'] as String? ?? 'piper',
+        expressiveKokoroModelId: json['expressiveKokoroModelId'] as String? ?? 'kokoro1-fp16',
+        expressiveNarratorVoice: json['expressiveNarratorVoice'] as String?,
       );
 
   static String _filePath(String stateDir) =>
