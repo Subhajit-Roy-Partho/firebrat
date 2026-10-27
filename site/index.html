@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Firebrat — Audiobooks for technical books, built to be listened to</title>
-<meta name="description" content="Firebrat converts technical PDFs into narrated audiobooks that keep figures and formulas visible and synced — built for readers who find sustained silent reading difficult.">
+<meta name="description" content="Firebrat converts technical PDFs into narrated audiobooks that keep figures and formulas visible and synced — built for readers who find sustained silent reading difficult. Multi-voice novels and a free community library are on the way.">
 <meta name="theme-color" content="#0b0714">
 <link rel="icon" href="assets/favicon-64.png" type="image/png">
 <link rel="apple-touch-icon" href="assets/favicon-180.png">
@@ -28,6 +28,7 @@
     <ul class="nav-links" id="nav-links">
       <li><a href="index.html" aria-current="page">Home</a></li>
       <li><a href="guide.html">Get started</a></li>
+      <li><a href="community.html">Community</a></li>
       <li><a href="architecture.html">How it works</a></li>
       <li><a href="about.html">Accessibility mission</a></li>
       <li><a href="https://github.com/Subhajit-Roy-Partho/firebrat">GitHub</a></li>
@@ -50,7 +51,7 @@
     <div class="hero-copy">
       <span class="eyebrow eyebrow-glow"><span class="pulse-dot" aria-hidden="true"></span>Audio-first reading · built for real technical books</span>
       <h1>Listen to the book.<br><span class="grad-text">See what matters,</span><br>right when it matters.</h1>
-      <p class="lede">Firebrat turns a technical PDF — the kind with circuit diagrams, register tables, and equations — into a narrated audiobook that keeps the right figure or formula visible and highlighted exactly while it's being talked about. Nothing gets flattened into noise.</p>
+      <p class="lede">Firebrat turns a technical PDF — the kind with circuit diagrams, register tables, and equations — into a narrated audiobook that keeps the right figure or formula visible and highlighted exactly while it's being talked about. Nothing gets flattened into noise. Novels can now get a different voice for every character (preview), and a free <a href="community.html">community library</a> of copyright-free audiobooks is opening.</p>
       <div class="hero-actions">
         <a class="btn btn-primary btn-lg btn-glow" href="https://github.com/Subhajit-Roy-Partho/firebrat/releases/latest">Download the app</a>
         <a class="btn btn-ghost btn-lg" href="guide.html">Get started: private or free LLM</a>
@@ -96,8 +97,8 @@
 
 <div class="marquee" aria-hidden="true">
   <div class="marquee-track">
-    <span>Figure-synced narration</span><span class="mq-dot">◆</span><span>Formula callouts</span><span class="mq-dot">◆</span><span>100% offline</span><span class="mq-dot">◆</span><span>Voice-cloned narrator</span><span class="mq-dot">◆</span><span>Tap-any-sentence seeking</span><span class="mq-dot">◆</span><span>Open source</span><span class="mq-dot">◆</span>
-    <span>Figure-synced narration</span><span class="mq-dot">◆</span><span>Formula callouts</span><span class="mq-dot">◆</span><span>100% offline</span><span class="mq-dot">◆</span><span>Voice-cloned narrator</span><span class="mq-dot">◆</span><span>Tap-any-sentence seeking</span><span class="mq-dot">◆</span><span>Open source</span><span class="mq-dot">◆</span>
+    <span>Figure-synced narration</span><span class="mq-dot">◆</span><span>Formula callouts</span><span class="mq-dot">◆</span><span>100% offline</span><span class="mq-dot">◆</span><span>Voice-cloned narrator</span><span class="mq-dot">◆</span><span>Tap-any-sentence seeking</span><span class="mq-dot">◆</span><span>Community library</span><span class="mq-dot">◆</span><span>Multi-voice novels</span><span class="mq-dot">◆</span><span>Open source</span><span class="mq-dot">◆</span>
+    <span>Figure-synced narration</span><span class="mq-dot">◆</span><span>Formula callouts</span><span class="mq-dot">◆</span><span>100% offline</span><span class="mq-dot">◆</span><span>Voice-cloned narrator</span><span class="mq-dot">◆</span><span>Tap-any-sentence seeking</span><span class="mq-dot">◆</span><span>Community library</span><span class="mq-dot">◆</span><span>Multi-voice novels</span><span class="mq-dot">◆</span><span>Open source</span><span class="mq-dot">◆</span>
   </div>
 </div>
 
@@ -138,6 +139,21 @@
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
         <h3>Locally-run narration</h3>
         <p>Narration is synthesized with an open-source TTS model running on your own hardware — no per-minute cloud TTS bill, no audio ever leaving the machine that converts the book.</p>
+      </div>
+      <div class="card card-glow reveal">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V8a3 3 0 013-3h10a3 3 0 013 3v11M4 19h16M9 5v14M15 5v14"/></svg></div>
+        <h3>Community library (new)</h3>
+        <p>A free library of copyright-free audiobooks, hosted on the Internet Archive. Listen on the web or in the Android app, download for offline, rate and comment, or submit your own. <a href="community.html">The library is new and the first books are still being produced.</a></p>
+      </div>
+      <div class="card card-glow reveal">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 14.5c3 0 6 1.7 6 5.5"/></svg></div>
+        <h3>Expressive multi-voice narration (preview)</h3>
+        <p>For novels, an LLM casts the characters and a speech model gives each one a distinct voice and emotion. The result is the standard package, so every client plays it unchanged. <a href="about.html#expressive-voices">Preview: not yet verified on real books.</a></p>
+      </div>
+      <div class="card card-glow reveal">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg></div>
+        <h3>Run your own server, with roles</h3>
+        <p>Opt-in accounts (admin, user, viewer), invites, model and run-pattern settings, and queue control from the web and Android apps. <a href="architecture.html#server-admin">Implemented and unit-tested; not yet run on a live deployment.</a></p>
       </div>
     </div>
   </div>
@@ -250,6 +266,7 @@
     <p>Firebrat is licensed under the <a href="https://github.com/Subhajit-Roy-Partho/firebrat/blob/master/LICENSE">GNU AGPL-3.0</a>.</p>
     <ul class="footer-links">
       <li><a href="guide.html">Get started</a></li>
+      <li><a href="community.html">Community</a></li>
       <li><a href="architecture.html">How it works</a></li>
       <li><a href="about.html">Accessibility mission</a></li>
       <li><a href="https://github.com/Subhajit-Roy-Partho/firebrat">GitHub</a></li>
