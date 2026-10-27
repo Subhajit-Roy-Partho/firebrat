@@ -38,6 +38,10 @@ json1 = valid JSON first try, spk = speaker attribution accuracy, emoG = emotion
 
 Recommendation: `qwen3-4b-2507-q4` is the best fit for a 7.7 GB phone; below ~3B attribution is poor and the regex fallback in the existing novel analyzer does as well. These are **desktop** numbers; tokens/s and memory on the phone are **UNVERIFIED**, and the catalog RAM/tier numbers have not yet been replaced with measured values.
 
+### 3b. On-device LLM run (Pixel 9a, debug build, CPU only, `gpuLayers=0`)
+
+`expressive_e2e_test.dart`, qwen3-4b-2507 + Piper, 5 KB Alice excerpt: prompt processing ~290 s for the first call, then ~32 tokens/min (~0.5 tok/s). The first call alone took ~10 min; two runs were stopped by the owner before the speech stage, so **no end-to-end result exists**. The first run also died when the phone slept (test lost its connection); a rerun restarted casting from scratch (the per-chunk cache did not survive). **GPU offload (`gpuLayers>0`, Vulkan) and a release build were never tried on the phone**; the owner stopped testing here. Conclusion so far: a 4B model on this CPU is too slow for whole-book casting; try 1.7B and GPU layers before offering Expressive on-device for real books.
+
 ## 4. Re-running
 
 ```sh
