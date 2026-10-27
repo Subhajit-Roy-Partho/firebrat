@@ -1,7 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart' show CharacterTraits, isEbookPath;
+import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart' show CastLimits, CharacterTraits, DeviceCapabilities, isEbookPath;
 import '../models/job.dart';
 import '../services/api_client.dart';
 import '../state/conversions_providers.dart';
@@ -14,6 +14,7 @@ import '../state/server_books_providers.dart';
 import '../widgets/battery_notice.dart';
 import '../state/guest_access_provider.dart';
 import '../services/auth_service.dart';
+import '../services/device_probe.dart';
 import '../services/integrity_service.dart';
 import 'conversion_detail_screen.dart';
 import 'conversion_settings_screen.dart';
@@ -352,6 +353,16 @@ class _ServerBookTypeBar extends ConsumerWidget {
                     .read(conversionModeProvider.notifier)
                     .setContentMode('novel'),
               ),
+              if (mode.mode == ConversionModePref.onDevice &&
+                  CastLimits.allowedFor(
+                      (ref.watch(deviceCapabilitiesProvider).asData?.value ?? DeviceCapabilities.unknown).tier))
+                ChoiceChip(
+                  label: const Text('Expressive (experimental)'),
+                  selected: mode.contentMode == 'expressive',
+                  onSelected: (_) => ref
+                      .read(conversionModeProvider.notifier)
+                      .setContentMode('expressive'),
+                ),
               if (server.castAvailable && canUpload)
                 ChoiceChip(
                   label: const Text('Expressive voices'),

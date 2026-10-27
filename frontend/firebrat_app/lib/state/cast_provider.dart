@@ -56,6 +56,29 @@ class CastData {
   /// Share of quoted lines a named speaker was found for (0 to 1).
   double get coverage => dialogueTotal == 0 ? 0 : dialogueAttributed / dialogueTotal;
 
+  /// Builds the cast from a manifest `cast` key (`{engine, narrator, characters:[{id,name,gender,age,voice}]}`);
+  /// null when the manifest has none. Line counts are not recorded there.
+  static CastData? fromManifestCast(Object? cast) {
+    if (cast is! Map || cast['characters'] is! List) return null;
+    final list = <CastCharacter>[
+      for (final c in cast['characters'] as List)
+        if (c is Map)
+          CastCharacter(
+            name: c['name'].toString(),
+            lines: (c['lines'] as num?)?.toInt() ?? 0,
+            pagesSeen: 0,
+            firstPage: null,
+            gender: (c['gender'] ?? 'unknown').toString(),
+            age: (c['age'] ?? 'unknown').toString(),
+            temperament: (c['temperament'] ?? 'unknown').toString(),
+            traitSource: 'cast',
+            voice: (c['voice'] ?? 'narrator voice').toString(),
+          ),
+    ];
+    if (list.isEmpty) return null;
+    return CastData(characters: list, dialogueTotal: 0, dialogueAttributed: 0);
+  }
+
   /// Reads the roster written on the phone (style.rate, assigned_voices) or by
   /// the server (voice_style.pitch_semitones), tolerating missing fields.
   factory CastData.fromJson(Map<String, dynamic> json) {
@@ -119,10 +142,16 @@ class CastData {
 /// (illustrated books, or books converted before this was recorded).
 final castProvider = FutureProvider.autoDispose.family<CastData?, String>((ref, bookId) async {
   try {
-    final path = await ref.read(libraryRepositoryProvider).bookAssetPath(bookId, 'character_roster.json');
-    final file = File(path);
-    if (!await file.exists()) return null;
-    return CastData.fromJson(jsonDecode(await file.readAsString()) as Map<String, dynamic>);
+    final repo = ref.read(libraryRepositoryProvider);
+    final file = File(await repo.bookAssetPath(bookId, 'character_roster.json'));
+    if (await file.exists()) {
+      return CastData.fromJson(jsonDecode(await file.readAsString()) as Map<String, dynamic>);
+    }
+    // Packages without a roster file (server cast books) still carry the
+    // manifest `cast` key: engine, narrator and one entry per character.
+    final manifest = File(await repo.bookAssetPath(bookId, 'manifest.json'));
+    if (!await manifest.exists()) return null;
+    return CastData.fromManifestCast((jsonDecode(await manifest.readAsString()) as Map<String, dynamic>)['cast']);
   } catch (_) {
     return null;
   }

@@ -143,14 +143,19 @@ Future<int> _missingModelBytes(ConversionModeSettings settings) async {
   var total = 0;
   try {
     final base = '${(await getApplicationSupportDirectory()).path}/firebrat_models';
-    final needsLlm = settings.contentMode != 'novel' && !(settings.allowCloudFallback && settings.cloudForAll);
+    final expressive = settings.contentMode == 'expressive';
+    final needsLlm = expressive || (settings.contentMode != 'novel' && !(settings.allowCloudFallback && settings.cloudForAll));
     if (needsLlm) {
       final m = findOnDeviceLlmModel(settings.onDeviceLlmModelId);
       final f = File('$base/llm/${m.fileName}');
       final ok = await f.exists() && ((await f.length()) - m.approxSizeBytes).abs() < m.approxSizeBytes * 0.02;
       if (!ok) total += m.approxSizeBytes;
     }
-    if (settings.isKokoroVoice) {
+    if (expressive) {
+      final assets = await ExpressiveAssets.forApp();
+      total += await assets.missingBytes(
+          ExpressiveEngine.parse(settings.expressiveEngine), findKokoroV1Model(settings.expressiveKokoroModelId));
+    } else if (settings.isKokoroVoice) {
       if (!await KokoroTtsEngine.isDownloaded()) total += 110 * 1024 * 1024;
       total += await KokoroAssets.missingBytes(findTtsModel(settings.ttsModelId));
     }
@@ -252,6 +257,9 @@ Future<String> runOnDeviceConversionIn(ProviderContainer container, List<String>
         androidSdk: device.androidSdk,
         kokoroCpuThreads: settings.kokoroCpuThreads,
         maleVoice: settings.maleVoice, femaleVoice: settings.femaleVoice, characterVoices: settings.characterVoices,
+    expressiveEngine: settings.expressiveEngine,
+    expressiveKokoroModelId: settings.expressiveKokoroModelId,
+    expressiveNarratorVoice: settings.expressiveNarratorVoice,
   );
   final result = await BackgroundConversionRunner.start(request);
   if (result is ServiceRequestFailure) {

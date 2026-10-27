@@ -213,8 +213,21 @@ class _ConversionSettingsScreenState
                   selected: settings.contentMode == 'novel',
                   onSelected: (_) => notifier.setContentMode('novel'),
                 ),
+                if (settings.mode == ConversionModePref.onDevice &&
+                    CastLimits.allowedFor(
+                        (ref.watch(deviceCapabilitiesProvider).asData?.value ?? DeviceCapabilities.unknown).tier))
+                  ChoiceChip(
+                    label: const Text('Expressive (experimental)'),
+                    selected: settings.contentMode == 'expressive',
+                    onSelected: (_) => notifier.setContentMode('expressive'),
+                  ),
               ],
             ),
+            if (settings.mode == ConversionModePref.onDevice && settings.contentMode == 'expressive')
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: ExpressiveModelControls(settings: settings, notifier: notifier),
+              ),
             if (settings.contentMode == 'novel')
               const _HelpText(
                 'Scans the whole book for explicitly named speakers, keeps the original prose, and assigns consistent character speaking styles. Uncertain speakers use the narrator. English named speech tags are supported; character aliases and pronouns are not inferred.',

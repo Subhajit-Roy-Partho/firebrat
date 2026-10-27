@@ -56,6 +56,11 @@ class ConversionModeSettings {
   final String maleVoice;
   final String femaleVoice;
   final Map<String, String> characterVoices;
+  /// Expressive on-device mode: speech engine 'piper' | 'kokoro', Kokoro v1.0
+  /// graph id (kokoro1-int8|fp16|fp32) and an optional narrator voice id.
+  final String expressiveEngine;
+  final String expressiveKokoroModelId;
+  final String? expressiveNarratorVoice;
 
   const ConversionModeSettings({
     this.mode = ConversionModePref.offline,
@@ -83,6 +88,9 @@ class ConversionModeSettings {
     this.maleVoice = 'Adam',
     this.femaleVoice = 'Sarah',
     this.characterVoices = const {},
+    this.expressiveEngine = 'piper',
+    this.expressiveKokoroModelId = 'kokoro1-fp16',
+    this.expressiveNarratorVoice,
   });
 
   ConversionModeSettings copyWith({
@@ -109,6 +117,10 @@ class ConversionModeSettings {
     String? ttsModelId,
     int? kokoroCpuThreads,
     String? maleVoice, String? femaleVoice, Map<String, String>? characterVoices,
+    String? expressiveEngine,
+    String? expressiveKokoroModelId,
+    String? expressiveNarratorVoice,
+    bool clearExpressiveNarrator = false,
   }) =>
       ConversionModeSettings(
         mode: mode ?? this.mode,
@@ -135,10 +147,13 @@ class ConversionModeSettings {
         kokoroCpuThreads: kokoroCpuThreads ?? this.kokoroCpuThreads,
         maleVoice: maleVoice ?? this.maleVoice, femaleVoice: femaleVoice ?? this.femaleVoice,
         characterVoices: characterVoices ?? this.characterVoices,
+        expressiveEngine: expressiveEngine ?? this.expressiveEngine,
+        expressiveKokoroModelId: expressiveKokoroModelId ?? this.expressiveKokoroModelId,
+        expressiveNarratorVoice: clearExpressiveNarrator ? null : (expressiveNarratorVoice ?? this.expressiveNarratorVoice),
       );
 
   bool get isOnDeviceConfigured =>
-      contentMode == 'novel' || !allowCloudFallback || (onDeviceLlmUrl.trim().isNotEmpty && onDeviceLlmApiKey.trim().isNotEmpty && onDeviceLlmModel.trim().isNotEmpty);
+      contentMode == 'novel' || contentMode == 'expressive' || !allowCloudFallback || (onDeviceLlmUrl.trim().isNotEmpty && onDeviceLlmApiKey.trim().isNotEmpty && onDeviceLlmModel.trim().isNotEmpty);
 
   bool get isKokoroVoice => voiceEngine == 'kokoroOnnx';
 }
@@ -197,13 +212,16 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
       maleVoice: prefs.getString('conversion.maleVoice') ?? 'Adam',
       femaleVoice: prefs.getString('conversion.femaleVoice') ?? 'Sarah',
       characterVoices: Map<String, String>.from(jsonDecode(prefs.getString('conversion.characterVoices') ?? '{}') as Map),
+      expressiveEngine: prefs.getString('conversion.expressiveEngine') ?? 'piper',
+      expressiveKokoroModelId: prefs.getString('conversion.expressiveKokoroModelId') ?? 'kokoro1-fp16',
+      expressiveNarratorVoice: prefs.getString('conversion.expressiveNarratorVoice'),
     );
   }
 
   Future<void> setContentMode(String mode) async {
-    // 'cast' (expressive multi-voice) is a server-only upload mode — the
-    // on-device pipeline never offers it, it just round-trips the value.
-    if (mode != 'illustrated' && mode != 'novel' && mode != 'cast') {
+    // 'cast' is the SERVER's expressive upload mode; 'expressive' is the
+    // on-device LLM-cast multi-voice mode (experimental, Balanced phones and up).
+    if (mode != 'illustrated' && mode != 'novel' && mode != 'cast' && mode != 'expressive') {
       throw ArgumentError.value(mode);
     }
     state = state.copyWith(contentMode: mode);
@@ -316,6 +334,28 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
     await prefs.setString('conversion.maleVoice', state.maleVoice);
     await prefs.setString('conversion.femaleVoice', state.femaleVoice);
     await prefs.setString('conversion.characterVoices', jsonEncode(state.characterVoices));
+  }
+
+  Future<void> setExpressiveEngine(String engine) async {
+    state = state.copyWith(expressiveEngine: engine, clearExpressiveNarrator: true);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('conversion.expressiveEngine', engine);
+    await prefs.remove('conversion.expressiveNarratorVoice');
+  }
+
+  Future<void> setExpressiveKokoroModel(String id) async {
+    state = state.copyWith(expressiveKokoroModelId: id);
+    await (await SharedPreferences.getInstance()).setString('conversion.expressiveKokoroModelId', id);
+  }
+
+  Future<void> setExpressiveNarrator(String? voice) async {
+    state = state.copyWith(expressiveNarratorVoice: voice, clearExpressiveNarrator: voice == null);
+    final prefs = await SharedPreferences.getInstance();
+    if (voice == null) {
+      await prefs.remove('conversion.expressiveNarratorVoice');
+    } else {
+      await prefs.setString('conversion.expressiveNarratorVoice', voice);
+    }
   }
 
   Future<void> setKokoroVoice(String voice) async {

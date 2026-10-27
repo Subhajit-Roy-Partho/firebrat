@@ -310,3 +310,125 @@ class KokoroModelControls extends ConsumerWidget {
     ]);
   }
 }
+
+final _expressiveXfer = NotifierProvider<_Xfer, _XferState>(_Xfer.new);
+final _expressiveMissing = FutureProvider.family<int, String>((ref, key) async {
+  final parts = key.split('|');
+  final assets = await ExpressiveAssets.forApp();
+  return assets.missingBytes(ExpressiveEngine.parse(parts[0]), findKokoroV1Model(parts[1]));
+});
+
+/// Settings for the on-device Expressive (multi-voice) mode: engine, voices,
+/// downloads, an honest time estimate. Only offered on Balanced phones and up.
+class ExpressiveModelControls extends ConsumerWidget {
+  final ConversionModeSettings settings;
+  final ConversionModeNotifier notifier;
+  const ExpressiveModelControls({super.key, required this.settings, required this.notifier});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final caps = ref.watch(deviceCapabilitiesProvider).asData?.value ?? DeviceCapabilities.unknown;
+    final theme = Theme.of(context);
+    if (!CastLimits.allowedFor(caps.tier)) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(
+            'Expressive narration needs a phone with about 6 GB of RAM or more '
+            '(${caps.totalRamGb == null ? 'yours could not be read' : 'yours has ${caps.totalRamGb!.toStringAsFixed(1)} GB'}). '
+            'Use Novel / characters instead.',
+            style: theme.textTheme.bodyMedium,
+          ),
+        ),
+      );
+    }
+    final engine = ExpressiveEngine.parse(settings.expressiveEngine);
+    final kModel = findKokoroV1Model(settings.expressiveKokoroModelId);
+    final xfer = ref.watch(_expressiveXfer);
+    final missing = ref.watch(_expressiveMissing('${engine.storageValue}|${kModel.id}')).asData?.value;
+    final llm = findOnDeviceLlmModel(settings.onDeviceLlmModelId);
+    final est = estimateExpressive(words: 10000, model: llm, tier: caps.tier, engine: engine, kokoroModelId: kModel.id);
+    final voices = engine == ExpressiveEngine.piper ? kPiperLibrittsVoices : kKokoroV1Voices;
+    String fmt(double m) => m < 90 ? '${m.round()} min' : '${(m / 60).toStringAsFixed(1)} h';
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(
+        'A language model on your phone reads the book first to find the characters and who speaks each line, '
+        'then every character is read in a different voice with matching emotion. Experimental: small models make mistakes, '
+        'and long books take hours. Plug the phone in.',
+        style: theme.textTheme.bodySmall,
+      ),
+      const SizedBox(height: 8),
+      RadioGroup<String>(
+        groupValue: engine.storageValue,
+        onChanged: (v) {
+          if (v != null) notifier.setExpressiveEngine(v);
+        },
+        child: Column(children: [
+          for (final e in ExpressiveEngine.values)
+            RadioListTile<String>(
+              dense: true,
+              value: e.storageValue,
+              title: Text(e.label),
+              subtitle: Text(e == ExpressiveEngine.piper
+                  ? '27 curated voices from a 904-speaker model, about 10x faster than real time on a Pixel 9a. Plainer voice quality.'
+                  : '28 natural English voices, but about real time or slower on a Pixel 9a CPU (the phone\'s GPU/TPU cannot run it).'),
+            ),
+        ]),
+      ),
+      if (engine == ExpressiveEngine.kokoro)
+        DropdownButtonFormField<String>(
+          initialValue: kModel.id,
+          decoration: const InputDecoration(labelText: 'Kokoro precision'),
+          items: [
+            for (final m in kKokoroV1Models)
+              DropdownMenuItem(value: m.id, child: Text('${m.label} - ${m.note}', overflow: TextOverflow.ellipsis)),
+          ],
+          onChanged: (v) {
+            if (v != null) notifier.setExpressiveKokoroModel(v);
+          },
+        ),
+      const SizedBox(height: 8),
+      DropdownButtonFormField<String?>(
+        initialValue: voices.any((v) => v.name == settings.expressiveNarratorVoice) ? settings.expressiveNarratorVoice : null,
+        decoration: const InputDecoration(labelText: 'Narrator voice'),
+        items: [
+          const DropdownMenuItem<String?>(value: null, child: Text('Automatic')),
+          for (final v in voices) DropdownMenuItem<String?>(value: v.name, child: Text('${v.label} - ${v.gender}')),
+        ],
+        onChanged: (v) => notifier.setExpressiveNarrator(v),
+      ),
+      const SizedBox(height: 8),
+      Text(
+        'Language model for casting: ${llm.displayName}. For every 10,000 words (about ${fmt(est.audioMinutes)} of audio) '
+        'expect roughly ${fmt(est.castingMinutes)} of casting and ${fmt(est.narrationMinutes)} of narration on this phone, '
+        'if the phone stays cool and plugged in. Casting is capped for this phone class, so very long books keep the plain dialogue-tag '
+        'attribution for part of the dialogue.',
+        style: theme.textTheme.bodySmall,
+      ),
+      const SizedBox(height: 8),
+      if (xfer.downloading || xfer.ready || xfer.message.isNotEmpty)
+        _XferRow(state: xfer, onPause: () => ref.read(_expressiveXfer.notifier).pause())
+      else if (missing != null && missing > 0)
+        FilledButton.icon(
+          onPressed: () => _download(ref, engine, kModel, missing),
+          icon: const Icon(Icons.download_rounded),
+          label: Text('Download voices (${_mb(missing)})'),
+        )
+      else if (missing == 0)
+        Row(children: [
+          const Icon(Icons.check_circle_outline, size: 18),
+          const SizedBox(width: 6),
+          Text('Voices downloaded', style: theme.textTheme.bodySmall),
+        ]),
+    ]);
+  }
+
+  void _download(WidgetRef ref, ExpressiveEngine engine, KokoroV1Model model, int bytes) {
+    ref.read(_expressiveXfer.notifier).run(
+      engine == ExpressiveEngine.piper ? 'Piper voices' : 'Kokoro voices',
+      bytes,
+      (token, progress) async => (await ExpressiveAssets.forApp()).download(engine, model, cancelToken: token, onProgress: progress),
+      () => ref.invalidate(_expressiveMissing),
+    );
+  }
+}
