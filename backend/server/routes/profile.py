@@ -50,11 +50,32 @@ def _find(uid: str) -> str | None:
 @router.get("/me")
 def me(user: dict = Depends(require_user)):
     path = _find(user["uid"])
-    return {
+    base = {
         "uid": user["uid"],
         "email": user.get("email"),
+        "name": user.get("name") or "",
+        "role": None,
         "has_avatar": path is not None,
         "avatar_updated_at": int(os.path.getmtime(path)) if path else None,
+    }
+    if not config.iam_enabled():
+        return {**base, "iam_enabled": False, "needs_setup": False}
+    # First sign-in with a verified invited email links the uid and
+    # activates the user; existing users just get last_seen refreshed.
+    from server import iam as _iam
+    _iam.claim_invite(user)
+    _iam.try_email_bootstrap(user)  # FIREBRAT_ADMIN_EMAILS, verified emails only
+    needs = _iam.needs_setup()
+    if needs:
+        _iam.ensure_setup_code()
+    row = _iam.get_user(user["uid"]) or {}
+    return {
+        **base,
+        "name": user.get("name") or row.get("name") or "",
+        "role": _iam.get_role(user),
+        "status": row.get("status"),
+        "iam_enabled": True,
+        "needs_setup": needs,
     }
 
 

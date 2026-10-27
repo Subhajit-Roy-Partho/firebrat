@@ -10,8 +10,10 @@ import '../services/drive_sync_service.dart';
 import '../services/firestore_sync_service.dart';
 import 'sync_screen.dart';
 import 'llm_key_guide_screen.dart';
+import 'server_admin_screen.dart';
 import 'tour_screen.dart';
 import '../state/library_providers.dart';
+import '../state/server_admin_providers.dart';
 import '../state/model_download_providers.dart';
 import '../state/on_device_conversion_providers.dart';
 import '../state/server_books_providers.dart';
@@ -437,6 +439,9 @@ class _ConversionSettingsScreenState
             const Divider(),
             const SizedBox(height: 8),
             const _ServerBooksSection(),
+            // Admin-only: hidden for non-admins and while IAM is off
+            // (unless the account is the legacy admin).
+            const _ServerAdminSection(),
           ],
         ],
       ),
@@ -1177,6 +1182,46 @@ class _ServerBooksSection extends ConsumerWidget {
           const SizedBox(height: 8),
           for (final book in state.books) _ServerBookTile(book: book),
         ],
+      ],
+    );
+  }
+}
+
+/// Admin-only shortcut to the Server administration console. Renders
+/// nothing for non-admins, and nothing while IAM is off (unless the
+/// account is the legacy admin) — non-admins never learn the screen
+/// exists.
+class _ServerAdminSection extends ConsumerWidget {
+  const _ServerAdminSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(showAdminSectionProvider)) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        Text(
+          'Server administration',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Users, models, run pattern and queue — admins only.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.admin_panel_settings_outlined),
+            title: const Text('Server administration'),
+            subtitle: const Text('Users, models, run pattern, queue'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ServerAdminScreen()),
+            ),
+          ),
+        ),
       ],
     );
   }

@@ -3,17 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_backend_pipeline/mobile_backend_pipeline.dart' show CharacterTraits, isEbookPath;
 import '../models/job.dart';
+import '../services/api_client.dart';
 import '../state/conversions_providers.dart';
+import '../state/server_admin_providers.dart';
 import '../state/library_providers.dart';
 import '../state/on_device_conversion_providers.dart';
 import '../state/on_device_pipeline_run_provider.dart';
 import '../state/on_device_queue_provider.dart';
+import '../state/server_books_providers.dart';
 import '../widgets/battery_notice.dart';
 import '../state/guest_access_provider.dart';
 import '../services/auth_service.dart';
 import '../services/integrity_service.dart';
 import 'conversion_detail_screen.dart';
 import 'conversion_settings_screen.dart';
+import 'server_setup_screen.dart';
 
 /// Upload a PDF (or a ZIP of PDFs, merged server-side) for conversion,
 /// and watch every job — queued, converting,
@@ -36,8 +40,15 @@ class ConversionsScreen extends ConsumerWidget {
     final queue = ref.watch(onDeviceQueueProvider);
     final queueActive = queue.any((i) => i.status == QueueStatus.queued || i.status == QueueStatus.running);
     final isOffline = conversionMode.mode == ConversionModePref.offline;
-    final needsServerSignIn = !isOffline && !isOnDevice &&
-        AuthService.instance.currentUser == null;
+    final needsServerSignIn =
+        !isOffline && !isOnDevice && AuthService.instance.currentUser == null;
+    // Viewers listen only: no upload button, no book-type picker, no cast
+    // option. Defaults to allowed while /me loads so public servers and
+    // old behaviour never flicker into a locked state.
+    final canUpload = ref.watch(canUploadProvider);
+    final needsSetup = ref.watch(needsSetupProvider);
+    final serverOnly = !isOffline && !isOnDevice;
+    final listenOnly = serverOnly && !needsServerSignIn && !canUpload;
 
     return Scaffold(
       appBar: AppBar(
@@ -59,6 +70,11 @@ class ConversionsScreen extends ConsumerWidget {
           // Server job queue is meaningless in on-device mode (nothing is
           // uploaded anywhere) — polling it here is what made the screen
           // "still look for the server". On-device runs surface above.
+          // The server book-type picker lives here (not settings) so the
+          // cast option can hide itself from cast_available without
+          // touching the on-device flow.
+          if (!isOffline && !isOnDevice && !needsServerSignIn && !listenOnly)
+            const _ServerBookTypeBar(),
           Expanded(
             child: isOffline
                 ? const Center(child: Padding(
@@ -70,27 +86,63 @@ class ConversionsScreen extends ConsumerWidget {
                 : isOnDevice
                 ? const _OnDeviceQueue()
                 : needsServerSignIn
-                ? Center(child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      const Text('Server conversion requires sign-in. Guest mode can read, '
-                          'import, download public server books and convert on this device.',
-                          textAlign: TextAlign.center),
-                      const SizedBox(height: 16),
-                      FilledButton(onPressed: () {
-                        ref.read(guestAccessProvider.notifier).setGuest(false);
-                        Navigator.of(context).popUntil((route) => route.isFirst);
-                      }, child: const Text('Sign in for server conversion')),
-                      TextButton(onPressed: () {
-                        ref.read(conversionModeProvider.notifier).setMode(ConversionModePref.onDevice);
-                      }, child: const Text('Use on-device conversion')),
-                    ]),
-                  ))
+                ? Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Server conversion requires sign-in. Guest mode can read, '
+                            'import, download public server books and convert on this device.',
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton(
+                            onPressed: () {
+                              ref
+                                  .read(guestAccessProvider.notifier)
+                                  .setGuest(false);
+                              Navigator.of(
+                                context,
+                              ).popUntil((route) => route.isFirst);
+                            },
+                            child: const Text('Sign in for server conversion'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              ref
+                                  .read(conversionModeProvider.notifier)
+                                  .setMode(ConversionModePref.onDevice);
+                            },
+                            child: const Text('Use on-device conversion'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : listenOnly
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'Your account can only listen. '
+                        'Ask a server admin to upgrade your role to upload books.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
                 : const _ServerJobsList(),
           ),
+          // First-run IAM: no admin exists yet — point the signed-in user
+          // at the one-time setup code instead of the normal queue.
+          if (serverOnly && !needsServerSignIn && needsSetup)
+            _NeedsSetupBanner(),
         ],
       ),
-      floatingActionButton: isOffline || needsServerSignIn ? null : (busy && !isOnDevice)
+      floatingActionButton: isOffline || needsServerSignIn || listenOnly
+          ? null
+          : (busy && !isOnDevice)
           ? FloatingActionButton.extended(
               onPressed: null,
               icon: SizedBox(
@@ -180,7 +232,25 @@ class ConversionsScreen extends ConsumerWidget {
       }
       final api = ref.read(apiClientProvider);
       final mode = ref.read(conversionModeProvider);
-      final job = await api.uploadBook(path,
+      // A remembered "Expressive voices" choice must not outlive the
+      // server flag or the account's role: say so instead of a 400/403.
+      if (mode.contentMode == 'cast' &&
+          (!ref.read(serverBooksProvider).castAvailable ||
+              !ref.read(canUploadProvider))) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Expressive voices are not available on this server or for your account. '
+                'Pick Illustrated or Novel.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+      final job = await api.uploadBook(
+        path,
         contentMode: mode.contentMode,
         provider: mode.mode == ConversionModePref.cloud ? mode.serverProvider : null,
         model: mode.mode == ConversionModePref.cloud ? mode.serverLlmModel : null,
@@ -194,11 +264,115 @@ class ConversionsScreen extends ConsumerWidget {
       await ref.read(jobsProvider.notifier).refresh();
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+        // A 400 refusing cast already carries the server's plain-language
+        // reason ("Expressive voices are not enabled on this server").
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ApiClient.friendlyUploadError(e))),
+        );
       }
     } finally {
       progressNotifier.set(null);
     }
+  }
+}
+
+/// First-run IAM banner: the server has no admin yet, so the signed-in
+/// user is offered the one-time setup flow instead of the job queue.
+/// Hidden entirely while iam_enabled is false (needsSetup is false then).
+class _NeedsSetupBanner extends StatelessWidget {
+  const _NeedsSetupBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      color: scheme.tertiaryContainer,
+      padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'This server has no admin yet. Set it up to manage books and users.',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+          ),
+          const SizedBox(width: 4),
+          FilledButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ServerSetupScreen()),
+            ),
+            child: const Text('Set up'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Server book type for the next upload: illustrated, novel, or — only when
+/// GET /settings reports cast_available AND the account may upload (viewers
+/// never see it) — expressive multi-voice cast
+/// (ebooks or text PDFs; slower, each character gets its own voice).
+/// On-device mode never shows this; its pipeline is untouched.
+class _ServerBookTypeBar extends ConsumerWidget {
+  const _ServerBookTypeBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(conversionModeProvider);
+    final server = ref.watch(serverBooksProvider);
+    final canUpload = ref.watch(canUploadProvider);
+    // Kick a settings probe the first time this bar shows: a fresh install
+    // may never have opened Conversion settings (which is what used to
+    // populate server state).
+    if (server.connected == null && !server.checking) {
+      Future.microtask(() => ref.read(serverBooksProvider.notifier).check());
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ChoiceChip(
+                label: const Text('Illustrated'),
+                selected: mode.contentMode == 'illustrated',
+                onSelected: (_) => ref
+                    .read(conversionModeProvider.notifier)
+                    .setContentMode('illustrated'),
+              ),
+              ChoiceChip(
+                label: const Text('Novel'),
+                selected: mode.contentMode == 'novel',
+                onSelected: (_) => ref
+                    .read(conversionModeProvider.notifier)
+                    .setContentMode('novel'),
+              ),
+              if (server.castAvailable && canUpload)
+                ChoiceChip(
+                  label: const Text('Expressive voices'),
+                  selected: mode.contentMode == 'cast',
+                  onSelected: (_) => ref
+                      .read(conversionModeProvider.notifier)
+                      .setContentMode('cast'),
+                ),
+            ],
+          ),
+          if (mode.contentMode == 'cast' && server.castAvailable)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Expressive voices: slower, each character gets its own voice. EPUB/MOBI or text PDF.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 
@@ -533,7 +707,18 @@ class _JobCard extends ConsumerWidget {
       'rendering_formulas' => 'Rendering formulas',
       'synthesizing' => 'Recording narration',
       'packaging' => 'Packaging',
-      _ => job.state == JobState.queued ? 'Queued for LLM compilation' : 'Starting',
+      // firebrat_cast stages (server reports these verbatim as status text).
+      'queued' => 'Queued',
+      'preparing text' => 'Preparing text',
+      'casting characters' => 'Casting characters',
+      'recording voices' => 'Recording voices',
+      // Unknown scheduler stages (the cast vocabulary grows server-side
+      // without app updates) render verbatim instead of "Starting".
+      _ =>
+        job.stage ??
+            (job.state == JobState.queued
+                ? 'Queued for LLM compilation'
+                : 'Starting'),
     };
     return job.detail != null ? '$stage — ${job.detail}' : stage;
   }

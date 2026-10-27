@@ -2,7 +2,7 @@ import os
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 
-from server import auth
+from server import auth, config
 from server.storage import (
     list_book_ids, read_manifest, resolve_asset,
     book_summary, get_or_build_zip, get_zip_info, delete_book,
@@ -54,7 +54,23 @@ def remove_book(book_id: str, _user: dict = Depends(auth.require_user)):
     """Permanently deletes a converted book's package (audio, assets,
     manifest — everything) to free space on the server. Irreversible —
     the app should confirm with the user before calling this.
+
+    With IAM on, only the book's owner (latest job's owner_uid) or an
+    admin may delete; books with no job history or no recorded owner (pre-IAM rows)
+    are admin-only, so a signed-in non-admin can never probe which ids exist.
     """
+    if config.iam_enabled():
+        from server import iam as _iam, jobs as _jobs
+        if _iam.is_disabled(_user):
+            raise HTTPException(status_code=403, detail="account is disabled")
+        role = _iam.get_role(_user)
+        if role is None:
+            raise HTTPException(status_code=403, detail="no role on this server: ask an admin")
+        if role != "admin":
+            job = _jobs.latest_job_for_book(book_id)
+            owner = (job.get("owner_uid") or "") if job else ""
+            if not owner or owner != _user["uid"]:
+                raise HTTPException(status_code=403, detail="only the owner or an admin can delete this book")
     if not delete_book(book_id):
         raise HTTPException(status_code=404, detail="book not found")
     return {"deleted": book_id}

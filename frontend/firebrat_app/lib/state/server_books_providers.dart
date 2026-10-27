@@ -21,6 +21,9 @@ class ServerConnectionState {
   final List<String> models;
   final bool modelsLoading;
   final String? modelsError;
+  // True when GET /settings reports cast_available — the server can take
+  // content_mode=cast uploads. False (or unknown) hides the cast option.
+  final bool castAvailable;
 
   const ServerConnectionState({
     this.checking = false,
@@ -30,6 +33,7 @@ class ServerConnectionState {
     this.models = const [],
     this.modelsLoading = false,
     this.modelsError,
+    this.castAvailable = false,
   });
 
   ServerConnectionState copyWith({
@@ -40,16 +44,17 @@ class ServerConnectionState {
     List<String>? models,
     bool? modelsLoading,
     String? modelsError,
-  }) =>
-      ServerConnectionState(
-        checking: checking ?? this.checking,
-        connected: connected ?? this.connected,
-        books: books ?? this.books,
-        error: error ?? this.error,
-        models: models ?? this.models,
-        modelsLoading: modelsLoading ?? this.modelsLoading,
-        modelsError: modelsError ?? this.modelsError,
-      );
+    bool? castAvailable,
+  }) => ServerConnectionState(
+    checking: checking ?? this.checking,
+    connected: connected ?? this.connected,
+    books: books ?? this.books,
+    error: error ?? this.error,
+    models: models ?? this.models,
+    modelsLoading: modelsLoading ?? this.modelsLoading,
+    modelsError: modelsError ?? this.modelsError,
+    castAvailable: castAvailable ?? this.castAvailable,
+  );
 }
 
 class ServerBooksNotifier extends Notifier<ServerConnectionState> {
@@ -72,6 +77,8 @@ class ServerBooksNotifier extends Notifier<ServerConnectionState> {
       final books = await api.listBooks();
       state = ServerConnectionState(checking: false, connected: true, books: books, models: state.models);
       unawaitedRefreshModels();
+      // Best-effort: older servers have no cast_available key (stays false).
+      unawaitedRefreshCastAvailability();
     } catch (e) {
       state = ServerConnectionState(connected: true, error: 'Connected, but could not list books: $e');
     }
@@ -80,6 +87,30 @@ class ServerBooksNotifier extends Notifier<ServerConnectionState> {
   void unawaitedRefreshModels() {
     // Fire-and-forget from check(): the book list shouldn't wait on it.
     refreshModels();
+  }
+
+  void unawaitedRefreshCastAvailability() {
+    // Fire-and-forget like the model catalog: a slow /settings must not
+    // hold up the book list.
+    refreshCastAvailability();
+  }
+
+  /// Reads GET /settings `cast_available` (missing key = false). When
+  /// [baseUrlOverride] is given (the URL field's current text, possibly
+  /// unsaved), the probe goes there instead of the saved URL.
+  Future<void> refreshCastAvailability({String? baseUrlOverride}) async {
+    try {
+      final ApiClient api;
+      if (baseUrlOverride != null && baseUrlOverride.trim().isNotEmpty) {
+        api = ApiClient(baseUrl: normalizeServerUrl(baseUrlOverride));
+      } else {
+        api = ref.read(apiClientProvider);
+      }
+      state = state.copyWith(castAvailable: await api.isCastAvailable());
+    } catch (_) {
+      // Leave the previous value: a failed probe must not hide the option
+      // when it was already confirmed available.
+    }
   }
 
   /// Probes the server's model catalog. When [baseUrlOverride] is given

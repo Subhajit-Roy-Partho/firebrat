@@ -1,5 +1,11 @@
 # AGENTS.md — orientation for a coding agent picking this up cold
 
+> 2026-10-26 addendum (READ FIRST for the current work stream): the Community audiobook library, the expressive multi-voice pipeline
+> (`backend/firebrat_cast/`), server accounts/IAM and the top-10 book run are documented in **`docs/TASK.md`** (done / in progress / to do,
+> server access, tmux sessions, gotchas, rules such as the git identity and "do not merge/publish without the owner"). Contracts:
+> `backend/firebrat_cast/{README,SPEC,INTEGRATION,INTEGRATION2}.md` and `community/SPEC.md`. Agent hand-offs go in `docs/handover/<area>.md`.
+> Only Claude agents are used; opencode is retired.
+
 > 2026-09-18 addendum: Stage-2 LLM provider is now switchable — see
 > `docs/LLM_PROVIDERS.md` (nano-gpt vs local Qwen3-4B via
 > `backend/scripts/llm_server.py`, the endpoint's ~340s generation wall,

@@ -3,7 +3,8 @@ import 'katex/dist/katex.min.css';
 import katex from 'katex';
 import {initializeApp,getApps} from 'firebase/app';
 import {getAuth,onIdTokenChanged,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult,signOut,signInWithEmailAndPassword,createUserWithEmailAndPassword} from 'firebase/auth';
-import {normalizeServer,assetURL,activeAt,bookKey,bookAssets} from './core.mjs';
+import {normalizeServer,assetURL,activeAt,bookKey,bookAssets,castAvailable,iamEnabled,needsSetup,roleOf,canUpload,canSeeAdmin,friendlyAuthError,ROLES,showSetup,showAdmin,setupError,validateSetupCode,validateInvite,normalizeUsers,optionLabel,optionNote,normalizeOptions,PHASE_LABELS,ORDER_LABELS,settingsToForm,formToSettings,normalizeQueue,canReorder,canCancel} from './core.mjs';
+let me=null,iamSettings=null,adminSettings=null;
 const $=id=>document.getElementById(id),audio=$('audio'),INDEX='firebrat-index-v1',APP_BASE=import.meta.env.BASE_URL,STATIC_HOST=import.meta.env.VITE_STATIC_HOST==='1',INDEX_URL=new URL(APP_BASE+'_library',location.origin).href;
 const savedServer=localStorage.getItem('firebrat.server')||(STATIC_HOST?'':location.origin);
 let base=savedServer?normalizeServer(savedServer):'',records=[],auth=null,unsubAuth=null,reader=null,readGeneration=0,autoplayTimer=null,lastActive=null,lastSave=0,remote=[],noticeTimer;
@@ -18,13 +19,13 @@ async function request(path,options={},server=base){
  if(!server)throw new Error('Set your Firebrat server address in Settings.');
  const headers=new Headers(options.headers);if(options.auth){if(!auth?.currentUser)throw new Error('Sign in from Settings to manage conversions.');headers.set('Authorization',`Bearer ${await auth.currentUser.getIdToken()}`);}
  const response=await fetch(server+path,{...options,headers,signal:options.signal??AbortSignal.timeout(15000)});
- if(!response.ok){if(response.status===401)throw new Error('Please sign in again to manage conversions.');let body;try{body=await response.json();}catch{}throw new Error(body?.detail||`Server returned ${response.status}.`);}
+ if(!response.ok){if(response.status===401)throw new Error('Please sign in again to manage conversions.');let body;try{body=await response.json();}catch{}const detail=typeof body?.detail==='string'?body.detail:'';const err=new Error(response.status===403?friendlyAuthError(403,detail):detail||`Server returned ${response.status}.`);err.status=response.status;err.detail=detail;throw err;}
  return response;
 }
-function switchTab(name){for(const page of document.querySelectorAll('.page'))page.hidden=page.id!==name;for(const tab of document.querySelectorAll('[data-tab]')){if(tab.dataset.tab===name)tab.setAttribute('aria-current','page');else tab.removeAttribute('aria-current');}history.replaceState(null,'',`#${name}`);if(name==='settings')initAuth().catch(e=>$('auth-error').textContent=e.message);if(name==='jobs')loadJobs();}
+function switchTab(name){for(const page of document.querySelectorAll('.page'))page.hidden=page.id!==name;for(const tab of document.querySelectorAll('[data-tab]')){if(tab.dataset.tab===name)tab.setAttribute('aria-current','page');else tab.removeAttribute('aria-current');}history.replaceState(null,'',`#${name}`);if(name==='settings'){initAuth().then(()=>loadMe()).catch(e=>$('auth-error').textContent=e.message);}if(name==='jobs')loadJobs();}
 for(const tab of document.querySelectorAll('[data-tab]'))tab.onclick=()=>switchTab(tab.dataset.tab);
 async function loadLibrary(){
- await indexRead();renderLibrary();if(!base){remote=[{book_id:'demo-circuit',title:'The Lantern Circuit — short sample',section_count:1,total_duration_ms:18000,_server:location.origin+APP_BASE+'demo'}];renderLibrary();$('connection').textContent='Choose a server';$('library-note').textContent='Try the short sample, or open Settings to connect your conversion server. Saved books remain available offline.';return;}$('connection').textContent=navigator.onLine?'Connecting…':'Offline';
+ await indexRead();renderLibrary();await loadCastAvailability();if(!base){remote=[{book_id:'demo-circuit',title:'The Lantern Circuit — short sample',section_count:1,total_duration_ms:18000,_server:location.origin+APP_BASE+'demo'}];renderLibrary();$('connection').textContent='Choose a server';$('library-note').textContent='Try the short sample, or open Settings to connect your conversion server. Saved books remain available offline.';return;}$('connection').textContent=navigator.onLine?'Connecting…':'Offline';
  try{remote=await(await request('/books')).json();$('connection').textContent='Server connected';$('library-note').textContent='Save a book for offline reading and listening.';}catch{remote=[];$('connection').textContent='Offline reading';$('library-note').textContent='Showing saved books. Connect to your server for more.';}
  renderLibrary();
 }
@@ -103,30 +104,158 @@ async function initAuth(){
  if(auth){await auth.authStateReady();return auth;}$('google-signin').disabled=true;$('auth-error').textContent='Loading sign-in…';
  const cfg=base?await(await request('/firebase-config')).json():{apiKey:'AIzaSyDnvh3rtp4f2GtU9vOAIoDIcWLnXpTp38E',authDomain:'firebrat-8c597.firebaseapp.com',projectId:'firebrat-8c597',appId:'1:657440934081:web:c94b0a6fd08fdb7f1bac40'};if(!cfg.apiKey)throw new Error('The server needs Firebase web sign-in configuration. Reading still works.');
  const app=getApps().find(a=>a.name===(base||location.origin))||initializeApp(cfg,base||location.origin);auth=getAuth(app);if(unsubAuth)unsubAuth();
- unsubAuth=onIdTokenChanged(auth,user=>{$('account-status').textContent=user?`Signed in as ${user.email||'your account'}`:'Reading does not require an account. Sign in for uploads and jobs.';$('signout').hidden=!user;$('google-signin').hidden=!!user;$('email-form').hidden=!!user;});
+ unsubAuth=onIdTokenChanged(auth,user=>{$('account-status').textContent=user?`Signed in as ${user.email||'your account'}`:'Reading does not require an account. Sign in for uploads and jobs.';$('signout').hidden=!user;$('google-signin').hidden=!!user;$('email-form').hidden=!!user;loadMe().catch(()=>{});});
  await auth.authStateReady();$('google-signin').disabled=false;$('auth-error').textContent='';if(sessionStorage.getItem('firebrat.redirect')){sessionStorage.removeItem('firebrat.redirect');await getRedirectResult(auth);}return auth;
 }
 $('google-signin').onclick=()=>{if(!auth)return;signInWithPopup(auth,new GoogleAuthProvider()).catch(error=>{$('auth-error').textContent=error.message;if(error.code==='auth/popup-blocked'){const redirect=button('Sign in in this window',()=>{sessionStorage.setItem('firebrat.redirect','1');return signInWithRedirect(auth,new GoogleAuthProvider());});$('auth-error').append(redirect);}});};
 $('signout').onclick=()=>signOut(auth).catch(e=>notice(e.message));$('email-form').onsubmit=async event=>{event.preventDefault();try{await initAuth();const fn=$('create-account').checked?createUserWithEmailAndPassword:signInWithEmailAndPassword;await fn(auth,$('email').value,$('password').value);$('password').value='';$('auth-error').textContent='';}catch(e){$('auth-error').textContent=e.message;}};
 $('upload-form').onsubmit=async event=>{
- event.preventDefault();const file=$('upload-file').files[0];if(!file)return;const status=$('upload-status');$('upload-button').disabled=true;
+ event.preventDefault();if(!canUpload(me,iamSettings)){$('upload-status').textContent='Your account can only listen. Ask a server admin for upload access.';return;}const file=$('upload-file').files[0];if(!file)return;const status=$('upload-status');$('upload-button').disabled=true;
  try{await initAuth();if(!auth.currentUser)throw new Error('Sign in from Settings before uploading.');const token=await auth.currentUser.getIdToken();const form=new FormData();form.append('file',file);form.append('title',$('upload-title').value);form.append('content_mode',$('content-mode').value);if($('content-mode').value==='novel'){if($('research-characters').checked)form.append('research_characters','true');if($('character-traits').value.trim())form.append('character_traits',$('character-traits').value.trim());}
   status.textContent='Uploading…';$('upload-progress').hidden=false;
-  const job=await new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.timeout=600000;xhr.ontimeout=()=>reject(new Error('Upload timed out. Check the connection and retry.'));xhr.open('POST',base+'/books/upload');xhr.setRequestHeader('Authorization','Bearer '+token);xhr.upload.onprogress=e=>{if(e.lengthComputable)$('upload-progress').value=e.loaded/e.total;};xhr.onload=()=>{let value;try{value=JSON.parse(xhr.responseText);}catch{}if(xhr.status>=200&&xhr.status<300)resolve(value);else reject(new Error(value?.detail||`Upload failed (${xhr.status}).`));};xhr.onerror=()=>reject(new Error('Upload interrupted. Check the server connection and retry.'));xhr.send(form);});
+  const job=await new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.timeout=600000;xhr.ontimeout=()=>reject(new Error('Upload timed out. Check the connection and retry.'));xhr.open('POST',base+'/books/upload');xhr.setRequestHeader('Authorization','Bearer '+token);xhr.upload.onprogress=e=>{if(e.lengthComputable)$('upload-progress').value=e.loaded/e.total;};xhr.onload=()=>{let value;try{value=JSON.parse(xhr.responseText);}catch{}if(xhr.status>=200&&xhr.status<300)resolve(value);else reject(new Error(xhr.status===403?friendlyAuthError(403,value?.detail):(value?.detail||`Upload failed (${xhr.status}).`)));};xhr.onerror=()=>reject(new Error('Upload interrupted. Check the server connection and retry.'));xhr.send(form);});
   status.textContent=`Queued: ${job.title||file.name}. Conversion continues on the server.`;switchTab('jobs');await loadJobs();
  }catch(e){status.textContent=e.message;}finally{$('upload-button').disabled=false;$('upload-progress').hidden=true;}
 };
 async function loadJobs(){const list=$('job-list');try{await initAuth();const jobs=await(await request('/jobs',{auth:true})).json();list.replaceChildren();if(!jobs.length)list.append(element('p','No conversions yet.'));for(const job of jobs){const card=element('article',undefined,'card');card.append(element('h2',job.title||job.filename),element('p',`${job.state} · ${job.stage||''}`),element('p',job.detail||''));if(job.progress!==null&&job.progress!==undefined){const bar=element('progress');bar.max=1;bar.value=job.progress;card.append(bar);}if(job.error)card.append(element('p',job.error));if(job.needs_review_count)card.append(element('p',`${job.needs_review_count} sections need review.`));if(['failed','done'].includes(job.state))card.append(button('Retry',async()=>{await request(`/jobs/${encodeURIComponent(job.job_id)}/retry`,{auth:true,method:'POST'});await loadJobs();}));if(job.state==='done')card.append(button('Open book',()=>openBook(base,job.book_id)));list.append(card);}}catch(e){list.replaceChildren(element('p',e.message));}}
-$('server-url').value=base;$('server-form').onsubmit=event=>{event.preventDefault();try{base=normalizeServer($('server-url').value);localStorage.setItem('firebrat.server',base);if(unsubAuth)unsubAuth();auth=null;audio.pause();reader=null;loadLibrary();$('server-status').textContent='Server saved.';initAuth().catch(e=>$('auth-error').textContent=e.message);}catch(e){$('server-status').textContent=e.message;}};
+$('server-url').value=base;$('server-form').onsubmit=event=>{event.preventDefault();try{base=normalizeServer($('server-url').value);localStorage.setItem('firebrat.server',base);if(unsubAuth)unsubAuth();auth=null;me=null;iamSettings=null;syncUploadUI();audio.pause();reader=null;loadLibrary();$('server-status').textContent='Server saved.';initAuth().catch(e=>$('auth-error').textContent=e.message);}catch(e){$('server-status').textContent=e.message;}};
 $('font-scale').value=String(prefs.font||1.1);document.documentElement.style.setProperty('--font-scale',prefs.font||1.1);$('font-scale').oninput=()=>{prefs.font=Number($('font-scale').value);document.documentElement.style.setProperty('--font-scale',prefs.font);savePrefs();};$('autoplay').checked=prefs.autoplay!==false;$('autoplay').onchange=()=>{prefs.autoplay=$('autoplay').checked;savePrefs();};$('autoplay-delay').value=String(prefs.delay??1);$('autoplay-delay').onchange=()=>{prefs.delay=Math.min(10,Math.max(0,Number($('autoplay-delay').value)||0));savePrefs();};$('include-pdf').checked=!!prefs.includePDF;$('include-pdf').onchange=()=>{prefs.includePDF=$('include-pdf').checked;savePrefs();};
-$('refresh').onclick=loadLibrary;$('refresh-jobs').onclick=loadJobs;setInterval(()=>{if(!$('jobs').hidden&&!document.hidden)loadJobs();},4000);window.addEventListener('online',loadLibrary);window.addEventListener('offline',()=>{$('connection').textContent='Offline reading';});
+$('refresh').onclick=loadLibrary;$('refresh-jobs').onclick=loadJobs;setInterval(()=>{if(!$('jobs').hidden&&!document.hidden)loadJobs();if(!$('server-admin').hidden&&!document.hidden&&canSeeAdmin(me))loadAdminQueue().catch(()=>{});},4000);window.addEventListener('online',loadLibrary);window.addEventListener('offline',()=>{$('connection').textContent='Offline reading';});
 if('serviceWorker'in navigator&&window.isSecureContext)navigator.serviceWorker.register(APP_BASE+'sw.js',{type:'module',scope:APP_BASE}).catch(e=>notice('Offline installation unavailable: '+e.message));
 if(navigator.storage?.estimate)navigator.storage.estimate().then(s=>$('storage-status').textContent=`Browser storage: ${Math.round((s.usage||0)/1048576)} MB used of about ${Math.round((s.quota||0)/1048576)} MB available.`);
 loadLibrary();if(sessionStorage.getItem('firebrat.redirect')){switchTab('settings');initAuth().catch(e=>$('auth-error').textContent=e.message);}
 
 document.querySelector('.brand')?.addEventListener('click',event=>{event.preventDefault();switchTab('library');});
 
-;(()=>{const m=document.getElementById('content-mode'),o=document.getElementById('novel-options');if(m&&o){const sync=()=>{o.hidden=m.value!=='novel'};m.addEventListener('change',sync);sync();}})();
+// Book-type select: novel shows character options, cast shows its one-line
+// explanation. The cast option itself stays hidden until /settings says the
+// server can run expressive-cast jobs (missing key = unavailable).
+function syncContentMode(){const m=$('content-mode'),o=$('novel-options'),h=$('cast-hint');if(!m||!o)return;o.hidden=m.value!=='novel';if(h)h.hidden=h.dataset.enabled!=='1'||m.value!=='cast';}
+async function loadCastAvailability(){
+ const option=$('cast-option'),hint=$('cast-hint'),mode=$('content-mode');
+ const hide=()=>{if(option)option.hidden=true;if(hint){hint.dataset.enabled='';}if(mode&&mode.value==='cast')mode.value='illustrated';syncContentMode();};
+ if(!base)return hide();
+ try{
+  const settings=await(await request('/settings')).json();iamSettings=settings;
+  const available=castAvailable(settings)&&roleOf(me)!=='viewer';
+  if(option)option.hidden=!available;
+  if(hint)hint.dataset.enabled=available?'1':'';
+  if(!available&&mode&&mode.value==='cast')mode.value='illustrated';
+ }catch{hide();}
+ syncUploadUI();
+}
+;(()=>{const m=document.getElementById('content-mode');if(m){m.addEventListener('change',syncContentMode);syncContentMode();}})();
+
+// Server administration (INTEGRATION2.md): additive and off by default. While
+// iam_enabled is false, me stays null, both blocks stay hidden, and
+// syncUploadUI leaves the convert form exactly as it is today.
+// Role-aware upload UI: viewers see "Your account can only listen"; the cast
+// option additionally requires role user or better.
+function syncUploadUI(){
+ const allowed=canUpload(me,iamSettings),note=$('upload-role-note'),form=$('upload-form');
+ if(note)note.hidden=allowed;
+ if(form)for(const el of form.querySelectorAll('input,select,textarea,button'))el.disabled=!allowed;
+ if(iamSettings){const option=$('cast-option');if(option)option.hidden=!(castAvailable(iamSettings)&&roleOf(me)!=='viewer');}
+ syncContentMode();
+}
+async function loadMe(){
+ me=null;if($('setup-block'))$('setup-block').hidden=true;if($('server-admin'))$('server-admin').hidden=true;
+ if(base){try{iamSettings=await(await request('/settings')).json();}catch{iamSettings=null;}}
+ if(base&&auth?.currentUser){try{me=await(await request('/me',{auth:true})).json();}catch{me=null;}}
+ syncUploadUI();
+ if(showSetup(me,iamSettings)){$('setup-block').hidden=false;return;}
+ if(showAdmin(me,iamSettings)){$('server-admin').hidden=false;loadAdminUsers().catch(e=>$('users-status').textContent=e.message);loadAdminSettings().catch(e=>$('settings-status').textContent=e.message);loadAdminQueue().catch(e=>$('queue-status').textContent=e.message);}
+}
+// First-run setup: the one-time code is sent once and cleared, never logged.
+$('setup-button').onclick=async()=>{
+ const check=validateSetupCode($('setup-code').value);if(!check.ok){$('setup-status').textContent=check.error;return;}
+ $('setup-button').disabled=true;$('setup-status').textContent='Checking…';
+ try{await request('/admin/bootstrap',{auth:true,method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:check.code})});$('setup-code').value='';$('setup-status').textContent='';await loadMe();notice('Server claimed. You are now an admin.');}
+ catch(e){$('setup-status').textContent=setupError(e.status,e.detail);if(e.status===410)loadMe();}
+ finally{$('setup-button').disabled=false;}
+};
+const JSON_HEADERS={'Content-Type':'application/json'};
+const adminJSON=(path,method,body)=>request(path,{auth:true,method,headers:body?JSON_HEADERS:undefined,body:body?JSON.stringify(body):undefined});
+const userPath=key=>`/admin/users/${encodeURIComponent(key)}`;
+// Run an admin action; show its error (already friendly) in an aria-live status line.
+async function guarded(statusId,action,done){const s=$(statusId);try{await action();if(done)s.textContent=done;}catch(e){s.textContent=e.message;}}
+// Users: list, invite by email + role, change role, disable/enable, remove.
+// The backend protects the last active admin; its error text is shown as-is.
+async function loadAdminUsers(){
+ const {users,invites}=normalizeUsers(await(await request('/admin/users',{auth:true})).json()),box=$('admin-users');box.replaceChildren();
+ if(!users.length&&!invites.length)box.append(element('p','No users yet. Invite someone below.','muted'));
+ for(const u of users){
+  const row=element('div',undefined,'admin-row'),label=`${u.email||u.key}`;
+  row.append(element('span',`${label} · ${u.active?'active':'disabled'}`));
+  const sel=element('select');sel.setAttribute('aria-label',`Role for ${label}`);
+  for(const r of ROLES){const o=element('option',r[0].toUpperCase()+r.slice(1));o.value=r;o.selected=r===u.role;sel.append(o);}
+  sel.onchange=()=>guarded('users-status',async()=>{try{await adminJSON(userPath(u.key),'PATCH',{role:sel.value});}finally{await loadAdminUsers();}},`${label} is now ${sel.value}.`);
+  const toggle=button(u.active?'Disable':'Enable',()=>guarded('users-status',async()=>{await adminJSON(userPath(u.key),'PATCH',{status:u.active?'disabled':'active'});await loadAdminUsers();},`${label} ${u.active?'disabled':'enabled'}.`));
+  toggle.setAttribute('aria-label',`${toggle.textContent} ${label}`);
+  const remove=button('Remove',()=>guarded('users-status',async()=>{if(!confirm(`Remove ${label}?`))return;await adminJSON(userPath(u.key),'DELETE');await loadAdminUsers();},`${label} removed.`));
+  remove.setAttribute('aria-label',`Remove ${label}`);
+  row.append(sel,toggle,remove);box.append(row);
+ }
+ for(const i of invites){
+  const row=element('div',undefined,'admin-row');row.append(element('span',`${i.email} · invited as ${i.role} (not signed in yet)`));
+  const remove=button('Remove invite',()=>guarded('users-status',async()=>{await adminJSON(userPath(i.email),'DELETE');await loadAdminUsers();},'Invite removed.'));remove.setAttribute('aria-label',`Remove invite for ${i.email}`);
+  row.append(remove);box.append(row);
+ }
+}
+$('invite-form').onsubmit=async event=>{
+ event.preventDefault();const v=validateInvite($('invite-email').value,$('invite-role').value);if(!v.ok){$('users-status').textContent=v.error;return;}
+ await guarded('users-status',async()=>{await adminJSON('/admin/users','POST',v.payload);$('invite-email').value='';await loadAdminUsers();},'Invited. The account activates when that verified email first signs in.');
+};
+$('audit-button').onclick=()=>guarded('users-status',async()=>{
+ const data=await(await request('/admin/audit?limit=50',{auth:true})).json(),items=Array.isArray(data)?data:data.audit||[],box=$('admin-audit');box.replaceChildren();
+ if(!items.length)box.append(element('p','No activity yet.','muted'));
+ for(const a of items)box.append(element('p',`${a.at||''} · ${a.actor_uid||''} · ${a.action||''} · ${a.target||''}`,'muted'));
+});
+// Models + run pattern: every choice comes from the server catalog, with VRAM
+// hints and "weights not downloaded" warnings.
+function fillSelect(select,entries,current,label=optionLabel){
+ const items=entries.some(o=>o.id===current)||!current?entries:[...entries,{id:current}];
+ select.replaceChildren(...items.map(o=>{const el=element('option',label(o));el.value=o.id;el.selected=o.id===current;return el;}));
+}
+let adminOpts=null;
+async function loadAdminSettings(){
+ const data=await(await request('/admin/settings',{auth:true})).json();adminSettings=data;
+ const opts=adminOpts=normalizeOptions(data.options),f=settingsToForm(data.values);
+ fillSelect($('set-llm-model'),opts.llm,f.llmModel);fillSelect($('set-tts-engine'),opts.tts,f.ttsEngine);
+ fillSelect($('set-llm-quant'),opts.quantizations.map(id=>({id})),f.quantization,o=>o.id);
+ fillSelect($('set-phase-mode'),opts.phaseModes.map(id=>({id})),f.phaseMode,o=>PHASE_LABELS[o.id]||o.id);
+ fillSelect($('set-audio-order'),opts.audioOrders.map(id=>({id})),f.audioOrder,o=>ORDER_LABELS[o.id]||o.id);
+ const notes=()=>{const w=(list,id,el)=>{const o=list.find(x=>x.id===id);el.textContent=optionNote(o);el.classList.toggle('warn',o?.available===false);};w(opts.llm,$('set-llm-model').value,$('set-llm-note'));w(opts.tts,$('set-tts-engine').value,$('set-tts-note'));};
+ $('set-llm-model').onchange=notes;$('set-tts-engine').onchange=notes;notes();
+ $('set-max-books').min=String(opts.maxBooks[0]);$('set-max-books').max=String(opts.maxBooks[1]);$('set-max-books').value=f.maxBooks;$('set-paused').checked=f.paused;
+ $('set-quiet-start').value=f.quietStart;$('set-quiet-end').value=f.quietEnd;
+ $('settings-notes').textContent=data.notes||'';
+}
+$('settings-save').onclick=async()=>{
+ if(!adminSettings)return;
+ const r=formToSettings(adminSettings.values,{llmModel:$('set-llm-model').value,quantization:$('set-llm-quant').value,ttsEngine:$('set-tts-engine').value,phaseMode:$('set-phase-mode').value,maxBooks:$('set-max-books').value,audioOrder:$('set-audio-order').value,paused:$('set-paused').checked,quietStart:$('set-quiet-start').value,quietEnd:$('set-quiet-end').value},adminOpts?.maxBooks);
+ if(!r.ok){$('settings-status').textContent=r.errors.join(' ');return;}
+ $('settings-save').disabled=true;
+ await guarded('settings-status',async()=>{await adminJSON('/admin/settings','PUT',{values:r.values});await loadAdminSettings();},'Saved. The scheduler picks it up before its next phase, no restart needed.');
+ $('settings-save').disabled=false;
+};
+// Queue: live scheduler status with pause/resume, cancel, and move-to-top.
+async function loadAdminQueue(){
+ const q=normalizeQueue(await(await request('/admin/queue',{auth:true})).json()),box=$('admin-queue');
+ $('queue-pause').hidden=q.paused;$('queue-resume').hidden=!q.paused;
+ const rows=[element('p',q.state+(q.detail?` ${q.detail}`:''),q.paused?'warn':'muted')];
+ if(!q.books.length)rows.push(element('p','No books in the queue.','muted'));
+ for(const b of q.books){
+  const row=element('div',undefined,'admin-row');
+  row.append(element('span',`${b.slug} · ${b.stage}${b.percent!=null?` · ${b.percent}%`:''}${b.error?` · ${b.error}`:''}`));
+  if(canReorder(b)){const t=button('Move to top',()=>guarded('queue-status',async()=>{await adminJSON(`/admin/queue/${encodeURIComponent(b.slug)}/priority`,'POST',{top:true});await loadAdminQueue();},`${b.slug} moved to the top.`));t.setAttribute('aria-label',`Move ${b.slug} to top`);row.append(t);}
+  if(canCancel(b)){const c=button('Cancel',()=>guarded('queue-status',async()=>{if(!confirm(`Cancel ${b.slug}?`))return;await adminJSON(`/admin/queue/${encodeURIComponent(b.slug)}/cancel`,'POST');await loadAdminQueue();},`${b.slug} cancelled.`));c.setAttribute('aria-label',`Cancel ${b.slug}`);row.append(c);}
+  rows.push(row);
+ }
+ box.replaceChildren(...rows);
+}
+$('queue-pause').onclick=()=>guarded('queue-status',async()=>{await adminJSON('/admin/queue/pause','POST');await loadAdminQueue();},'Paused.');
+$('queue-resume').onclick=()=>guarded('queue-status',async()=>{await adminJSON('/admin/queue/resume','POST');await loadAdminQueue();},'Resumed.');
 
 // Community tab: lazy-load the library site once, same-origin on GitHub Pages so sign-in is shared.
 {const tab=document.querySelector('[data-tab=community]'),frame=document.getElementById('community-frame'),off=document.getElementById('community-offline');
@@ -134,3 +263,4 @@ const url=(STATIC_HOST?new URL(APP_BASE+'community/',location.origin).href:'http
 document.getElementById('community-open').href=url.replace('?embed=1','');
 const load=()=>{off.hidden=navigator.onLine;if(!navigator.onLine||frame.src)return;frame.onload=()=>frame.classList.add('ready');frame.src=url};
 tab?.addEventListener('click',load);addEventListener('online',()=>{if(!tab||tab.getAttribute('aria-current')==='page')load()})}
+

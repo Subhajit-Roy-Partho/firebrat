@@ -23,7 +23,9 @@ START = re.compile(r"\*\*\*\s*START OF (?:THE|THIS) PROJECT GUTENBERG EBOOK.*?\*
 END = re.compile(r"\*\*\*\s*END OF (?:THE|THIS) PROJECT GUTENBERG EBOOK.*", re.S | re.I)
 
 # Catalog entries look like: slug, gutenberg, title, author, died, category,
-# language, description, sourceUrl (all but slug/gutenberg optional).
+# language, description, sourceUrl (all but slug/gutenberg optional). Entries
+# with source_path (a local EPUB/MOBI/AZW or text PDF handed over by the
+# server inbox) need no gutenberg id and skip the download/strip path.
 REQUIRED_KEYS = ("slug", "gutenberg")
 
 
@@ -31,6 +33,14 @@ def validate_entry(entry: dict) -> dict:
     """Return a normalized catalog entry or raise ValueError."""
     if not isinstance(entry, dict):
         raise ValueError(f"Catalog entry must be an object, got {type(entry).__name__}")
+    if not entry.get("slug"):
+        raise ValueError(f"Catalog entry missing required key 'slug': {entry!r}")
+    norm = dict(entry)
+    if norm.get("source_path"):
+        # Local-file entry from the server inbox: no Gutenberg id needed.
+        norm.setdefault("title", norm["slug"].replace("-", " ").title())
+        norm.setdefault("author", "")
+        return norm
     for key in REQUIRED_KEYS:
         if not entry.get(key):
             raise ValueError(f"Catalog entry missing required key {key!r}: {entry!r}")
@@ -40,7 +50,6 @@ def validate_entry(entry: dict) -> dict:
         raise ValueError(f"Bad gutenberg id {entry.get('gutenberg')!r} for {entry.get('slug')!r}")
     if gid <= 0:
         raise ValueError(f"Bad gutenberg id {gid!r} for {entry.get('slug')!r}")
-    norm = dict(entry)
     norm["gutenberg"] = gid
     norm.setdefault("title", norm["slug"].replace("-", " ").title())
     norm.setdefault("author", "")
@@ -136,19 +145,26 @@ def download_epub(gutenberg_id: int, dest_path: str, downloader=None, retries: i
 def fetch_book(entry: dict, root: str, downloader=None, force: bool = False) -> dict:
     """Fetch+clean one catalog book. Idempotent: reuses raw_pages.json unless force.
 
+    Entries with ``source_path`` (local EPUB/MOBI/AZW or text PDF) skip the
+    Gutenberg download and boilerplate strip: ebooks go through
+    ``run_ebook_extraction``, PDFs contribute one raw page per PDF page via
+    pymupdf. Scanned PDFs fail loudly so the caller can redirect the user.
+
     Returns {slug, epub, work_dir, raw_path, stats, cached}.
     """
     entry = validate_entry(entry)
     slug = entry["slug"]
     work = os.path.join(root, "out", slug)
-    epub = os.path.join(root, "src", f"{entry['gutenberg']}.epub")
     raw_path = os.path.join(work, "raw", "raw_pages.json")
     if os.path.isfile(raw_path) and not force:
         raw = read_json(raw_path)
         stats = cleaned_stats(raw.get("pages", []))
         log.info("Fetch %s: cached (%d pages, ~%d words)", slug, len(raw.get("pages", [])), stats["words"])
-        return {"slug": slug, "epub": epub, "work_dir": work, "raw_path": raw_path,
-                "stats": stats, "cached": True}
+        return {"slug": slug, "epub": entry.get("source_path") or os.path.join(root, "src", f"{entry['gutenberg']}.epub"),
+                "work_dir": work, "raw_path": raw_path, "stats": stats, "cached": True}
+    if entry.get("source_path"):
+        return _fetch_local(entry, work, raw_path)
+    epub = os.path.join(root, "src", f"{entry['gutenberg']}.epub")
     os.makedirs(os.path.join(root, "src"), exist_ok=True)
     os.makedirs(work, exist_ok=True)
     download_epub(entry["gutenberg"], epub, downloader=downloader)
@@ -167,3 +183,41 @@ def fetch_book(entry: dict, root: str, downloader=None, force: bool = False) -> 
     log.info("Fetch %s: %d pages, ~%d words", slug, raw["page_count"], stats["words"])
     return {"slug": slug, "epub": epub, "work_dir": work, "raw_path": raw_path,
             "stats": stats, "cached": False}
+
+
+def _fetch_local(entry: dict, work: str, raw_path: str) -> dict:
+    """Fetch from a local file: ebook via run_ebook_extraction, PDF via pymupdf."""
+    slug = entry["slug"]
+    src = entry["source_path"]
+    if not os.path.isfile(src):
+        raise ValueError(f"source_path not found for {slug!r}: {src!r}")
+    os.makedirs(work, exist_ok=True)
+    lower = src.lower()
+    if lower.endswith((".epub", ".mobi", ".azw", ".azw3")):
+        from firebrat.pipeline.ebook import run_ebook_extraction
+
+        stats = run_ebook_extraction(src, work, slug)
+        raw = read_json(raw_path)
+        stats = {**stats, **cleaned_stats(raw.get("pages", []))}
+        log.info("Fetch %s: local ebook %d pages, ~%d words", slug, raw["page_count"], stats["words"])
+        return {"slug": slug, "epub": src, "work_dir": work, "raw_path": raw_path,
+                "stats": stats, "cached": False}
+    if lower.endswith(".pdf"):
+        try:
+            import pymupdf
+        except ImportError:
+            raise ValueError("Reading text PDFs needs pymupdf, which is not installed on this server")
+        pages: list[dict] = []
+        with pymupdf.open(src) as doc:
+            for i, page in enumerate(doc):
+                pages.append({"page_idx": i, "text": page.get_text().strip(), "markdown": ""})
+        if not any(p["text"] for p in pages):
+            raise ValueError("This PDF has no embedded text; use Illustrated or Novel mode")
+        raw = {"book_id": slug, "source_pdf": os.path.basename(src),
+               "page_count": len(pages), "pages": pages}
+        write_json_atomic(raw_path, raw)
+        stats = cleaned_stats(pages)
+        log.info("Fetch %s: local PDF %d pages, ~%d words", slug, len(pages), stats["words"])
+        return {"slug": slug, "epub": src, "work_dir": work, "raw_path": raw_path,
+                "stats": stats, "cached": False}
+    raise ValueError(f"source_path for {slug!r} must be .epub/.mobi/.azw/.azw3 or .pdf, got {src!r}")

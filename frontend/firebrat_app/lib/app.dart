@@ -5,8 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/analytics_service.dart';
 import '../services/auth_service.dart';
 import 'screens/library_screen.dart';
+import 'screens/server_setup_screen.dart';
 import 'screens/sign_in_screen.dart';
 import 'screens/tour_screen.dart';
+import 'state/library_providers.dart' show apiClientProvider;
+import 'state/server_admin_providers.dart';
 import 'state/theme_providers.dart';
 import 'state/tour_providers.dart';
 import 'state/on_device_conversion_providers.dart';
@@ -85,18 +88,32 @@ class AuthGate extends ConsumerWidget {
 
 /// Library plus the one-time first-run guide: opens over the library the
 /// first time it is shown, never again once seen or skipped.
-class _Home extends StatefulWidget {
+class _Home extends ConsumerStatefulWidget {
   const _Home();
 
   @override
-  State<_Home> createState() => _HomeState();
+  ConsumerState<_Home> createState() => _HomeState();
 }
 
-class _HomeState extends State<_Home> {
+class _HomeState extends ConsumerState<_Home> {
+  bool _setupShown = false;
+
   @override
   void initState() {
     super.initState();
     _maybeShowTour();
+    // GET /me once signed in on a server-backed mode: roles, IAM flag and
+    // the first-run "needs setup" flag. Failures (old server, offline)
+    // leave everything in the old permissive state.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshMe());
+  }
+
+  void _refreshMe() {
+    if (!mounted) return;
+    if (ref.read(conversionModeProvider).mode == ConversionModePref.cloud &&
+        AuthService.instance.currentUser != null) {
+      ref.read(serverAdminProvider.notifier).refreshMe();
+    }
   }
 
   Future<void> _maybeShowTour() async {
@@ -107,5 +124,22 @@ class _HomeState extends State<_Home> {
   }
 
   @override
-  Widget build(BuildContext context) => const LibraryScreen();
+  Widget build(BuildContext context) {
+    // A new server URL means a different account/role context.
+    ref.listen(apiClientProvider, (_, _) {
+      ref.read(serverAdminProvider.notifier).clear();
+      _refreshMe();
+    });
+    // First-run: the server has no admin, so offer the setup-code screen
+    // once (a banner on Conversions stays available afterwards).
+    ref.listen(needsSetupProvider, (_, needs) {
+      if (needs && !_setupShown) {
+        _setupShown = true;
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const ServerSetupScreen()));
+      }
+    });
+    return const LibraryScreen();
+  }
 }

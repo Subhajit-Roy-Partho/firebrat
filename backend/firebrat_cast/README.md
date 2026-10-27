@@ -31,6 +31,26 @@ Use `--dry-run` to see the plan, `--only <slug>` for one book, `--llm-backend ex
   vision tower (hallucinated descriptions); bf16 does not fit.
 - The GPU stage must queue behind other jobs rather than fail; never kill processes that hold VRAM.
 
+## Scheduler
+
+Inbox-driven daemon (`firebrat_cast/scheduler.py`): drop catalog entries in
+`<root>/inbox/<slug>.json` (`submit` validates + writes atomically), `run`
+prefetches CPU work any time, casts one LLM snapshot per vLLM server launch
+(GpuLock held, server always stopped, VRAM verified free), then synthesizes
+shortest-first without interrupting a running audio snapshot. LLM beats audio;
+per-book attempts in `jobs/<slug>/state.json` skip after `--max-retries`;
+`<root>/scheduler_status.json` tracks phase/queue on every transition.
+Resumable; SIGTERM/SIGINT exits cleanly.
+
+```sh
+export PYTHONPATH=backend
+tmux new -s cast sched "python -m firebrat_cast.scheduler run --root ~/community-books \
+  --llm-model Qwen/Qwen3.5-9B --tts-python /path/cast-tts/bin/python \
+  --cast-python /path/cast-llm/bin/python"
+python -m firebrat_cast.scheduler submit --root ~/community-books --file one.json
+python -m firebrat_cast.scheduler status --root ~/community-books
+```
+
 ## Docker
 `backend/docker/Dockerfile` builds the two extra venvs (`/opt/venvs/cast-llm`, `/opt/venvs/cast-tts`) when `--build-arg WITH_CAST=1`
 (on in the GPU CI variant). Weights download at first use into `HF_HOME`. Not built or tested locally.

@@ -192,7 +192,11 @@ class ConversionModeNotifier extends Notifier<ConversionModeSettings> {
   }
 
   Future<void> setContentMode(String mode) async {
-    if (mode != 'illustrated' && mode != 'novel') throw ArgumentError.value(mode);
+    // 'cast' (expressive multi-voice) is a server-only upload mode — the
+    // on-device pipeline never offers it, it just round-trips the value.
+    if (mode != 'illustrated' && mode != 'novel' && mode != 'cast') {
+      throw ArgumentError.value(mode);
+    }
     state = state.copyWith(contentMode: mode);
     await (await SharedPreferences.getInstance()).setString('conversion.contentMode', mode);
   }

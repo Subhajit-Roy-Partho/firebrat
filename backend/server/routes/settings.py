@@ -180,6 +180,11 @@ def get_settings():
             "ebooks": config.CONVERTER_SUPPORTS_EBOOKS,
             "character_traits": config.CONVERTER_SUPPORTS_CHARACTER_TRAITS,
         },
+        # Clients show the Expressive-voices option only when true
+        # (missing key = false on old servers).
+        "cast_available": config.cast_available(),
+        # Clients show the server-administration UI only when true.
+        "iam_enabled": config.iam_enabled(),
     }
 
 
@@ -227,7 +232,7 @@ def list_models(provider: str = "nanogpt",
 
 
 @router.post("/settings")
-def update_settings(patch: dict, _user: dict = Depends(auth.require_user)):
+def update_settings(patch: dict, _user: dict = Depends(auth.require_role("admin"))):
     s = write_settings(patch if isinstance(patch, dict) else {})
     return JSONResponse(content={
         **s,

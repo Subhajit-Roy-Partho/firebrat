@@ -56,6 +56,46 @@ MAX_UPLOAD_MB = int(os.environ.get("FIREBRAT_MAX_UPLOAD_MB", "500"))
 AVATAR_DIR = os.environ.get("FIREBRAT_AVATAR_DIR", os.path.join(os.path.dirname(UPLOAD_DIR), "avatars"))
 MAX_AVATAR_KB = _int_env("FIREBRAT_MAX_AVATAR_KB", 2048, 16, 10240)
 
+# ── Expressive-cast ("cast") mode ───────────────────────────────
+# Additive: when FIREBRAT_CAST_ENABLED=1 the server exposes content_mode=cast
+# (multi-voice books via firebrat_cast.scheduler) and supervises the
+# scheduler as a child process. Disabled servers 400 on cast uploads and
+# hide the option (see INTEGRATION.md). Read at call time via the helpers
+# below so tests can flip env vars without reimporting this module.
+def cast_enabled() -> bool:
+    """True only when the operator opted in via FIREBRAT_CAST_ENABLED=1."""
+    return os.environ.get("FIREBRAT_CAST_ENABLED", "").strip() == "1"
+
+
+def cast_root() -> str:
+    """Work root for the cast scheduler (inbox/, jobs/, out/).
+
+    Defaults to <FIREBRAT_OUTPUT_DIR>/../cast so the package output lands
+    next to the normal output dir. Resolved at call time so tests that
+    monkeypatch OUTPUT_DIR get an isolated root for free.
+    """
+    return os.environ.get("FIREBRAT_CAST_ROOT",
+                           os.path.join(os.path.dirname(OUTPUT_DIR), "cast"))
+
+
+def cast_available() -> bool:
+    """True when cast uploads can actually run: enabled + the scheduler
+    launcher (owned by another worker) is importable."""
+    if not cast_enabled():
+        return False
+    try:
+        __import__("firebrat_cast.scheduler")
+    except ImportError:
+        return False
+    return True
+
+
+# Interpreters that run the scheduler's GPU stages (own venvs on the GPU
+# server so VRAM is fully released between stages); empty = in-process.
+CAST_LLM_PY = os.environ.get("FIREBRAT_CAST_LLM_PY", "")
+CAST_TTS_PY = os.environ.get("FIREBRAT_CAST_TTS_PY", "")
+CAST_VLLM_BIN = os.environ.get("FIREBRAT_CAST_VLLM_BIN", "")
+
 # ── Stage-2 LLM routing ─────────────────────────────────────────
 # Jobs may choose provider=local (on-server GPU model) instead of the
 # default nanogpt cloud endpoint. The local OpenAI-compatible shim
@@ -69,3 +109,11 @@ LOCAL_LLM_URL = os.environ.get("FIREBRAT_LOCAL_LLM_URL", "http://127.0.0.1:8080/
 # entrypoint auto-downloads the preset when the dir is empty.
 LOCAL_MODEL_PRESET = os.environ.get("LOCAL_MODEL_PRESET", "qwen3-4b")
 LOCAL_MODEL_DIR = os.environ.get("LOCAL_MODEL_DIR", "")
+
+
+def iam_enabled() -> bool:
+    """True only when the operator opted in via FIREBRAT_IAM=1 (accounts and
+    roles; see server/iam.py and INTEGRATION2.md). Off by default so existing
+    shared-server installs keep working unchanged. Read at call time so tests
+    can flip the env var without reimporting this module."""
+    return os.environ.get("FIREBRAT_IAM", "").strip() == "1"
