@@ -185,12 +185,14 @@ def default_cast_one(entry: dict, root: str, backend) -> dict:
     return mod.cast_book(os.path.join(work_dir(root, slug), "raw", "raw_pages.json"), out, backend, meta)
 
 
-def make_tts_engine(kind: str):
+def make_tts_engine(kind: str, voices_dir: str | None = None):
+    """TTS engine. Per-book anchors are bound later by ``synthesize_book`` (``engine.bind_book``
+    -> ``<root>/out/<slug>/voices``), so one engine can serve several books without collisions."""
     if kind == "chatterbox":
         mod = _need("firebrat_cast.tts_chatterbox", "synth")
         return mod.ChatterboxVoiceEngine()
     mod = _need("firebrat_cast.tts_qwen", "synth")
-    return mod.QwenVoiceEngine()
+    return mod.QwenVoiceEngine(voices_dir=voices_dir)
 
 
 def default_synth_one(entry: dict, root: str, engine, on_progress=None) -> dict:
@@ -202,7 +204,9 @@ def default_synth_one(entry: dict, root: str, engine, on_progress=None) -> dict:
     raw_path = os.path.join(work, "raw", "raw_pages.json")
     cast_path = os.path.join(work, "cast.json")
     compiled_path = os.path.join(work, "compiled.json")
-    if not os.path.isfile(compiled_path):
+    stale = (os.path.isfile(compiled_path) and os.path.isfile(cast_path)
+             and os.path.getmtime(cast_path) > os.path.getmtime(compiled_path))
+    if stale or not os.path.isfile(compiled_path):
         mod = _need("firebrat_cast.compile_cast", "synth")
         mod.compile_cast_file(raw_path, cast_path, compiled_path)
         # keep a copy where convert.py/manifest tooling expects it
