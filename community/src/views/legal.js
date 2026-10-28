@@ -191,9 +191,9 @@ function declarationDoc() {
     ),
     h2("5. Licence of the audio and packages"),
     p(
-      "The generated audio, package files and metadata created by this project for the launch catalogue are dedicated to the public domain under ",
-      h("a", { href: "https://creativecommons.org/publicdomain/zero/1.0/", target: "_blank", rel: "noopener" }, "CC0 1.0"),
-      ". This applies only to what the project itself created. It does not claim any rights in the underlying texts, which are in the public domain, and it does not apply to material added by other contributors.",
+      "The generated audio, package files and metadata created by this project for the launch catalogue are licensed under ",
+      h("a", { href: "https://creativecommons.org/licenses/by/4.0/", target: "_blank", rel: "noopener" }, "Creative Commons Attribution 4.0 (CC BY 4.0)"),
+      ". You may copy, share and adapt them, including commercially, as long as you give credit (for example: “Audio by Firebrat Community, https://subhajit-roy-partho.github.io/firebrat/community/”) and indicate if you made changes. The licence covers only what this project itself created. It claims no rights in the underlying texts, which we believe are in the public domain, and it does not apply to material added by other contributors.",
     ),
     p(
       "Each book page shows its own licence and provenance. Books submitted by other contributors are licensed as their submitters declare, subject to the terms below.",
