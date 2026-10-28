@@ -1,6 +1,3 @@
-Firebrat 1.8.0
-- Community library: ten new audiobooks with real covers.
-- Rate, review and bookmark books (sign in with Google).
-- Several uploads of one book share a banner, best-rated first, showing who submitted each.
-- Sort by rating, newest, most ratings, length or title; filter by author or uploader.
-- Licence and legal declaration shown for every book.
+Firebrat 1.8.1
+- Firebrat now tells you when a newer version is on Google Play and links to the store page.
+- New "Check for updates" entry in the menu.
