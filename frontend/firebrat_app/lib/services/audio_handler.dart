@@ -22,19 +22,18 @@ class FirebratAudioHandler extends BaseAudioHandler with SeekHandler {
   FutureOr<void> Function()? onSkipToPrevious;
 
   FirebratAudioHandler() {
-    player.playbackEventStream.map(_transformEvent).pipe(playbackState);
+    // Not pipe(): pipe() holds the subject in addStream mode for the stream's
+    // whole lifetime, so any other playbackState.add would throw "Bad state:
+    // You cannot add items while items are being added from addStream".
+    void publish(_) {
+      if (playbackState.isClosed) return;
+      playbackState.add(_transformEvent(player.playbackEvent));
+    }
+
+    player.playbackEventStream.listen(publish);
     // A pause after completion can change playing without a new playback
     // event. Keep the system notification in sync with the reader controls.
-    player.playerStateStream.listen((_) {
-      // Deferred out of the addStream delivery above: a direct add here
-      // would fire re-entrantly while pipe() is still adding and throw
-      // "Bad state: You cannot add items while items are being added
-      // from addStream", killing the audio service at startup.
-      scheduleMicrotask(() {
-        if (playbackState.isClosed) return;
-        playbackState.add(_transformEvent(player.playbackEvent));
-      });
-    });
+    player.playerStateStream.listen(publish);
     _initAudioSession();
   }
 
