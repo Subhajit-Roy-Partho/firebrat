@@ -206,8 +206,8 @@ Each agent writes `docs/handover/<area>.md` when it finishes (what was done, wha
 - [x] **Phone (Pixel 9a, `.debug` build) verified:** launches clean (no FATAL/Exception/ANR in logcat); Community screen lists the six books (no more `permission-denied`); detail sheet shows provenance + CC-BY licence + licence URL; "Add to my library" downloaded Alice (125 MB) from the Archive and imported it (93 sections, 2h 38m, cover shown); reader plays it (00:07/01:42, text highlight in sync, active speech `AudioTrack`). NOT tested: sign-in (needs the owner's credentials), importing a local file, the other books' playback, long-run background playback / lock-screen controls.
 - [x] **Test sweep:** `flutter analyze` clean; `flutter test` 146 pass (app) and 192 pass (mobile-Backend); backend pytest 193 pass + `firebrat_cast` 138 pass; community 20 + PWA 20 pass; Firestore rules emulator 6/6 (`npx -y firebase-tools@13 emulators:exec --config ../firebase.json --only firestore --project demo-firebrat-rules "node --test test/rules.test.mjs"`; `npm run test:rules` needs a global `firebase` CLI).
 
-### 9.3 In progress (background, 2026-10-28 ~11:15 MST)
-- [ ] **Uploads, batch 2** (Mac, `ia_upload.py`, one at a time): Little Women, Pride and Prejudice, Sherlock Holmes, Dorian Gray. Then seed them: `python3 community/scripts/seed_launch_books.py <catalog10.json> <zips dir> 4A0W465aufgeoTlzBbIRyWuafBU2 <slugs...>`.
+### 9.3 Superseded: batch 2 finished (all 10 books uploaded to the Archive as `firebrat-<slug>` and seeded). Original note:
+- [x] **Uploads, batch 2** (Mac, `ia_upload.py`, one at a time): Little Women, Pride and Prejudice, Sherlock Holmes, Dorian Gray. Then seed them: `python3 community/scripts/seed_launch_books.py <catalog10.json> <zips dir> 4A0W465aufgeoTlzBbIRyWuafBU2 <slugs...>`.
 
 ### 9.4 To do
 1. [ ] Confirm batch 2 on archive.org, seed the four books, re-check the site and the app list (10 books).
@@ -221,3 +221,10 @@ Each agent writes `docs/handover/<area>.md` when it finishes (what was done, wha
 - Another Claude session's background jobs (QA loop on the server, rsync to this Mac) survive after that session ends; check `ps` before starting duplicates.
 - Session transcripts live in both `~/.claude/projects/...` and `~/.claude-personal/projects/...`.
 - BSD `sed -i` and `\n` in replacements do not work on macOS; use Python for multi-line edits.
+
+### 9.6 Release 1.8.0 (2026-10-28, owner-requested)
+- [x] **Features (`431e1cc`, site on gh-pages `d755ff3`):** duplicate uploads of one book are grouped under one banner (title minus subtitle/article + author surname, `community/src/works.js` and `lib/utils/work_grouping.dart`; best-rated first; shows submitter and stars); sorts Highest rated (default) / Newest / Most ratings / Longest / Title; Author and Uploader filters; real covers (`cover.jpg`, falling back to `cover.png`, then a gradient); book page lists other versions + more by the author + Share. **App Community screen** (`community_service.dart`, `widgets/community_detail_sheet.dart`): Google sign-in prompt, 1-5 star rating, public reviews (post/delete own/report), bookmark + "Saved" filter, copy link. Phone-verified (Pixel 9a): list, covers incl. PNG fallback, filters, sheet, sign-in prompt and Google account chooser. NOT verified: signed-in rate/review/bookmark (needs the owner to pick the account).
+- [x] **Version 1.8.0+33** (`e31f3e0`), Play notes in `frontend/firebrat_app/distribution/whatsnew/whatsnew-en-US`. CI green before tagging.
+- [x] **Tag `v1.8.0`** -> run 40749218561: GitHub Release with APK, AAB, unsigned iOS IPA and server installers.
+- [x] **Play Console:** `flutter-release.yml` dispatched with `appbundle` + `completed` -> run 40749250281: service-account access check OK (the old "caller does not have permission" error is gone) and the upload to the Alpha track succeeded. What happens next is Google's review in Play Console (not visible from here).
+- [ ] **Open:** owner's decision on "share books through Drive from the personal library" (needs a definition: share link for others to import, publish to Community with Drive as the host, or other); sleep timer and position bookmarks (not in app or web); owner to try signed-in rating/reviews/bookmarks on the phone.
