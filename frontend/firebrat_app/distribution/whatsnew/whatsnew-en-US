@@ -1,7 +1,6 @@
-Firebrat 1.7.3
-- Fix a crash when starting offline Kokoro narration in Play builds.
-- Lower default speech CPU use and reduce conversion notification overload.
-- Download Kokoro voices separately and choose the speech CPU budget.
-- Optional character analysis using your downloaded local language model.
-- Import supported GGUF models from local files.
-- Correct model download sizes and reject incomplete imports.
+Firebrat 1.8.0
+- Community library: ten new audiobooks with real covers.
+- Rate, review and bookmark books (sign in with Google).
+- Several uploads of one book share a banner, best-rated first, showing who submitted each.
+- Sort by rating, newest, most ratings, length or title; filter by author or uploader.
+- Licence and legal declaration shown for every book.
