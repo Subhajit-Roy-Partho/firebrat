@@ -198,20 +198,26 @@ Each agent writes `docs/handover/<area>.md` when it finishes (what was done, wha
 - [x] **Takedown contact:** no personal email is published (in-site form + GitHub-issue counter-notice). The old "REPLACE-ME" placeholder is gone; `community/README.md` step 3 updated.
 - [x] **Phone:** debug build installed as `com.firebrat.firebrat_app.debug` (same recipe as 3.8, temp gradle/google-services edits reverted); launches with no errors, empty library + Community entry visible.
 
-### 9.2 In progress (background jobs, 2026-10-28 ~10:00 MST)
-- [ ] **Internet Archive uploads** (Mac, `ia_upload.py`, one at a time): batch 1 = Alice, Frankenstein, Anne of Green Gables, Dracula, Jane Eyre, Crime and Punishment; batch 2 (chained, starts after batch 1 and the zip download) = Little Women, Pride and Prejudice, Sherlock Holmes, Dorian Gray. At last check Alice's bytes were fully sent but the Archive had not yet listed any file. **Nothing is confirmed on archive.org yet.**
-- [ ] **Zip download** from the server to the Mac (rsync, ~6 GB). 10 zip names present; the largest were still finishing.
+### 9.2 Done later on 2026-10-28 (verified)
+- [x] **CI green** on `639d312`: backend (193 tests), Flutter analyze + tests, pipeline smoke, debug APK. Cause of the red runs: `test_zip_upload_merges_pdfs` assumed uploads are stored as `<book_id>.pdf` (they are `<job_id>.pdf` since `5c62922`), `test_upload_model_override_echoed` raced a background job at temp-dir teardown, and `_wait_for` was a hard 5 s. Play Store workflow failures (Oct 26) are the Play Console service-account permission error, not code.
+- [x] **Site published** to `gh-pages:/community/` (`24b7d0e`): https://subhajit-roy-partho.github.io/firebrat/community/ ; anonymous reads of published books work from the Pages origin; chapter-list button styling fixed (`463b782`).
+- [x] **Uploaded to the Internet Archive as `firebrat-<slug>` (CC BY 4.0, sizes verified):** Alice, Frankenstein, Anne of Green Gables, Dracula, Jane Eyre, Crime and Punishment.
+- [x] **Seeded to Firestore** (`books/<slug>` + `users/<uid>/uploads/<slug>`) for those six: library lists them on the site and in the app.
+- [x] **Phone (Pixel 9a, `.debug` build) verified:** launches clean (no FATAL/Exception/ANR in logcat); Community screen lists the six books (no more `permission-denied`); detail sheet shows provenance + CC-BY licence + licence URL; "Add to my library" downloaded Alice (125 MB) from the Archive and imported it (93 sections, 2h 38m, cover shown); reader plays it (00:07/01:42, text highlight in sync, active speech `AudioTrack`). NOT tested: sign-in (needs the owner's credentials), importing a local file, the other books' playback, long-run background playback / lock-screen controls.
+- [x] **Test sweep:** `flutter analyze` clean; `flutter test` 146 pass (app) and 192 pass (mobile-Backend); backend pytest 193 pass + `firebrat_cast` 138 pass; community 20 + PWA 20 pass; Firestore rules emulator 6/6 (`npx -y firebase-tools@13 emulators:exec --config ../firebase.json --only firestore --project demo-firebrat-rules "node --test test/rules.test.mjs"`; `npm run test:rules` needs a global `firebase` CLI).
 
-### 9.3 To do (in order)
-1. [ ] Confirm each upload: `https://archive.org/details/firebrat-<slug>` lists `firebrat-<slug>.zip` and `.../download/firebrat-<slug>/firebrat-<slug>.zip/manifest.json` resolves. Re-run any that failed (`ia_upload.py` skips items that already have files).
-2. [ ] Seed Firestore: `python3 community/scripts/seed_launch_books.py <catalog10.json> <zips dir> 4A0W465aufgeoTlzBbIRyWuafBU2 <slugs...>` (catalog is `~/community-books/catalog10.json` on the server). Then read the docs back and check one with the site.
-3. [ ] Build the site (`VITE_APP_BASE=/firebrat/community/ npm run build`) and publish it to `gh-pages:/community/` (flow in `site/README.md`); check it in a browser: library lists 10 books, a book plays from the Archive, `#/legal/declaration` renders, sign-in works on the Pages domain.
-4. [ ] Phone: re-check the Community screen (was `permission-denied` before the rules deploy), open and play a book, import/download one, test sign-in. Not yet done: playing a book, importing a book, sign-in on the phone.
-5. [ ] Update this file with results and push to `master`.
-6. [ ] Optional, owner's call: merge `flutter-mac` into `master`; remove the Claude trailer from `7218a41` (owner said leave it); designate a DMCA agent with the US Copyright Office; lawyer review of the declaration; add a Firebase iOS app (`GoogleService-Info.plist` + `ios` entry in `firebase_options.dart`) so sign-in/push/Firestore work on iOS; restore the owner's Qwen3-4B service on the server (`bash ~/community-books/restart_llm.sh`, see section 2) if still stopped.
-7. [ ] Carried over from section 5 and still open: security review + live check of wave-2 IAM (5), scheduler deployment (6), figure linking in the main pipeline (7), Docker `WITH_CAST` validation in CI (9), on-device GPU/NPU benchmarks (11), deep links (12).
+### 9.3 In progress (background, 2026-10-28 ~11:15 MST)
+- [ ] **Uploads, batch 2** (Mac, `ia_upload.py`, one at a time): Little Women, Pride and Prejudice, Sherlock Holmes, Dorian Gray. Then seed them: `python3 community/scripts/seed_launch_books.py <catalog10.json> <zips dir> 4A0W465aufgeoTlzBbIRyWuafBU2 <slugs...>`.
 
-### 9.4 Gotchas learned 2026-10-28
-- IA S3 `PUT` returns only after the Archive finishes processing the file: curl can sit at 0% CPU for minutes after the last byte is sent. Check bytes sent (`nettop -P -p <pid>`), not the log.
+### 9.4 To do
+1. [ ] Confirm batch 2 on archive.org, seed the four books, re-check the site and the app list (10 books).
+2. [ ] Phone: sign-in on the debug build and the remaining untested items above (owner's credentials needed for sign-in).
+3. [ ] Optional, owner's call: merge `flutter-mac` into `master`; designate a DMCA agent; lawyer review of the declaration; Firebase iOS app (`GoogleService-Info.plist`) for iOS sign-in/push/Firestore; restore the Qwen3-4B service on the server (`bash ~/community-books/restart_llm.sh`) if still stopped.
+4. [ ] Carried over from section 5: security review + live check of wave-2 IAM (5), scheduler deployment (6), figure linking in the main pipeline (7), Docker `WITH_CAST` validation in CI (9), on-device GPU/NPU benchmarks (11), deep links (12).
+
+### 9.5 Gotchas learned 2026-10-28
+- IA S3 `PUT` returns only after the Archive finishes processing: curl can sit at 0% CPU for minutes after the last byte is sent. Check bytes sent (`nettop -P -p <pid>`), not the log.
+- Never use `pgrep -f '<pattern>'` inside a shell whose own command line contains `<pattern>`: it matches itself and waits forever (this stalled the batch-2 upload chain for ~75 min).
 - Another Claude session's background jobs (QA loop on the server, rsync to this Mac) survive after that session ends; check `ps` before starting duplicates.
 - Session transcripts live in both `~/.claude/projects/...` and `~/.claude-personal/projects/...`.
+- BSD `sed -i` and `\n` in replacements do not work on macOS; use Python for multi-line edits.
