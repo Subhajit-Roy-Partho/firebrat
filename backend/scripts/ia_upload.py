@@ -10,17 +10,22 @@ import json, os, stat, subprocess, sys, tempfile, urllib.parse, urllib.request
 PD = "https://creativecommons.org/publicdomain/mark/1.0/"
 
 
+def ia_id(slug):  # prefixed: bare slugs (dracula-stoker, jane-eyre-bronte) already belong to other uploaders
+    return "firebrat-" + slug
+
+
 def uri(v):  # IA's escape for non-ASCII header values
     return "uri(" + urllib.parse.quote(v, safe="") + ")"
 
 
 def main(cat_path, slug, zpath, dry):
     b = {x["slug"]: x for x in json.load(open(cat_path))}[slug]
+    iid = ia_id(slug)
     key, sec = os.environ["internetArchiveS3key"], os.environ["internetArchiveS3secret"]
     try:  # do not overwrite an item that already has files
-        with urllib.request.urlopen(f"https://archive.org/metadata/{slug}", timeout=30) as r:
+        with urllib.request.urlopen(f"https://archive.org/metadata/{iid}", timeout=30) as r:
             if json.load(r).get("files"):
-                print("EXISTS", slug, "- item already present; skipping create")
+                print("EXISTS", iid, "- item already present; skipping create")
                 return
     except Exception as e:  # noqa: BLE001
         print("metadata check:", e)
@@ -37,9 +42,9 @@ def main(cat_path, slug, zpath, dry):
         "x-archive-meta-licenseurl": PD, "x-archive-meta-source": uri(b["sourceUrl"]),
         "x-archive-meta01-subject": "audiobook", "x-archive-meta02-subject": "public domain", "x-archive-meta03-subject": "firebrat",
     }
-    fname = f"{slug}.zip"
+    fname = f"{iid}.zip"
     if dry:
-        print("DRY would PUT", f"https://s3.us.archive.org/{slug}/{fname}", os.path.getsize(zpath), "bytes;", len(hdr), "headers")
+        print("DRY would PUT", f"https://s3.us.archive.org/{iid}/{fname}", os.path.getsize(zpath), "bytes;", len(hdr), "headers")
         return
     fd, hp = tempfile.mkstemp(); os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
     with os.fdopen(fd, "w") as f:
@@ -47,13 +52,13 @@ def main(cat_path, slug, zpath, dry):
             f.write(f"{k}: {v}\n")
     try:
         r = subprocess.run(["curl", "-sS", "--fail-with-body", "--retry", "3", "-X", "PUT", "-H", f"@{hp}",
-                            "--upload-file", zpath, f"https://s3.us.archive.org/{slug}/{fname}"], capture_output=True, text=True)
+                            "--upload-file", zpath, f"https://s3.us.archive.org/{iid}/{fname}"], capture_output=True, text=True)
         print("curl exit", r.returncode, (r.stdout + r.stderr)[:400].replace(key, "***").replace(sec, "***"))
         if r.returncode:
             sys.exit(1)
     finally:
         os.unlink(hp)
-    print("UPLOADED", f"https://archive.org/details/{slug}")
+    print("UPLOADED", f"https://archive.org/details/{iid}")
 
 
 if __name__ == "__main__":
