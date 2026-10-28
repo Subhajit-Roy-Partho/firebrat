@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'services/app_network_gate.dart';
+import 'services/update_checker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/analytics_service.dart';
 import '../services/auth_service.dart';
@@ -108,6 +109,10 @@ class _HomeState extends ConsumerState<_Home> {
     // the first-run "needs setup" flag. Failures (old server, offline)
     // leave everything in the old permissive state.
     WidgetsBinding.instance.addPostFrameCallback((_) => _refreshMe());
+    // Offer the Play Store update when a newer build is published.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) UpdateChecker.maybePrompt(context);
+    });
   }
 
   void _refreshMe() {

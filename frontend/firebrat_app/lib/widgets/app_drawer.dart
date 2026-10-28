@@ -1,5 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../services/app_network_gate.dart';
+import '../services/update_checker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/conversion_settings_screen.dart';
 import '../screens/conversions_screen.dart';
@@ -20,7 +22,7 @@ import '../state/guest_access_provider.dart';
 /// pins win32 ^6 for device_info_plus — unresolvable without forking one.
 const _appVersion = String.fromEnvironment(
   'FIREBRAT_APP_VERSION',
-  defaultValue: '1.7.2+31',
+  defaultValue: '1.8.0+33',
 );
 
 /// Left drawer: who is signed in, where to go, and the way out.
@@ -174,6 +176,15 @@ class AppDrawer extends ConsumerWidget {
               Navigator.of(context).pop();
               Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => const InformationScreen()));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.system_update_rounded),
+            title: const Text('Check for updates'),
+            onTap: () {
+              final nav = Navigator.of(context);
+              nav.pop();
+              UpdateChecker.maybePrompt(AppNetworkGate.navigatorKey.currentContext ?? nav.context, force: true);
             },
           ),
           AboutListTile(
