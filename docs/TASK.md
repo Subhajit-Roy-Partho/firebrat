@@ -8,7 +8,7 @@ Read, in order: this file -> `AGENTS.md` (environment gotchas + the addendum at 
 ## 0. Rules of the road (from the owner; follow them)
 - **Git identity:** commit/push only as the default user `Subhajit-Roy-Partho`. Never set `git config user.name/email`, never add
   Claude/Co-Authored-By/"Generated with" lines to commits, PRs or tags. Work happens on branch **`community-library`**
-  (pushed to `origin`). **Do not merge to `master`, do not push to `main`/tags, do not publish Docker images** unless the owner says so (the owner asked on 2026-10-27 to merge everything to the default branch `master`; Docker/tags remain off-limits)
+  (pushed to `origin`). **Do not merge to `master`, do not push to `main`/tags, do not publish Docker images** unless the owner says so (the owner asked on 2026-10-27 to merge everything to the default branch `master`, and on 2026-10-28 to push completed work to it; Docker/tags remain off-limits)
   (the Docker CI workflow triggers on pushes to `main` and version tags only; the default branch is `master`).
 - **Only Claude agents** do the work. opencode is NOT used any more (its orchestrator hands work to sub-agents that keep running after the
   session ends and collide with other writers). If you find leftover opencode sessions, leave them alone.
@@ -180,3 +180,38 @@ Each agent writes `docs/handover/<area>.md` when it finishes (what was done, wha
 - **Community site:** Firestore rules now have emulator tests (`cd community && npm run test:rules`, 5 pass). NOT yet done and needing the owner's login/consent: `firebase login`, rules/indexes deploy, `admins/<uid>`, Internet Archive upload of the rebuilt zips (keys `internetArchiveS3key/secret` are set in the Mac's `~/.zshrc`), Firestore `books/*` documents, real DMCA address in `community/src/views/legal.js`.
 - **Android on-device expressive mode:** wired and unit-tested; phone runs show Qwen3-4B on CPU is far too slow (~0.5 tok/s); GPU offload and a release build were never tried. See `docs/handover/android-expressive-gpu.md`.
 - **Git:** `community-library` merged to `master` on 2026-10-27 at the owner's request (see git log).
+
+## 9. STATUS UPDATE 2026-10-28 (supersedes section 8 where they differ; maintained live — update the checkboxes as work lands)
+
+### 9.1 Done
+- [x] **Git state:** `master` == `origin/master`; `community-library` is merged (47d656d); `release/1.7.2` has nothing `master` lacks. `flutter-mac` still has 3 commits `master` lacks (Android heap-OOM fix, unsigned-IPA CI job, v2 icons): not merged, owner has not asked.
+- [x] **CI repair** (`7218a41`): backend tests failed in CI because `firebase-admin` was missing from the CI pip line and `backend/env/serve-environment.yml`. Added to both. (That commit carries a Claude `Co-Authored-By` trailer; the owner said on 2026-10-28 to leave it.)
+- [x] **iOS:** release build (`flutter build ios --release --no-codesign`) works. Simulator failed because ML Kit (`google_mlkit_text_recognition`, used only by the Android-only OCR fallback) has no arm64 simulator slice; and Firebase crashed at launch on iOS (Android-only `firebase_options.dart`). `lib/main.dart` now initialises Firebase only on Android. Simulator-only workaround: an untracked `pubspec_overrides.yaml` stubbing ML Kit (deleted again; do not commit one).
+- [x] **Android startup bug** (`181ed3a`): `audio_handler` crashed at launch with "cannot add items while items are being added from addStream"; replaced `pipe()` with plain listeners. Verified on the Pixel 9a.
+- [x] **Firestore deployed** to `firebrat-8c597`: rules + indexes live; `admins/4A0W465aufgeoTlzBbIRyWuafBU2` (the owner's Firebase uid) created. `subhajit-roy-partho.github.io` is an authorised Auth domain.
+- [x] **Community ledger:** `users/{uid}/uploads/{bookId}` (user -> book -> Internet Archive link) with rules + emulator test (`1816f54`).
+- [x] **Server QA of all 10 rebuilt books** (`qa_targeted.py` + `qa_package.py`, faster-whisper): WER 0.000-0.039. Three "bitrate 93-95 kb/s" flags (Crime and Punishment sec_0242, Sherlock sec_0012, Dorian sec_0246) are low VBR readings on speech, not defects. All 10 are cleared for upload.
+- [x] **Internet Archive identifiers:** bare slugs `dracula-stoker` and `jane-eyre-bronte` already belong to other uploaders, so every item uses the `firebrat-<slug>` prefix (`ia_upload.py`, `5c9c3bf`). Stored as `archiveId` in Firestore.
+- [x] **Licensing decision (owner, 2026-10-28): generated audio + packages are CC BY 4.0**; the source texts are public domain. Applied in `ia_upload.py` (item `licenseurl` + description), `community/scripts/seed_launch_books.py` (`license: cc-by`) and the declaration page (`7443b13`).
+- [x] **Legal declaration page** `#/legal/declaration` (footer "Legal declaration"): sources table, per-country caveat, AI-voice disclosure, CC BY licence, Internet Archive role, privacy, takedown process, no-warranty, honest statement that **no DMCA agent is designated**. Not legal advice; has not had a lawyer's review. Cover images come from each Gutenberg EPUB; their rights status is not independently verified.
+- [x] **Seeding tool** `community/scripts/{chapters.mjs,seed_launch_books.py}`: writes `books/<slug>` + the upload ledger using the site's own `buildChapters`/`validateChapters`; checks the IA item and byte size first; will not overwrite an existing book.
+- [x] **Takedown contact:** no personal email is published (in-site form + GitHub-issue counter-notice). The old "REPLACE-ME" placeholder is gone; `community/README.md` step 3 updated.
+- [x] **Phone:** debug build installed as `com.firebrat.firebrat_app.debug` (same recipe as 3.8, temp gradle/google-services edits reverted); launches with no errors, empty library + Community entry visible.
+
+### 9.2 In progress (background jobs, 2026-10-28 ~10:00 MST)
+- [ ] **Internet Archive uploads** (Mac, `ia_upload.py`, one at a time): batch 1 = Alice, Frankenstein, Anne of Green Gables, Dracula, Jane Eyre, Crime and Punishment; batch 2 (chained, starts after batch 1 and the zip download) = Little Women, Pride and Prejudice, Sherlock Holmes, Dorian Gray. At last check Alice's bytes were fully sent but the Archive had not yet listed any file. **Nothing is confirmed on archive.org yet.**
+- [ ] **Zip download** from the server to the Mac (rsync, ~6 GB). 10 zip names present; the largest were still finishing.
+
+### 9.3 To do (in order)
+1. [ ] Confirm each upload: `https://archive.org/details/firebrat-<slug>` lists `firebrat-<slug>.zip` and `.../download/firebrat-<slug>/firebrat-<slug>.zip/manifest.json` resolves. Re-run any that failed (`ia_upload.py` skips items that already have files).
+2. [ ] Seed Firestore: `python3 community/scripts/seed_launch_books.py <catalog10.json> <zips dir> 4A0W465aufgeoTlzBbIRyWuafBU2 <slugs...>` (catalog is `~/community-books/catalog10.json` on the server). Then read the docs back and check one with the site.
+3. [ ] Build the site (`VITE_APP_BASE=/firebrat/community/ npm run build`) and publish it to `gh-pages:/community/` (flow in `site/README.md`); check it in a browser: library lists 10 books, a book plays from the Archive, `#/legal/declaration` renders, sign-in works on the Pages domain.
+4. [ ] Phone: re-check the Community screen (was `permission-denied` before the rules deploy), open and play a book, import/download one, test sign-in. Not yet done: playing a book, importing a book, sign-in on the phone.
+5. [ ] Update this file with results and push to `master`.
+6. [ ] Optional, owner's call: merge `flutter-mac` into `master`; remove the Claude trailer from `7218a41` (owner said leave it); designate a DMCA agent with the US Copyright Office; lawyer review of the declaration; add a Firebase iOS app (`GoogleService-Info.plist` + `ios` entry in `firebase_options.dart`) so sign-in/push/Firestore work on iOS; restore the owner's Qwen3-4B service on the server (`bash ~/community-books/restart_llm.sh`, see section 2) if still stopped.
+7. [ ] Carried over from section 5 and still open: security review + live check of wave-2 IAM (5), scheduler deployment (6), figure linking in the main pipeline (7), Docker `WITH_CAST` validation in CI (9), on-device GPU/NPU benchmarks (11), deep links (12).
+
+### 9.4 Gotchas learned 2026-10-28
+- IA S3 `PUT` returns only after the Archive finishes processing the file: curl can sit at 0% CPU for minutes after the last byte is sent. Check bytes sent (`nettop -P -p <pid>`), not the log.
+- Another Claude session's background jobs (QA loop on the server, rsync to this Mac) survive after that session ends; check `ps` before starting duplicates.
+- Session transcripts live in both `~/.claude/projects/...` and `~/.claude-personal/projects/...`.
