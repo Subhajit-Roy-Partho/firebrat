@@ -49,7 +49,7 @@ _FAKE_CONVERT_PY = textwrap.dedent(
 )
 
 
-def _wait_for(predicate, timeout=5.0, interval=0.05):
+def _wait_for(predicate, timeout=30.0, interval=0.05):  # generous: busy CI/dev machines start subprocesses slowly
     deadline = time.time() + timeout
     while time.time() < deadline:
         if predicate():
@@ -204,7 +204,10 @@ def test_zip_upload_merges_pdfs(tmp_path):
         assert _wait_for(lambda: client.get(f"/jobs/{job_id}").json()["state"] == "done")
         # merged source PDF on disk has both chapters' pages, in sorted order
         from pypdf import PdfReader
-        merged = PdfReader(os.path.join(str(upload_dir), "my-chapters.pdf"))
+        # uploads are stored under the job id (never the book id), so find the single merged PDF
+        merged_files = [f for f in os.listdir(upload_dir) if f.endswith(".pdf")]
+        assert len(merged_files) == 1, merged_files
+        merged = PdfReader(os.path.join(str(upload_dir), merged_files[0]))
         assert len(merged.pages) == 2
 
 

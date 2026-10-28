@@ -62,7 +62,8 @@ def test_models_shape_and_fallback(monkeypatch):
 
 
 def test_upload_model_override_echoed():
-    with tempfile.TemporaryDirectory() as tmpdir:
+    # The upload starts a real background job that may still be writing into tmpdir at teardown.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
         orig_out, orig_db = cfg.OUTPUT_DIR, cfg.JOBS_DB_PATH
         orig_up = getattr(cfg, "UPLOAD_DIR", None)
         cfg.OUTPUT_DIR = tmpdir
