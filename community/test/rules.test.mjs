@@ -81,3 +81,20 @@ test('comments, reports, bugs and takedowns', async () => {
   await assertSucceeds(getDoc(doc(admin, 'reports/r1')));
   await assertSucceeds(getDoc(doc(admin, 'takedowns/t1')));
 });
+
+test('upload ledger: user -> book -> Internet Archive link must mirror the book', async () => {
+  const db = env.authenticatedContext('u9').firestore();
+  const row = (over = {}) => ({ bookId: 'alice-led', title: 'Alice', archiveId: 'alice-test', archiveUrl: 'https://archive.org/details/alice-test', uploadedAt: serverTimestamp(), ...over });
+  const bad = writeBatch(db);
+  bad.set(doc(db, 'books/alice-led'), book('u9'));
+  bad.set(doc(db, 'users/u9/uploads/alice-led'), row({ archiveUrl: 'https://archive.org/details/other' }));
+  await assertFails(bad.commit());
+  const ok = writeBatch(db);
+  ok.set(doc(db, 'books/alice-led'), book('u9'));
+  ok.set(doc(db, 'users/u9/uploads/alice-led'), row());
+  await assertSucceeds(ok.commit());
+  await assertSucceeds(getDoc(doc(db, 'users/u9/uploads/alice-led')));
+  await assertFails(getDoc(doc(env.authenticatedContext('u8').firestore(), 'users/u9/uploads/alice-led')));
+  await assertFails(updateDoc(doc(db, 'users/u9/uploads/alice-led'), { title: 'x' }));
+  await assertSucceeds(setDoc(doc(db, 'users/u9'), { displayName: 'Sub', uploadCount: 1, lastSeenAt: serverTimestamp() }));
+});

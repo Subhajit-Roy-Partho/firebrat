@@ -111,7 +111,8 @@ export async function createBook(id, fields) {
     const ref = doc(db, BOOKS, id);
     const existing = await getDoc(ref);
     if (existing.exists()) throw new Error("A book with this id already exists.");
-    await setDoc(ref, {
+    const batch = writeBatch(db);
+    batch.set(ref, {
       ...fields,
       submitterUid: u.uid,
       submitterName: (u.displayName ?? "").slice(0, 80),
@@ -122,6 +123,15 @@ export async function createBook(id, fields) {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+    // Ledger: user -> upload -> Internet Archive link (mirrors the book doc; rules enforce it).
+    batch.set(doc(db, "users", u.uid, "uploads", id), {
+      bookId: id,
+      title: fields.title,
+      archiveId: fields.archiveId,
+      archiveUrl: fields.archiveUrl,
+      uploadedAt: serverTimestamp(),
+    });
+    await batch.commit();
     return id;
   } catch (e) {
     throw friendly(e);

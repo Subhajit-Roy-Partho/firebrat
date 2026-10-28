@@ -200,6 +200,28 @@ service cloud.firestore {
       allow read, write: if signedIn() && request.auth.uid == uid && bookId.size() <= 120;
     }
 
+    // Per-user upload ledger: who uploaded which book and where it lives on the Internet Archive.
+    // Written in the same batch as the book; must mirror the book doc exactly.
+    match /users/{uid}/uploads/{bookId} {
+      allow read: if owner(uid) || isAdmin();
+      allow create: if owner(uid) && validBookId(bookId)
+        && request.resource.data.keys().hasOnly(['bookId', 'title', 'archiveId', 'archiveUrl', 'uploadedAt'])
+        && request.resource.data.bookId == bookId
+        && request.resource.data.uploadedAt == request.time
+        && getAfter(/databases/$(database)/documents/books/$(bookId)).data.submitterUid == uid
+        && getAfter(/databases/$(database)/documents/books/$(bookId)).data.archiveUrl == request.resource.data.archiveUrl
+        && getAfter(/databases/$(database)/documents/books/$(bookId)).data.archiveId == request.resource.data.archiveId
+        && getAfter(/databases/$(database)/documents/books/$(bookId)).data.title == request.resource.data.title;
+      allow update, delete: if false;
+    }
+    // Public-safe profile: lets admins see who a submitter is. No email stored.
+    match /users/{uid} {
+      allow read: if owner(uid) || isAdmin();
+      allow create, update: if owner(uid)
+        && request.resource.data.keys().hasOnly(['displayName', 'uploadCount', 'firstSeenAt', 'lastSeenAt'])
+        && shortText(request.resource.data, 'displayName', 80);
+    }
+
     match /{document=**} { allow read, write: if false; }
   }
 }
