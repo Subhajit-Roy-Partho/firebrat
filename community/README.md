@@ -14,7 +14,7 @@ VITE_APP_BASE=/firebrat/community/ npm run build   # -> dist/, publish at <pages
 ## One-time setup (not done automatically)
 1. `firebase deploy --only firestore:rules,firestore:indexes` (project `firebrat-8c597`). Until then the site shows "You need to sign in".
 2. Console -> Firestore: create doc `admins/<your-uid>` (any fields) to unlock `#/admin` (takedowns, reports, bugs, moderation).
-3. Replace `takedown@REPLACE-ME.example` in `src/views/legal.js` and designate a DMCA agent if you operate in the US.
+3. Optional: designate a DMCA agent with the US Copyright Office (the site currently states that none is designated); notices go through the in-site takedown form.
 4. Authorize your Pages domain under Firebase Auth -> Settings -> Authorized domains.
 5. Copy `dist/` into the Pages mirror under `community/` (same flow as `../site/README.md`).
 

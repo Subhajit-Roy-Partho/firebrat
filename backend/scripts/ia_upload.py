@@ -7,7 +7,7 @@ https://archive.org/account/s3.php) and are never printed or put on a command li
 Run it from the Mac, not the server (the keys live in the user's ~/.zshrc). Refuses nothing silently: it reports if the item exists."""
 import json, os, stat, subprocess, sys, tempfile, urllib.parse, urllib.request
 
-PD = "https://creativecommons.org/publicdomain/mark/1.0/"
+CC0 = "https://creativecommons.org/publicdomain/zero/1.0/"  # audio + package; the source text is public domain (see description)
 
 
 def ia_id(slug):  # prefixed: bare slugs (dracula-stoker, jane-eyre-bronte) already belong to other uploaders
@@ -29,8 +29,10 @@ def main(cat_path, slug, zpath, dry):
                 return
     except Exception as e:  # noqa: BLE001
         print("metadata check:", e)
+    tr = f"; translation by {b['translator']}" if b.get("translator") else ""
     desc = (f"{b['description']} Narrated audiobook in the Firebrat package format (manifest.json + per-chapter m4a). "
-            f"Text: Project Gutenberg ebook #{b['gutenberg']} ({b['sourceUrl']}), public domain ({b['author']}, d. {b['died']}). "
+            f"Text: Project Gutenberg ebook #{b['gutenberg']} ({b['sourceUrl']}), public domain ({b['author']}, d. {b['died']}{tr}). "
+            "The generated audio and package are dedicated to the public domain under CC0 1.0. "
             "Audio generated with Qwen3-TTS (synthetic voices, one per character) via the Firebrat pipeline. "
             "Browse and listen at https://subhajit-roy-partho.github.io/firebrat/community/")
     hdr = {
@@ -39,7 +41,7 @@ def main(cat_path, slug, zpath, dry):
         "x-archive-meta01-collection": "opensource_audio", "x-archive-meta-mediatype": "audio",
         "x-archive-meta-title": uri(b["title"]), "x-archive-meta-creator": uri(b["author"]),
         "x-archive-meta-description": uri(desc), "x-archive-meta-language": "eng",
-        "x-archive-meta-licenseurl": PD, "x-archive-meta-source": uri(b["sourceUrl"]),
+        "x-archive-meta-licenseurl": CC0, "x-archive-meta-source": uri(b["sourceUrl"]),
         "x-archive-meta01-subject": "audiobook", "x-archive-meta02-subject": "public domain", "x-archive-meta03-subject": "firebrat",
     }
     fname = f"{iid}.zip"

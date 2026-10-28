@@ -145,6 +145,7 @@ function buildFooter() {
       ["About the library", "#/about"],
     ]),
     col("Legal & safety", [
+      ["Legal declaration", "#/legal/declaration"],
       ["Copyright & takedown", "#/legal/takedown"],
       ["Terms of use", "#/legal/terms"],
       ["Privacy", "#/legal/privacy"],
