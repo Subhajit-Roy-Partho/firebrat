@@ -88,6 +88,17 @@ export function itemFileUrl(id, loc, innerPath) {
   return `https://archive.org/download/${encodeURIComponent(id)}/${encPath(inner)}`;
 }
 
+/** Cover image URL for a listing (the package's own cover.<ext>), or null when it has no Archive item. Pure. */
+export function coverUrl(book, ext = "jpg") {
+  if (!book || !book.archiveId) return null;
+  const loc = book.packageKind === "zip" && book.packageFile ? { kind: "zip", zip: book.packageFile } : { kind: "folder", base: "" };
+  try {
+    return itemFileUrl(book.archiveId, loc, `cover.${ext}`);
+  } catch {
+    return null;
+  }
+}
+
 /** Download URL for the whole package. Pure. */
 export function downloadUrl(id, loc) {
   if (!IA_ID_RE.test(String(id))) throw new Error("Invalid archive identifier.");

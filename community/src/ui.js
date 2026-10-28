@@ -3,6 +3,7 @@
    formatBytes, timeAgo, skeleton, emptyState, requireSignIn. */
 
 import { currentUser, signInEmail, signInGoogle, signUpEmail } from "./firebase.js";
+import { coverUrl } from "./ia.js";
 
 /** Build an element. props: class, on*, dataset, aria-*, boolean attrs. */
 export function h(tag, props, ...children) {
@@ -143,6 +144,23 @@ export function cover(book = {}, { size = "" } = {}) {
     style: `background:linear-gradient(135deg, ${a}, ${b})`,
     "aria-hidden": "true",
   }, initials);
+  // The package's own cover, when the Archive can serve it; the gradient + initials stay as the fallback.
+  const src = coverUrl(book);
+  if (src) {
+    const img = h("img", { class: "cover-img", src, alt: "", loading: "lazy", decoding: "async" });
+    // Packages ship cover.jpg or cover.png (the listing doesn't record which): try png, then give up.
+    img.addEventListener("error", () => {
+      if (!img.dataset.png) {
+        img.dataset.png = "1";
+        img.src = coverUrl(book, "png");
+      } else {
+        img.remove();
+        el.classList.remove("has-img");
+      }
+    });
+    el.append(img);
+    el.classList.add("has-img");
+  }
   return el;
 }
 

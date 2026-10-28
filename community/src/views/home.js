@@ -1,18 +1,16 @@
 import { h, toast, skeleton, emptyState, cover, badge, stars, formatDuration } from "../ui.js";
 import { listBooks } from "../data.js";
 import { navigate } from "../router.js";
+import { SORTS, avgRating, groupBooks } from "../works.js";
 
 const CATEGORIES = ["fiction", "nonfiction", "science", "history", "poetry", "children", "education", "other"];
 const LANGUAGES = ["en", "es", "fr", "de", "hi", "bn", "other"];
 const LICENSES = ["public-domain", "cc0", "cc-by", "cc-by-sa"];
-const SORTS = [
-  ["new", "Newest"],
-  ["top", "Top rated"],
-  ["long", "Longest"],
-];
+const PAGE_SIZE = 60;
+const submitterLine = (b) => (b.submitterName ? `Submitted by ${b.submitterName}` : "Submitted by a community member");
 
 function bookCard(b) {
-  const avg = b.ratingCount ? b.ratingSum / b.ratingCount : 0;
+  const avg = avgRating(b);
   const license = (b.provenance && b.provenance.license) || b.license || "";
   const meta = `${formatDuration(b.totalDurationMs)} · ${b.sectionCount ?? "?"} sections`;
   return h("article", { class: "card" },
@@ -22,8 +20,40 @@ function bookCard(b) {
         h("a", { class: "card-link", href: "#/book/" + encodeURIComponent(b.id) }, b.title || "Untitled")),
       h("p", { class: "card-author" }, b.author || "Unknown author"),
       h("p", { class: "card-meta muted small" }, meta),
+      h("p", { class: "card-meta muted small" }, submitterLine(b)),
       stars({ value: avg, count: b.ratingCount || 0 }),
       license ? h("div", { class: "card-foot" }, badge(license, "license")) : null));
+}
+
+/** One row per upload of the same book: who submitted it, its stars, licence and length. */
+function editionRow(b, isTop) {
+  const license = (b.provenance && b.provenance.license) || b.license || "";
+  return h("li", { class: "edition" },
+    h("a", { class: "edition-link", href: "#/book/" + encodeURIComponent(b.id) },
+      h("span", { class: "edition-main" },
+        h("span", { class: "edition-who" }, submitterLine(b)),
+        h("span", { class: "muted small" }, `${formatDuration(b.totalDurationMs)} · ${b.sectionCount ?? "?"} sections`)),
+      h("span", { class: "edition-side" },
+        isTop ? badge("Top rated", "published") : null,
+        license ? badge(license, "license") : null,
+        stars({ value: avgRating(b), count: b.ratingCount || 0 }))));
+}
+
+/** A single upload renders as a normal card; several uploads share one banner. */
+function workCard(w) {
+  if (w.editions.length === 1) return bookCard(w.best);
+  const best = w.best;
+  const hasRatings = avgRating(best) > 0;
+  return h("article", { class: "card work-card" },
+    h("div", { class: "work-head" },
+      cover(best),
+      h("div", { class: "card-body" },
+        h("h3", { class: "card-title" },
+          h("a", { class: "card-link", href: "#/book/" + encodeURIComponent(best.id) }, w.title)),
+        h("p", { class: "card-author" }, w.author || "Unknown author"),
+        h("p", { class: "card-meta" }, badge(`${w.editions.length} versions`, "cat")))),
+    h("ul", { class: "editions", "aria-label": `${w.editions.length} versions of ${w.title}` },
+      ...w.editions.map((e, i) => editionRow(e, hasRatings && i === 0))));
 }
 
 export default async function view(ctx) {
@@ -31,7 +61,10 @@ export default async function view(ctx) {
   let category = "";
   let language = "";
   let license = "";
-  let sort = "new";
+  let sort = "top";
+  let author = ""; // "" = all authors
+  let uploader = ""; // "" = all uploaders
+  let loaded = []; // every book fetched so far for the current filters; grouped + sorted client-side
   let q = (ctx.query && ctx.query.get("q")) || "";
   let cursor = null;
   let loading = false;
@@ -101,11 +134,28 @@ export default async function view(ctx) {
   const sortLabel = h("label", { class: "label", for: "home-sort" }, "Sort");
   const sortSel = h("select", {
     class: "sort-select", id: "home-sort", "aria-label": "Sort books",
-    onchange: () => { sort = sortSel.value; reload(); },
-  }, ...SORTS.map(([v, label]) => h("option", { value: v, selected: v === "new" }, label)));
+    onchange: () => { sort = sortSel.value; render(); },
+  }, ...SORTS.map(([v, label]) => h("option", { value: v, selected: v === sort }, label)));
+
+  // Author / uploader pickers: options are whatever has been loaded so far (rebuilt in render()).
+  const authorSel = h("select", {
+    class: "select", id: "home-author", "aria-label": "Author",
+    onchange: () => { author = authorSel.value; render(); },
+  }, h("option", { value: "" }, "All authors"));
+  const uploaderSel = h("select", {
+    class: "select", id: "home-uploader", "aria-label": "Uploader",
+    onchange: () => { uploader = uploaderSel.value; render(); },
+  }, h("option", { value: "" }, "All uploaders"));
+  function fillOptions(sel, allLabel, values, current) {
+    const sorted = [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+    sel.replaceChildren(h("option", { value: "" }, allLabel), ...sorted.map((v) => h("option", { value: v, selected: v === current }, v)));
+    sel.value = sorted.includes(current) ? current : "";
+  }
 
   const toolbar = h("div", { class: "toolbar" },
     chipsBox,
+    h("div", { class: "field" }, h("label", { class: "label", for: "home-author" }, "Author"), authorSel),
+    h("div", { class: "field" }, h("label", { class: "label", for: "home-uploader" }, "Uploader"), uploaderSel),
     h("div", { class: "field" }, langLabel, langSel),
     h("div", { class: "field" }, licLabel, licSel),
     h("div", { class: "field" }, sortLabel, sortSel));
@@ -122,9 +172,23 @@ export default async function view(ctx) {
   moreWrap.append(moreBtn);
   root.append(moreWrap);
 
-  function renderItems(items, append) {
-    if (!append) grid.replaceChildren();
-    for (const b of items) grid.append(bookCard(b));
+  function render() {
+    fillOptions(authorSel, "All authors", loaded.map((b) => (b.author || "").trim()), author);
+    fillOptions(uploaderSel, "All uploaders", loaded.map((b) => (b.submitterName || "").trim()), uploader);
+    if (!authorSel.value) author = "";
+    if (!uploaderSel.value) uploader = "";
+    const shown = loaded.filter((b) =>
+      (!author || (b.author || "").trim() === author) &&
+      (!uploader || (b.submitterName || "").trim() === uploader));
+    grid.replaceChildren(...groupBooks(shown, sort).map(workCard));
+    if (!shown.length) {
+      grid.replaceChildren(emptyState({
+        icon: "📚",
+        title: "No books found",
+        body: "Try a different search or submit a book.",
+        action: { label: "Submit a book", href: "#/submit" },
+      }));
+    }
   }
 
   async function reload(reset = true) {
@@ -133,34 +197,27 @@ export default async function view(ctx) {
     try {
       if (reset) {
         cursor = null;
+        loaded = [];
         grid.replaceChildren(skeleton(6));
       } else {
         moreBtn.disabled = true;
       }
+      // Fetched newest-first from Firestore (the only server-side order we can index);
+      // grouping and every other sort happen here so duplicate uploads can sit together.
       const { items, cursor: next } = await listBooks({
         category: category || undefined,
         language: language || undefined,
         license: license || undefined,
-        sort,
+        sort: "new",
         search: q,
         after: reset ? null : cursor,
-        limit: 24,
+        limit: PAGE_SIZE,
       });
       cursor = next;
-      renderItems(items, !reset);
-      if (!reset && items.length === 0) {
-        // nothing new; fall through to hide the button
-      }
-      if (!grid.children.length) {
-        grid.replaceChildren(emptyState({
-          icon: "📚",
-          title: "No books found",
-          body: "Try a different search or submit a book.",
-          action: { label: "Submit a book", href: "#/submit" },
-        }));
-      }
-      const hide = !cursor || (reset && items.length < 24);
-      moreWrap.style.display = hide ? "none" : "";
+      const seen = new Set(loaded.map((b) => b.id));
+      loaded = loaded.concat(items.filter((b) => !seen.has(b.id)));
+      render();
+      moreWrap.style.display = !cursor || items.length < PAGE_SIZE ? "none" : "";
     } catch (e) {
       toast(e.message || "Could not load books.", { kind: "err" });
       if (reset) {

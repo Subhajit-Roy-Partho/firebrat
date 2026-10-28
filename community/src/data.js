@@ -72,7 +72,7 @@ export async function listBooks({
     const q = search.trim().toLowerCase();
     if (q) {
       items = items.filter((b) =>
-        [b.title, b.author, b.description, ...(b.tags ?? [])]
+        [b.title, b.author, b.submitterName, b.description, ...(b.tags ?? [])]
           .filter(Boolean)
           .join(" ")
           .toLowerCase()

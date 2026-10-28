@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Firebrat Community — public-domain audiobook library (Vite + Firebase + Internet Archive).",
+  "description": "Firebrat Community \u2014 public-domain audiobook library (Vite + Firebase + Internet Archive).",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test test/ia.test.mjs",
+    "test": "node --test test/ia.test.mjs test/works.test.mjs",
     "test:rules": "firebase emulators:exec --only firestore --project demo-firebrat-rules \"node --test test/rules.test.mjs\""
   },
   "dependencies": {

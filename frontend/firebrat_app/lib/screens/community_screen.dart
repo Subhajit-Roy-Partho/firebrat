@@ -3,17 +3,22 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../services/app_network_gate.dart';
+import '../services/community_service.dart';
 import '../state/library_providers.dart';
 import '../utils/community_helpers.dart';
+import '../utils/work_grouping.dart';
+import '../widgets/community_detail_sheet.dart';
 
 /// Browses the shared Community library (Firestore `books` where
-/// status == 'published'). Packages live on the Internet Archive; adding
-/// one downloads it and runs it through the normal local import path.
+/// status == 'published'). Several uploads of the same book are grouped under
+/// one banner (best-rated first); packages live on the Internet Archive and
+/// adding one downloads it and runs it through the normal local import path.
+/// Rating, reviewing and bookmarking need a sign-in (see CommunityDetailSheet).
 class CommunityScreen extends ConsumerStatefulWidget {
   const CommunityScreen({super.key});
 
@@ -33,22 +38,26 @@ const _categories = [
   'other',
 ];
 
-const _communityBase = 'https://subhajit-roy-partho.github.io/firebrat/community';
-
 class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   String _search = '';
   String _category = 'all';
-  int _limit = 30;
+  CommunitySort _sort = CommunitySort.top;
+  bool _savedOnly = false;
+  String? _author; // null = all authors
+  String? _uploader; // null = all uploaders
+  int _limit = 100;
   bool _firebaseMissing = false;
 
   Stream<QuerySnapshot<Map<String, dynamic>>>? _queryStream() {
     try {
-      final query = FirebaseFirestore.instance
+      // Newest-first is the only order Firestore can index here; grouping and every
+      // other sort happen on the device so duplicate uploads can sit together.
+      return FirebaseFirestore.instance
           .collection('books')
           .where('status', isEqualTo: 'published')
           .orderBy('createdAt', descending: true)
-          .limit(_limit);
-      return query.snapshots();
+          .limit(_limit)
+          .snapshots();
     } catch (_) {
       // Fail-open when Firebase isn't initialized (e.g. non-Android dev
       // builds without google-services config): show a friendly note.
@@ -73,7 +82,39 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
-              onChanged: (v) => setState(() => _search = v.trim().toLowerCase()),
+              onChanged: (v) =>
+                  setState(() => _search = v.trim().toLowerCase()),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Row(
+              children: [
+                const Icon(Icons.sort_rounded, size: 20),
+                const SizedBox(width: 8),
+                DropdownButton<CommunitySort>(
+                  value: _sort,
+                  underline: const SizedBox.shrink(),
+                  onChanged: (v) =>
+                      setState(() => _sort = v ?? CommunitySort.top),
+                  items: [
+                    for (final s in CommunitySort.values)
+                      DropdownMenuItem(value: s, child: Text(s.label)),
+                  ],
+                ),
+                const Spacer(),
+                FilterChip(
+                  avatar: Icon(
+                    _savedOnly
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_border_rounded,
+                    size: 18,
+                  ),
+                  label: const Text('Saved'),
+                  selected: _savedOnly,
+                  onSelected: (v) => setState(() => _savedOnly = v),
+                ),
+              ],
             ),
           ),
           SingleChildScrollView(
@@ -104,69 +145,193 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                       ),
                     ),
                   )
-                : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: stream,
-                    builder: (context, snap) {
-                      if (snap.hasError) {
-                        return Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Text(
-                              'Couldn\'t load the community library.\n${snap.error}',
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        );
-                      }
-                      if (!snap.hasData) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      var docs = snap.data!.docs;
-                      if (_category != 'all') {
-                        docs = docs
-                            .where((d) => (d.data()['category'] as String? ?? 'other') == _category)
-                            .toList();
-                      }
-                      if (_search.isNotEmpty) {
-                        docs = docs.where((d) {
-                          final data = d.data();
-                          final hay =
-                              '${data['title'] ?? ''} ${data['author'] ?? ''}'.toLowerCase();
-                          return hay.contains(_search);
-                        }).toList();
-                      }
-                      if (docs.isEmpty) {
-                        return const Center(
-                          child: Text('No community books match — try another search.'),
-                        );
-                      }
-                      return ListView.builder(
-                        itemCount: docs.length + 1,
-                        itemBuilder: (context, i) {
-                          if (i == docs.length) {
-                            // Reached the page limit: offer more.
-                            if (snap.data!.docs.length < _limit) {
-                              return const SizedBox.shrink();
-                            }
-                            return Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: OutlinedButton(
-                                onPressed: () => setState(() => _limit += 30),
-                                child: const Text('Load more'),
-                              ),
-                            );
-                          }
-                          final doc = docs[i];
-                          final data = doc.data();
-                          return _CommunityTile(
-                            bookId: doc.id,
-                            data: data,
-                            onTap: () => _showDetail(context, ref, doc.id, data),
-                          );
-                        },
-                      );
-                    },
+                : StreamBuilder<User?>(
+                    stream: CommunityService.instance.authChanges(),
+                    initialData: CommunityService.instance.user,
+                    builder: (context, authSnap) => StreamBuilder<Set<String>>(
+                      stream: CommunityService.instance.favorites(),
+                      builder: (context, favSnap) => _buildList(
+                        stream,
+                        authSnap.data,
+                        favSnap.data ?? const <String>{},
+                      ),
+                    ),
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildList(
+    Stream<QuerySnapshot<Map<String, dynamic>>> stream,
+    User? user,
+    Set<String> saved,
+  ) {
+    if (_savedOnly && user == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Sign in (open any book and tap "Sign in with Google") to bookmark books and see them here.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: stream,
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Couldn\'t load the community library.\n${snap.error}',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
+        }
+        if (!snap.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final fetched = snap.data!.docs.length;
+        var items = [
+          for (final d in snap.data!.docs) {...d.data(), 'id': d.id},
+        ];
+        // Filter options come from what has been loaded, before any filter narrows it.
+        final authors = _distinct(items, 'author');
+        final uploaders = _distinct(items, 'submitterName');
+        if (_author != null && authors.contains(_author)) {
+          items = items.where((b) => b['author'] == _author).toList();
+        }
+        if (_uploader != null && uploaders.contains(_uploader)) {
+          items = items.where((b) => b['submitterName'] == _uploader).toList();
+        }
+        if (_category != 'all') {
+          items = items
+              .where((b) => (b['category'] as String? ?? 'other') == _category)
+              .toList();
+        }
+        if (_savedOnly) {
+          items = items.where((b) => saved.contains(b['id'])).toList();
+        }
+        if (_search.isNotEmpty) {
+          items = items
+              .where(
+                (b) => '${b['title'] ?? ''} ${b['author'] ?? ''}'
+                    .toLowerCase()
+                    .contains(_search),
+              )
+              .toList();
+        }
+        final works = groupWorks(items, _sort);
+        if (works.isEmpty) {
+          return Center(
+            child: Text(
+              _savedOnly
+                  ? 'No bookmarked books yet.'
+                  : 'No community books match — try another search.',
+            ),
+          );
+        }
+        final list = ListView.builder(
+          itemCount: works.length + 1,
+          itemBuilder: (context, i) {
+            if (i == works.length) {
+              if (fetched < _limit) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: OutlinedButton(
+                  onPressed: () => setState(() => _limit += 100),
+                  child: const Text('Load more'),
+                ),
+              );
+            }
+            final w = works[i];
+            if (w.editions.length == 1) {
+              final b = w.best;
+              return _CommunityTile(
+                data: b,
+                saved: saved.contains(b['id']),
+                onTap: () => _showDetail(context, b['id'] as String, b),
+              );
+            }
+            return _WorkBanner(
+              work: w,
+              saved: saved,
+              onOpen: (b) => _showDetail(context, b['id'] as String, b),
+            );
+          },
+        );
+        return Column(
+          children: [
+            _filterRow(authors, uploaders),
+            Expanded(child: list),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Sorted distinct non-empty values of [key] across [items].
+  List<String> _distinct(List<Map<String, dynamic>> items, String key) {
+    final out = <String>{
+      for (final b in items)
+        if ((b[key] as String?)?.trim().isNotEmpty == true)
+          (b[key] as String).trim(),
+    }.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return out;
+  }
+
+  Widget _filterRow(List<String> authors, List<String> uploaders) {
+    Widget picker(
+      String hint,
+      IconData icon,
+      String? value,
+      List<String> options,
+      ValueChanged<String?> onChanged,
+    ) {
+      return Expanded(
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String?>(
+            isExpanded: true,
+            value: options.contains(value) ? value : null,
+            icon: Icon(icon, size: 18),
+            hint: Text(hint),
+            onChanged: onChanged,
+            items: [
+              DropdownMenuItem<String?>(value: null, child: Text(hint)),
+              for (final o in options)
+                DropdownMenuItem<String?>(
+                  value: o,
+                  child: Text(o, overflow: TextOverflow.ellipsis),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          picker(
+            'All authors',
+            Icons.person_outline_rounded,
+            _author,
+            authors,
+            (v) => setState(() => _author = v),
+          ),
+          const SizedBox(width: 12),
+          picker(
+            'All uploaders',
+            Icons.upload_outlined,
+            _uploader,
+            uploaders,
+            (v) => setState(() => _uploader = v),
           ),
         ],
       ),
@@ -175,141 +340,19 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
 
   Future<void> _showDetail(
     BuildContext context,
-    WidgetRef ref,
     String bookId,
     Map<String, dynamic> data,
   ) async {
-    final title = data['title'] as String? ?? bookId;
-    final provenance = (data['provenance'] as Map<String, dynamic>?) ?? {};
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (sheetContext) => SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  _CoverBadge(title: title, size: 56),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(title, style: Theme.of(sheetContext).textTheme.titleLarge),
-                        Text(
-                          (data['author'] as String? ?? '').isEmpty
-                              ? 'Unknown author'
-                              : data['author'] as String,
-                          style: Theme.of(sheetContext).textTheme.bodyMedium,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  Chip(label: Text((data['license'] as String?) ?? (provenance['license'] as String?) ?? 'unknown')),
-                  Chip(
-                    avatar: const Icon(Icons.star_rounded, size: 16),
-                    label: Text(
-                      '${ratingAverage((data['ratingSum'] ?? 0) as num, (data['ratingCount'] ?? 0) as num).toStringAsFixed(1)} (${(data['ratingCount'] ?? 0)})',
-                    ),
-                  ),
-                  Chip(label: Text(formatDuration((data['totalDurationMs'] ?? 0) as int))),
-                ],
-              ),
-              if ((data['description'] as String?)?.isNotEmpty == true) ...[
-                const SizedBox(height: 12),
-                Text(data['description'] as String),
-              ],
-              const SizedBox(height: 16),
-              Text('How this audio was made',
-                  style: Theme.of(sheetContext).textTheme.titleMedium),
-              const SizedBox(height: 6),
-              ..._provenanceRows(provenance, data),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: () {
-                  Navigator.of(sheetContext).pop();
-                  _addToLibrary(context, ref, bookId, data);
-                },
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Add to my library'),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => launchUrl(
-                        Uri.parse('$_communityBase/#/book/$bookId'),
-                        mode: LaunchMode.externalApplication,
-                      ),
-                      icon: const Icon(Icons.public_rounded),
-                      label: const Text('Open on website'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextButton.icon(
-                      onPressed: () => launchUrl(
-                        Uri.parse('$_communityBase/#/legal/takedown?book=$bookId'),
-                        mode: LaunchMode.externalApplication,
-                      ),
-                      icon: const Icon(Icons.flag_outlined),
-                      label: const Text('Report concern'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+      builder: (_) => CommunityDetailSheet(
+        bookId: bookId,
+        data: data,
+        onAdd: () => _addToLibrary(context, ref, bookId, data),
       ),
     );
-  }
-
-  List<Widget> _provenanceRows(Map<String, dynamic> provenance, Map<String, dynamic> data) {
-    final rows = <Widget>[];
-    void row(String label, String? value) {
-      if (value == null || value.isEmpty) return;
-      rows.add(Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: RichText(
-          text: TextSpan(
-            style: const TextStyle(color: Colors.grey, fontSize: 14),
-            children: [
-              TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
-              TextSpan(text: value),
-            ],
-          ),
-        ),
-      ));
-    }
-
-    row('Generation', provenance['generation'] as String?);
-    row('Narration engine', provenance['narrationEngine'] as String?);
-    final models = provenance['models'];
-    if (models is List && models.isNotEmpty) row('Models', models.join(', '));
-    row('Pipeline notes', provenance['pipelineNotes'] as String?);
-    row('Source', (provenance['sourceTitle'] as String?) ?? (data['sourceTitle'] as String?));
-    row('Source URL', (provenance['sourceUrl'] as String?)?.toString());
-    row('License', (provenance['license'] as String?) ?? (data['license'] as String?)?.toString());
-    row('License URL', (provenance['licenseUrl'] as String?)?.toString());
-    if (rows.isEmpty) {
-      rows.add(const Text('No provenance details were provided for this book.',
-          style: TextStyle(color: Colors.grey)));
-    }
-    return rows;
   }
 
   Future<void> _addToLibrary(
@@ -321,8 +364,13 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final archiveUrl = data['archiveUrl'] as String? ?? '';
     if (!isAllowedArchiveUrl(archiveUrl)) {
-      messenger.showSnackBar(const SnackBar(
-          content: Text('This book links outside the Internet Archive — refused for safety.')));
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'This book links outside the Internet Archive — refused for safety.',
+          ),
+        ),
+      );
       return;
     }
     late final String archiveId;
@@ -341,39 +389,46 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     var dialogOpen = false;
     if (context.mounted) {
       dialogOpen = true;
-      unawaited(showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) => AlertDialog(
-          title: Text('Downloading "$bookId"'),
-          content: ValueListenableBuilder<double?>(
-            valueListenable: progress,
-            builder: (_, v, _) => ValueListenableBuilder<String?>(
-              valueListenable: waiting,
-              builder: (_, wait, _) => Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  LinearProgressIndicator(value: wait != null ? 0 : v),
-                  const SizedBox(height: 8),
-                  Text(wait ?? (v == null ? 'Starting…' : '${(v * 100).round()}%')),
-                  if (wait != null)
-                    const Text('It starts automatically when Wi-Fi is available '
-                        '(Settings > Download over).'),
-                ],
+      unawaited(
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            title: Text('Downloading "$bookId"'),
+            content: ValueListenableBuilder<double?>(
+              valueListenable: progress,
+              builder: (_, v, _) => ValueListenableBuilder<String?>(
+                valueListenable: waiting,
+                builder: (_, wait, _) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    LinearProgressIndicator(value: wait != null ? 0 : v),
+                    const SizedBox(height: 8),
+                    Text(
+                      wait ??
+                          (v == null ? 'Starting…' : '${(v * 100).round()}%'),
+                    ),
+                    if (wait != null)
+                      const Text(
+                        'It starts automatically when Wi-Fi is available '
+                        '(Settings > Download over).',
+                      ),
+                  ],
+                ),
               ),
             ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  cancelToken.cancel('cancelled by user');
+                  Navigator.of(dialogContext).pop();
+                },
+                child: const Text('Cancel'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                cancelToken.cancel('cancelled by user');
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-          ],
-        ),
-      ).then((_) => dialogOpen = false));
+        ).then((_) => dialogOpen = false),
+      );
     }
 
     File? tempFile;
@@ -405,7 +460,9 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         downloadUrl = 'https://archive.org/download/$archiveId/$zipName';
       }
       if (!isAllowedArchiveUrl(downloadUrl)) {
-        throw StateError('Resolved download URL is not on the Internet Archive');
+        throw StateError(
+          'Resolved download URL is not on the Internet Archive',
+        );
       }
       final tmpDir = Directory.systemTemp;
       tempFile = File('${tmpDir.path}/firebrat-community-$archiveId.zip');
@@ -425,30 +482,34 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
           progress.value = total > 0 ? received / total : null;
         },
       );
-      final importedId =
-          await ref.read(importManagerProvider).importFromFile(tempFile);
+      final importedId = await ref
+          .read(importManagerProvider)
+          .importFromFile(tempFile);
       invalidateLibrary(ref);
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop(); // close progress
         dialogOpen = false;
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Added "$importedId" to your library')));
+          SnackBar(content: Text('Added "$importedId" to your library')),
+        );
       }
     } on DioException catch (e) {
       if (context.mounted) {
         if (dialogOpen) Navigator.of(context, rootNavigator: true).pop();
         dialogOpen = false;
         if (e.type != DioExceptionType.cancel) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('Download failed: $e')));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Download failed: $e')));
         }
       }
     } catch (e) {
       if (context.mounted) {
         if (dialogOpen) Navigator.of(context, rootNavigator: true).pop();
         dialogOpen = false;
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Could not add book: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not add book: $e')));
       }
     } finally {
       try {
@@ -460,29 +521,63 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   }
 }
 
-class _CommunityTile extends StatelessWidget {
-  final String bookId;
+String _licenseOf(Map<String, dynamic> data) =>
+    (data['license'] as String?) ??
+    ((data['provenance'] as Map?)?['license'] as String?) ??
+    '';
+
+class _RatingText extends StatelessWidget {
+  const _RatingText(this.data);
   final Map<String, dynamic> data;
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.star_rounded, size: 16),
+        const SizedBox(width: 2),
+        Text(avgRating(data).toStringAsFixed(1)),
+        Text(
+          ' (${(data['ratingCount'] ?? 0)})',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+}
+
+class _CommunityTile extends StatelessWidget {
+  const _CommunityTile({
+    required this.data,
+    required this.saved,
+    required this.onTap,
+  });
+  final Map<String, dynamic> data;
+  final bool saved;
   final VoidCallback onTap;
-  const _CommunityTile({required this.bookId, required this.data, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final title = data['title'] as String? ?? bookId;
+    final title = data['title'] as String? ?? data['id'] as String? ?? '';
     final author = (data['author'] as String?)?.isNotEmpty == true
         ? data['author'] as String
         : 'Unknown author';
-    final license =
-        (data['license'] as String?) ?? ((data['provenance'] as Map?)?['license'] as String?);
+    final license = _licenseOf(data);
     return ListTile(
       onTap: onTap,
-      leading: _CoverBadge(title: title, size: 48),
+      leading: CommunityCover(
+        title: title,
+        size: 48,
+        imageUrl: communityCoverUrl(data),
+        pngUrl: communityCoverUrl(data, ext: 'png'),
+      ),
       title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
       subtitle: Text(
-        '$author · ${formatDuration((data['totalDurationMs'] ?? 0) as int)}',
-        maxLines: 1,
+        '$author · ${formatDuration(((data['totalDurationMs'] ?? 0) as num).toInt())}\n${submitterLabel(data)}',
+        maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
+      isThreeLine: true,
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -490,17 +585,11 @@ class _CommunityTile extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.star_rounded, size: 16),
-              const SizedBox(width: 2),
-              Text(ratingAverage(
-                (data['ratingSum'] ?? 0) as num,
-                (data['ratingCount'] ?? 0) as num,
-              ).toStringAsFixed(1)),
-              Text(' (${(data['ratingCount'] ?? 0)})',
-                  style: Theme.of(context).textTheme.bodySmall),
+              if (saved) const Icon(Icons.bookmark_rounded, size: 16),
+              _RatingText(data),
             ],
           ),
-          if (license != null)
+          if (license.isNotEmpty)
             Chip(
               label: Text(license, style: const TextStyle(fontSize: 11)),
               visualDensity: VisualDensity.compact,
@@ -512,34 +601,112 @@ class _CommunityTile extends StatelessWidget {
   }
 }
 
-/// Deterministic gradient cover with the title's first letter.
-class _CoverBadge extends StatelessWidget {
-  final String title;
-  final double size;
-  const _CoverBadge({required this.title, required this.size});
+/// One book uploaded several times: a single banner listing every version, best-rated
+/// first, with who submitted it and its stars.
+class _WorkBanner extends StatelessWidget {
+  const _WorkBanner({
+    required this.work,
+    required this.saved,
+    required this.onOpen,
+  });
+  final CommunityWork work;
+  final Set<String> saved;
+  final void Function(Map<String, dynamic>) onOpen;
 
   @override
   Widget build(BuildContext context) {
-    final colors = coverColors(title);
-    final letter = title.trim().isEmpty ? '?' : title.trim()[0].toUpperCase();
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: colors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        letter,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: size * 0.45,
-          fontWeight: FontWeight.w700,
+    final theme = Theme.of(context);
+    final topRated = avgRating(work.best) > 0;
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CommunityCover(
+                  title: work.title,
+                  size: 48,
+                  imageUrl: communityCoverUrl(work.best),
+                  pngUrl: communityCoverUrl(work.best, ext: 'png'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        work.title,
+                        style: theme.textTheme.titleMedium,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        work.author.isEmpty ? 'Unknown author' : work.author,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                Chip(
+                  label: Text(
+                    '${work.editions.length} versions',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+            const Divider(height: 16),
+            for (var i = 0; i < work.editions.length; i++)
+              InkWell(
+                onTap: () => onOpen(work.editions[i]),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 4,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              submitterLabel(work.editions[i]),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              '${formatDuration(((work.editions[i]['totalDurationMs'] ?? 0) as num).toInt())}'
+                              '${_licenseOf(work.editions[i]).isEmpty ? '' : ' · ${_licenseOf(work.editions[i])}'}',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (i == 0 && topRated)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 8),
+                          child: Chip(
+                            label: Text(
+                              'Top rated',
+                              style: TextStyle(fontSize: 11),
+                            ),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                      if (saved.contains(work.editions[i]['id']))
+                        const Icon(Icons.bookmark_rounded, size: 16),
+                      _RatingText(work.editions[i]),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

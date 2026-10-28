@@ -199,3 +199,14 @@ describe("validateChapters", () => {
     assert.ok(r.errors[0].includes("too large"));
   });
 });
+
+import { coverUrl } from "../src/ia.js";
+describe("coverUrl", () => { it("points at the package's cover.jpg", () => {
+  assert.equal(
+    coverUrl({ archiveId: "firebrat-alice", packageKind: "zip", packageFile: "firebrat-alice.zip" }),
+    "https://archive.org/download/firebrat-alice/firebrat-alice.zip/cover.jpg",
+  );
+  assert.equal(coverUrl({ archiveId: "some-item", packageKind: "folder" }), "https://archive.org/download/some-item/cover.jpg");
+  assert.equal(coverUrl({}), null);
+  assert.equal(coverUrl({ archiveId: "bad id!" }), null);
+}); });

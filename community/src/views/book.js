@@ -1,5 +1,6 @@
 import { h, toast, modal, stars, cover, badge, formatDuration, timeAgo, emptyState, skeleton, requireSignIn } from "../ui.js";
-import { getBook, getMyRating, rateBook, listComments, addComment, deleteComment, reportItem, reportBug, toggleFavorite, listFavorites } from "../data.js";
+import { getBook, getMyRating, rateBook, listComments, addComment, deleteComment, reportItem, reportBug, toggleFavorite, listFavorites, listBooks } from "../data.js";
+import { authorKey, avgRating, compareEditions, workKey } from "../works.js";
 import { downloadUrl } from "../ia.js";
 import { playBook, onChange, locFromBook } from "../player.js";
 import { currentUser } from "../firebase.js";
@@ -168,6 +169,7 @@ export default async function view(ctx) {
     h("div", { class: "book-info" },
       h("h1", {}, book.title || "Untitled"),
       h("p", { class: "muted" }, book.author || "Unknown author"),
+      h("p", { class: "muted small" }, book.submitterName ? `Submitted by ${book.submitterName}` : "Submitted by a community member"),
       h("div", { class: "row" }, starBox, favBtn),
       h("div", { class: "row" },
         license ? badge(license, "license") : null,
@@ -177,6 +179,38 @@ export default async function view(ctx) {
       h("p", { class: "muted small" },
         `${formatDuration(book.totalDurationMs)} · ${book.sectionCount ?? chapters.length ?? "?"} sections · ${book.language || "—"}`)));
   root.append(heroEl);
+
+  // ——— other versions of this book + more by the author (same grouping rule as the home page) ———
+  const relatedBox = h("div", { class: "stack" });
+  root.append(relatedBox);
+  void (async () => {
+    try {
+      const { items } = await listBooks({ sort: "new", limit: 100 });
+      const mine = workKey(book);
+      const others = items.filter((b) => b.id !== id);
+      const versions = mine ? others.filter((b) => workKey(b) === mine).sort(compareEditions) : [];
+      const ak = authorKey(book.author);
+      const more = ak ? others.filter((b) => authorKey(b.author) === ak && workKey(b) !== mine).sort(compareEditions) : [];
+      const row = (b) => h("li", { class: "edition" },
+        h("a", { class: "edition-link", href: "#/book/" + encodeURIComponent(b.id) },
+          h("span", { class: "edition-main" },
+            h("span", { class: "edition-who" }, b.title || "Untitled"),
+            h("span", { class: "muted small" },
+              (b.submitterName ? `Submitted by ${b.submitterName}` : "Submitted by a community member") +
+              ` · ${formatDuration(b.totalDurationMs)}`)),
+          h("span", { class: "edition-side" }, stars({ value: avgRating(b), count: b.ratingCount || 0 }))));
+      if (versions.length) {
+        relatedBox.append(h("section", { class: "section" },
+          h("div", { class: "section-head" }, h("h2", {}, "Other versions of this book")),
+          h("ul", { class: "editions" }, ...versions.map(row))));
+      }
+      if (more.length) {
+        relatedBox.append(h("section", { class: "section" },
+          h("div", { class: "section-head" }, h("h2", {}, `More by ${book.author}`)),
+          h("ul", { class: "editions" }, ...more.slice(0, 8).map(row))));
+      }
+    } catch { /* related lists are optional */ }
+  })();
 
   // ——— provenance ———
   const prov = book.provenance || {};
@@ -220,6 +254,16 @@ export default async function view(ctx) {
       (!chapters.length ? " This listing has no chapter list yet." : "")));
   }
   actions.append(h("a", { class: "btn btn-ghost", href: `firebrat://community/book/${encodeURIComponent(id)}` }, "Open in Firebrat app"));
+  actions.append(h("button", {
+    class: "btn btn-ghost", type: "button",
+    onclick: async () => {
+      const url = location.origin + location.pathname + "#/book/" + encodeURIComponent(id);
+      try {
+        if (navigator.share) await navigator.share({ title: book.title, url });
+        else { await navigator.clipboard.writeText(url); toast("Link copied", { kind: "ok" }); }
+      } catch { /* user dismissed the share sheet */ }
+    },
+  }, "Share"));
   actions.append(h("span", { class: "muted small" }, "or ",
     h("a", { href: "#/book/" + encodeURIComponent(id) }, "open this page")));
   if (book.archiveId) {
