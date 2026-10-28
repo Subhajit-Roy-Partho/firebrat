@@ -34,8 +34,9 @@ class UpdateChecker {
   static Future<void> openStore() async {
     final market = Uri.parse('market://details?id=com.firebrat.firebrat_app');
     if (await canLaunchUrl(market) &&
-        await launchUrl(market, mode: LaunchMode.externalApplication))
+        await launchUrl(market, mode: LaunchMode.externalApplication)) {
       return;
+    }
     await launchUrl(
       Uri.parse(playStoreUrl),
       mode: LaunchMode.externalApplication,
