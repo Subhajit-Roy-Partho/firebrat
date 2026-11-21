@@ -39,6 +39,16 @@ ReaderState _state(Manifest m, {Map<String, String> assets = const {}, String? v
     );
 
 void main() {
+  test('PDF selection overrides narration everywhere and clearing restores automatic artwork', () {
+    const selected = VisualItem(id: 'source:sec_0001', kind: VisualKind.figure,
+      imagePath: '/selected.png', caption: 'Source page 9', sourcePage: 8);
+    final original = _state(_manifest(), assets: {'fig_0001': '/figure.png'}, visualId: 'fig_0001');
+    final manual = original.copyWith(selectedSourceVisual: selected);
+    expect(manual.currentVisual, selected);
+    expect(manual.copyWith(currentVisualId: 'fig_0002').currentVisual, selected);
+    expect(manual.copyWith(clearSelectedSourceVisual: true).currentVisual?.id, 'fig_0001');
+  });
+
   test('no narrated visual yet: falls back to the first linked figure', () {
     final v = _state(_manifest(), assets: {'fig_0001': '/x/fig_0001.png'}).currentVisual;
     expect(v?.id, 'fig_0001');

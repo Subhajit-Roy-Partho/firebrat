@@ -9,6 +9,7 @@ class VisualItem {
   final String imagePath;
   final String caption;
   final String? latex; // set only for VisualKind.formula
+  final int? sourcePage; // 0-based page for an image selected from the PDF
 
   const VisualItem({
     required this.id,
@@ -16,5 +17,6 @@ class VisualItem {
     required this.imagePath,
     required this.caption,
     this.latex,
+    this.sourcePage,
   });
 }

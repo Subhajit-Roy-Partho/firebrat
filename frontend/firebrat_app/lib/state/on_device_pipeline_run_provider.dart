@@ -10,6 +10,14 @@ import '../services/device_probe.dart';
 import 'library_providers.dart';
 import 'on_device_conversion_providers.dart';
 
+class _BackgroundConversionFailure implements Exception {
+  final String message;
+  const _BackgroundConversionFailure(this.message);
+
+  @override
+  String toString() => message;
+}
+
 /// Live state of the current (if any) on-device conversion — there is no
 /// server job to poll for this path, so this is its own tiny piece of
 /// state instead of going through `state/conversions_providers.dart`'s
@@ -202,7 +210,7 @@ Future<String> runOnDeviceConversionIn(ProviderContainer container, List<String>
       final error = data['error'].toString();
       notifier.set(prev.next(error: error, done: true));
       BackgroundConversionRunner.removeProgressListener(listener);
-      if (!completer.isCompleted) completer.completeError(StateError(error));
+      if (!completer.isCompleted) completer.completeError(_BackgroundConversionFailure(error));
       return;
     }
     if (data['done'] == true) {

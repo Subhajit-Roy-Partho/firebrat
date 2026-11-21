@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import '../services/cover_art_service.dart';
@@ -13,6 +14,7 @@ import '../services/reading_progress_store.dart';
 import '../services/audio_handler.dart';
 import '../services/library_repository.dart';
 import '../services/playback_controller.dart';
+import '../services/source_visual_store.dart';
 import 'on_device_pipeline_run_provider.dart';
 import 'library_providers.dart';
 import 'settings_providers.dart';
@@ -43,6 +45,7 @@ class ReaderState {
   final bool loadingSection;
   final Map<String, String> assetPaths; // ref id -> absolute local file path, current section only
   final String? currentVisualId; // last figure/table/formula ref spoken about — sticky across prose segments
+  final VisualItem? selectedSourceVisual;
   /// Set when the book/section failed to load (missing files, corrupt
   /// package) — the reader shows this instead of spinning forever.
   final String? error;
@@ -58,6 +61,7 @@ class ReaderState {
     required this.loadingSection,
     this.assetPaths = const {},
     this.currentVisualId,
+    this.selectedSourceVisual,
     this.error,
     this.waitingForNext = false,
   });
@@ -79,6 +83,7 @@ class ReaderState {
   /// The image/formula that should be on screen right now (Focus Mode,
   /// lock-screen art), or null if the section hasn't reached one yet.
   VisualItem? get currentVisual {
+    if (selectedSourceVisual != null) return selectedSourceVisual;
     final id = currentVisualId ?? _sectionFallbackVisualId;
     if (id == null) return null;
     final path = assetPaths[id];
@@ -104,6 +109,8 @@ class ReaderState {
     Map<String, String>? assetPaths,
     String? currentVisualId,
     bool clearCurrentVisual = false,
+    VisualItem? selectedSourceVisual,
+    bool clearSelectedSourceVisual = false,
     String? error,
     bool clearError = false,
   }) =>
@@ -115,6 +122,7 @@ class ReaderState {
         loadingSection: loadingSection ?? this.loadingSection,
         assetPaths: assetPaths ?? this.assetPaths,
         currentVisualId: clearCurrentVisual ? null : (currentVisualId ?? this.currentVisualId),
+        selectedSourceVisual: clearSelectedSourceVisual ? null : (selectedSourceVisual ?? this.selectedSourceVisual),
         error: clearError ? null : (error ?? this.error),
       );
 }
@@ -272,7 +280,7 @@ class ReaderController extends Notifier<ReaderState?> {
   Future<void> _loadSection(int index) async {
     final s = state;
     if (s == null) return;
-    state = s.copyWith(sectionIndex: index, loadingSection: true, clearActiveSegment: true, clearCurrentVisual: true, clearError: true);
+    state = s.copyWith(sectionIndex: index, loadingSection: true, clearActiveSegment: true, clearCurrentVisual: true, clearSelectedSourceVisual: true, clearError: true);
     final repo = ref.read(libraryRepositoryProvider);
     try {
       final section = s.manifest.sections[index];
@@ -282,6 +290,7 @@ class ReaderController extends Notifier<ReaderState?> {
     final segmentsFile = SegmentsFile.fromJson(segJson);
     final assetPaths = await _resolveAssetPaths(repo, section, s.manifest);
     final initialVisualId = _firstVisualRef(segmentsFile);
+    final selected = await (await _sourceVisualStore()).load(section.sectionId);
 
     await player.loadSection(
       section,
@@ -294,7 +303,7 @@ class ReaderController extends Notifier<ReaderState?> {
         title: section.title,
         // A figure when the section opens on one, otherwise the book cover,
         // so text-only books (novels) still get artwork on the lock screen.
-        artUri: initialVisualId != null && assetPaths[initialVisualId] != null
+        artUri: selected != null ? Uri.file(selected.imagePath) : initialVisualId != null && assetPaths[initialVisualId] != null
             ? Uri.file(assetPaths[initialVisualId]!)
             : _coverUri,
       ),
@@ -302,7 +311,7 @@ class ReaderController extends Notifier<ReaderState?> {
     _currentAudioPath = audioPath;
     final settings = ref.read(readerSettingsProvider);
     await player.setSpeed(settings.playbackSpeed);
-    state = state?.copyWith(loadingSection: false, assetPaths: assetPaths, currentVisualId: initialVisualId);
+    state = state?.copyWith(loadingSection: false, assetPaths: assetPaths, currentVisualId: initialVisualId, selectedSourceVisual: selected);
     } catch (e) {
       // Missing/corrupt section files (e.g. an interrupted download left a
       // manifest but no audio) used to wedge loadingSection on forever.
@@ -357,9 +366,39 @@ class ReaderController extends Notifier<ReaderState?> {
     handler.setMediaItem(current.copyWith(artUri: wanted));
   }
 
+  Future<SourceVisualStore> _sourceVisualStore() async => SourceVisualStore(
+    (await ref.read(libraryRepositoryProvider).downloads.bookDir(bookId)).path,
+  );
+
+  /// Bind the crop to the section captured when selection started, even if
+  /// narration moves on while the user is drawing it.
+  Future<void> selectSourceVisual(
+    String sectionId,
+    int page,
+    Uint8List png,
+  ) async {
+    final visual = await (await _sourceVisualStore()).save(
+      sectionId,
+      page,
+      png,
+    );
+    if (!ref.mounted || state?.section.sectionId != sectionId) return;
+    state = state!.copyWith(selectedSourceVisual: visual);
+    _syncLockScreenArt();
+  }
+
+  Future<void> clearSourceVisual() async {
+    final sectionId = state?.section.sectionId;
+    if (sectionId == null) return;
+    await (await _sourceVisualStore()).remove(sectionId);
+    if (!ref.mounted || state?.section.sectionId != sectionId) return;
+    state = state!.copyWith(clearSelectedSourceVisual: true);
+    _syncLockScreenArt();
+  }
+
   Future<void> goToSection(int index) async {
     final s = state;
-    if (s == null || index < 0 || index >= s.manifest.sections.length) return;
+    if (s == null || s.loadingSection || index < 0 || index >= s.manifest.sections.length) return;
     final wasPlaying = player.isPlaying;
     await _saveCheckpoint(force: true);
     await _loadSection(index);

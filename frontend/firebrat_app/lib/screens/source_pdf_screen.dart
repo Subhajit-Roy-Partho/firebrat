@@ -1,9 +1,13 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import '../state/library_providers.dart';
 import '../state/reader_providers.dart';
+import '../widgets/pdf_image_selection.dart';
 
 /// Shows the book's shipped `source.pdf` (package root + manifest
 /// `source_pdf_path`) opened at the current section's first source page.
@@ -38,6 +42,8 @@ class _SourcePdfScreenState extends ConsumerState<SourcePdfScreen> {
   late final Future<_LoadedSourcePdf?> _loadFuture;
   int _currentPage = 1;
   int _pageCount = 0;
+  final _pdfKey = GlobalKey();
+  bool _selecting = false;
 
   @override
   void initState() {
@@ -61,7 +67,12 @@ class _SourcePdfScreenState extends ConsumerState<SourcePdfScreen> {
     if (!await file.exists()) return null;
     final reader = ref.read(readerControllerProvider(widget.bookId));
     final pages = reader?.section.sourcePages ?? const <int>[];
-    final initial = pages.isNotEmpty ? pages.first + 1 : 1;
+    final selectedPage = reader?.selectedSourceVisual?.sourcePage;
+    final initial = selectedPage != null
+        ? selectedPage + 1
+        : pages.isNotEmpty
+        ? pages.first + 1
+        : 1;
     return _LoadedSourcePdf(
       title: manifest.title,
       file: file,
@@ -72,7 +83,9 @@ class _SourcePdfScreenState extends ConsumerState<SourcePdfScreen> {
 
   /// 1-based page of the section currently being read (null if unmapped).
   int? _currentSectionPage() {
-    final reader = ref.watch(readerControllerProvider(widget.bookId));
+    final reader = ref.read(readerControllerProvider(widget.bookId));
+    final sourcePage = reader?.selectedSourceVisual?.sourcePage;
+    if (sourcePage != null) return sourcePage + 1;
     final pages = reader?.section.sourcePages ?? const <int>[];
     return pages.isNotEmpty ? pages.first + 1 : null;
   }
@@ -83,8 +96,69 @@ class _SourcePdfScreenState extends ConsumerState<SourcePdfScreen> {
     _controller.jumpToPage(target);
   }
 
+  Future<void> _selectImage() async {
+    final reader = ref.read(readerControllerProvider(widget.bookId));
+    if (reader == null || reader.loadingSection || _selecting) return;
+    final sectionId = reader.section.sectionId;
+    final page = _currentPage - 1;
+    setState(() => _selecting = true);
+    ui.Image? image;
+    try {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      final boundary =
+          _pdfKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null || boundary.debugNeedsPaint) {
+        throw StateError('PDF still rendering');
+      }
+      image = await boundary.toImage(pixelRatio: 2);
+      if (!mounted) return;
+      final png = await Navigator.of(context).push<Uint8List>(
+        MaterialPageRoute(builder: (_) => PdfImageSelection(image: image!)),
+      );
+      if (png == null || !mounted) return;
+      await ref
+          .read(readerControllerProvider(widget.bookId).notifier)
+          .selectSourceVisual(sectionId, page, png);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Image saved for ${reader.section.title}.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not save the image. Wait for the PDF to finish loading and try again.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      image?.dispose();
+      if (mounted) setState(() => _selecting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final reader = ref.watch(readerControllerProvider(widget.bookId));
+    ref.listen(
+      readerControllerProvider(
+        widget.bookId,
+      ).select((s) => (s?.sectionIndex, s?.loadingSection)),
+      (previous, next) {
+        if (previous == next ||
+            next.$1 == null ||
+            next.$2 != false ||
+            _selecting) {
+          return;
+        }
+        final page = _currentSectionPage();
+        if (page != null) _goToPage(page);
+      },
+    );
     return FutureBuilder<_LoadedSourcePdf?>(
       future: _loadFuture,
       builder: (context, snapshot) {
@@ -113,7 +187,7 @@ class _SourcePdfScreenState extends ConsumerState<SourcePdfScreen> {
               children: [
                 const Text('Source page'),
                 Text(
-                  data.sectionTitle,
+                  reader?.section.title ?? data.sectionTitle,
                   style: Theme.of(context).textTheme.bodySmall,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -121,44 +195,69 @@ class _SourcePdfScreenState extends ConsumerState<SourcePdfScreen> {
               ],
             ),
             actions: [
-              IconButton(
-                icon: const Icon(Icons.my_location_rounded),
-                tooltip: 'Jump to current section',
-                onPressed: () {
-                  final p = _currentSectionPage();
-                  if (p != null) _goToPage(p);
-                },
-              ),
+              if (reader?.selectedSourceVisual != null)
+                IconButton(
+                  icon: const Icon(Icons.image_not_supported_outlined),
+                  tooltip: 'Use automatic section images',
+                  onPressed: _selecting || reader!.loadingSection
+                      ? null
+                      : () async {
+                          try {
+                            await ref
+                                .read(
+                                  readerControllerProvider(
+                                    widget.bookId,
+                                  ).notifier,
+                                )
+                                .clearSourceVisual();
+                          } catch (_) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Could not remove the selected image. Try again.',
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                ),
             ],
           ),
           body: Column(
             children: [
               Expanded(
-                child: SfPdfViewer.file(
-                  data.file,
-                  controller: _controller,
-                  initialPageNumber: 1,
-                  onDocumentLoaded: (details) {
-                    if (!mounted) return;
-                    final count = details.document.pages.count;
-                    final target = count > 0
-                        ? data.initialPageNumber.clamp(1, count)
-                        : 1;
-                    setState(() {
-                      _pageCount = count;
-                      _currentPage = target;
-                    });
-                    if (count > 0) _controller.jumpToPage(target);
-                  },
-                  onPageChanged: (details) {
-                    if (!mounted || _pageCount < 1) return;
-                    setState(
-                      () => _currentPage = details.newPageNumber.clamp(
-                        1,
-                        _pageCount,
-                      ),
-                    );
-                  },
+                child: RepaintBoundary(
+                  key: _pdfKey,
+                  child: SfPdfViewer.file(
+                    data.file,
+                    controller: _controller,
+                    pageLayoutMode: PdfPageLayoutMode.single,
+                    initialPageNumber: 1,
+                    onDocumentLoaded: (details) {
+                      if (!mounted) return;
+                      final count = details.document.pages.count;
+                      final target = count > 0
+                          ? (_currentSectionPage() ?? data.initialPageNumber)
+                                .clamp(1, count)
+                          : 1;
+                      setState(() {
+                        _pageCount = count;
+                        _currentPage = target;
+                      });
+                      if (count > 0) _controller.jumpToPage(target);
+                    },
+                    onPageChanged: (details) {
+                      if (!mounted || _pageCount < 1) return;
+                      setState(
+                        () => _currentPage = details.newPageNumber.clamp(
+                          1,
+                          _pageCount,
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
               SafeArea(
@@ -198,26 +297,18 @@ class _SourcePdfScreenState extends ConsumerState<SourcePdfScreen> {
                           ),
                         ],
                       ),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          icon: const Icon(Icons.my_location_rounded),
-                          label: const Text('Jump to current section'),
-                          onPressed: () {
-                            final p = _currentSectionPage();
-                            if (p == null) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Current section has no page mapping.',
-                                  ),
-                                ),
-                              );
-                              return;
-                            }
-                            _goToPage(p);
-                          },
-                        ),
+                      SourcePdfTransport(
+                        bookId: widget.bookId,
+                        onJump: _pageCount > 0 && _currentSectionPage() != null
+                            ? () => _goToPage(_currentSectionPage()!)
+                            : null,
+                        onSelectImage:
+                            _pageCount > 0 &&
+                                !_selecting &&
+                                reader != null &&
+                                !reader.loadingSection
+                            ? _selectImage
+                            : null,
                       ),
                     ],
                   ),
@@ -227,6 +318,74 @@ class _SourcePdfScreenState extends ConsumerState<SourcePdfScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Compact PDF controls use the reader's existing playback session.
+class SourcePdfTransport extends ConsumerWidget {
+  final String bookId;
+  final VoidCallback? onJump;
+  final VoidCallback? onSelectImage;
+  const SourcePdfTransport({
+    super.key,
+    required this.bookId,
+    this.onJump,
+    this.onSelectImage,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(readerControllerProvider(bookId));
+    final controller = ref.read(readerControllerProvider(bookId).notifier);
+    final ready = state != null && !state.loadingSection && state.error == null;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.my_location_rounded),
+          tooltip: 'Jump to current section',
+          onPressed: onJump,
+        ),
+        IconButton(
+          icon: const Icon(Icons.skip_previous_rounded),
+          tooltip: 'Previous section',
+          onPressed: ready && state.sectionIndex > 0
+              ? controller.previousSection
+              : null,
+        ),
+        StreamBuilder(
+          stream: controller.player.playerStateStream,
+          builder: (context, snapshot) {
+            final playing =
+                snapshot.data?.playing ?? controller.player.isPlaying;
+            return IconButton.filled(
+              icon: Icon(
+                playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              ),
+              tooltip: playing ? 'Pause' : 'Play',
+              onPressed: ready
+                  ? () => playing
+                        ? controller.player.pause()
+                        : controller.player.play()
+                  : null,
+            );
+          },
+        ),
+        IconButton(
+          icon: const Icon(Icons.skip_next_rounded),
+          tooltip: 'Next section',
+          onPressed:
+              ready && state.sectionIndex < state.manifest.sections.length - 1
+              ? controller.nextSection
+              : null,
+        ),
+        IconButton(
+          icon: const Icon(Icons.crop_rounded),
+          tooltip: 'Select image from PDF',
+          onPressed: onSelectImage,
+        ),
+      ],
     );
   }
 }

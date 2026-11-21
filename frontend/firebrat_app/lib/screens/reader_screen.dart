@@ -133,7 +133,7 @@ class ReaderScreen extends ConsumerWidget {
                 ),
               ),
             ),
-          FigureGallery(items: galleryItems, activeId: state.activeSegment?.ref),
+          FigureGallery(items: galleryItems, activeId: state.currentVisual?.id),
           Expanded(
             child: state.loadingSection
                 ? const Center(child: CircularProgressIndicator())
@@ -152,6 +152,17 @@ class ReaderScreen extends ConsumerWidget {
 
   List<GalleryItem> _galleryItems(ReaderState state) {
     final items = <GalleryItem>[];
+    final selected = state.selectedSourceVisual;
+    if (selected != null) {
+      items.add(
+        GalleryItem(
+          id: selected.id,
+          imagePath: selected.imagePath,
+          caption: selected.caption,
+        ),
+      );
+    }
+
     for (final id in state.section.figureRefs) {
       final fig = state.manifest.figureById(id);
       if (fig != null && state.assetPaths.containsKey(id)) {

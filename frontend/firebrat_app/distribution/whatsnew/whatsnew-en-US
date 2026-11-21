@@ -1,3 +1,4 @@
-Firebrat 1.8.1
-- Firebrat now tells you when a newer version is on Google Play and links to the store page.
-- New "Check for updates" entry in the menu.
+Firebrat 1.8.2
+- Play, pause, and skip audiobook sections from the source PDF.
+- Crop a diagram from the PDF to use as the section image.
+- Improved local model download checks and recovery when a model fails to load.

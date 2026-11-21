@@ -10,6 +10,22 @@ typedef DownloadProgressCallback = void Function(double? progress, String status
 /// fraction) is what lets the UI show stable "1.2 / 2.5 GB" numbers.
 typedef DownloadBytesCallback = void Function(int receivedBytes, int? totalBytes);
 
+/// Lightweight check for cached or newly downloaded weights before native load.
+Future<bool> hasGgufHeader(File file) async {
+  if (!await file.exists()) return false;
+  final handle = await file.open();
+  try {
+    final bytes = await handle.read(24);
+    return bytes.length == 24 &&
+        bytes[0] == 0x47 && bytes[1] == 0x47 &&
+        bytes[2] == 0x55 && bytes[3] == 0x46 &&
+        (bytes[4] == 2 || bytes[4] == 3) &&
+        bytes[5] == 0 && bytes[6] == 0 && bytes[7] == 0;
+  } finally {
+    await handle.close();
+  }
+}
+
 /// Downloads a [DownloadableAsset] (an `OnDeviceLlmModel`'s GGUF weights, a TTS model file, ...) directly from Hugging
 /// Face into [modelsDir], skipping the download if a file of roughly the
 /// right size is already there. Uses `dio` (already a dependency, via
@@ -39,6 +55,7 @@ class ModelDownloader {
     if (!await dir.exists()) await dir.create(recursive: true);
     final path = '$modelsDir/${model.fileName}';
     final file = File(path);
+    final isGguf = model.fileName.endsWith('.gguf');
 
     if (await file.exists()) {
       final existingSize = await file.length();
@@ -49,7 +66,8 @@ class ModelDownloader {
       // byte count across a re-upload.
       // The SHA-256 (when present) is checked on fresh downloads only: a file
       // already on disk may be a user-imported GGUF of slightly different size.
-      if ((existingSize - model.approxSizeBytes).abs() < model.approxSizeBytes * 0.02) {
+      if ((existingSize - model.approxSizeBytes).abs() < model.approxSizeBytes * 0.02 &&
+          (!isGguf || await hasGgufHeader(file))) {
         onProgress?.call(1.0, 'already downloaded');
         onBytes?.call(existingSize, existingSize);
         return path;
@@ -113,6 +131,7 @@ class ModelDownloader {
     );
 
     final status = resp.statusCode ?? 200;
+    int? rangeTotal;
     if (have > 0) {
       if (status == 200) {
         // Server ignored Range — restart cleanly rather than appending a
@@ -125,7 +144,10 @@ class ModelDownloader {
             message: 'Unexpected status $status for range resume');
       } else {
         final contentRange = resp.headers.value('content-range') ?? '';
-        if (!contentRange.startsWith('bytes $have-')) {
+        final range = RegExp(r'^bytes (\d+)-(\d+)/(\d+)$').firstMatch(contentRange);
+        rangeTotal = int.tryParse(range?.group(3) ?? '');
+        if (range == null || int.tryParse(range.group(1)!) != have ||
+            rangeTotal == null || int.tryParse(range.group(2)!) != rangeTotal - 1) {
           await partFile.delete();
           throw DioException(requestOptions: resp.requestOptions,
               message: 'Server resumed at $contentRange, expected from $have');
@@ -142,6 +164,8 @@ class ModelDownloader {
     } catch (_) {
       total = null;
     }
+    final responseTotal = rangeTotal ?? total;
+    total = responseTotal;
     total ??= model.approxSizeBytes > 0 ? model.approxSizeBytes : null;
 
     final sink = partFile.openWrite(mode: have > 0 ? FileMode.append : FileMode.write);
@@ -154,6 +178,13 @@ class ModelDownloader {
       }
       await sink.flush();
       await sink.close();
+      if (responseTotal != null && received != responseTotal) {
+        throw const FormatException('The download ended early. Retry to resume it.');
+      }
+      if (isGguf && !await hasGgufHeader(partFile)) {
+        await partFile.delete();
+        throw FormatException('The download for ${model.displayName} is not a supported GGUF file. Retry the download.');
+      }
       final expected = model.sha256;
       if (expected != null) {
         emit(received, total, () => 'verifying ${model.displayName}');

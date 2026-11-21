@@ -86,7 +86,7 @@ class OnDeviceCompiler {
     final path = '$modelsDir/${model.fileName}';
     if (!allowDownload) {
       final file = File(path);
-      if (!await file.exists() || ((await file.length()) - model.approxSizeBytes).abs() >= model.approxSizeBytes * 0.02) {
+      if (!await hasGgufHeader(file) || ((await file.length()) - model.approxSizeBytes).abs() >= model.approxSizeBytes * 0.02) {
         throw OnDeviceCompilerException('Download or import ${model.displayName} before local character research.');
       }
     } else {
@@ -119,7 +119,18 @@ class OnDeviceCompiler {
     _worker = await Isolate.spawn(_llamaWorker, replies.sendPort,
         onError: replies.sendPort, onExit: replies.sendPort);
     _commands = await ready.future;
-    await _request({'command': 'load', 'path': path, 'gpuLayers': gpuLayers});
+    try {
+      await _request({'command': 'load', 'path': path, 'gpuLayers': gpuLayers});
+    } on OnDeviceCompilerException catch (error) {
+      await dispose();
+      // Preserve the native detail in device logs without exposing paths in UI.
+      stderr.writeln('Could not initialize ${model.displayName}: ${error.message}');
+      throw OnDeviceCompilerException(
+        '${model.displayName} could not start on this device. '
+        'In Conversion settings, try a smaller local model. '
+        'If the model file is incomplete or damaged, remove it and download it again.',
+      );
+    }
   }
 
   Future<CompiledChunkOutput> compileChunk(
@@ -187,24 +198,35 @@ void _llamaWorker(SendPort replies) async {
         Llama.lib.ggml_backend_load_all();
         final devices = Llama.lib.ggml_backend_dev_count();
         replies.send({'progress': 'native backends: $devices device(s)'});
-        Llama open(int layers) => Llama(request['path'] as String,
-          modelParams: ModelParams()..nGpuLayers = layers,
+        Llama open(int layers, {bool memoryMap = true}) => Llama(request['path'] as String,
+          modelParams: ModelParams()
+            ..nGpuLayers = layers
+            ..useMemorymap = memoryMap,
           contextParams: ContextParams()
             ..nCtx = 4096 ..nBatch = 1536 ..nUbatch = 128
             ..nThreads = 4 ..nThreadsBatch = 4 ..nPredict = 2400,
           samplerParams: SamplerParams()..temp = 0.2..seed = 42,
-          verbose: false);
+          verbose: !memoryMap);
+        Llama openCpu() {
+          try {
+            return open(0);
+          } catch (error) {
+            stderr.writeln('Local model failed with memory mapping: $error');
+            replies.send({'progress': 'retrying local model without memory mapping'});
+            return open(0, memoryMap: false);
+          }
+        }
         final wanted = request['gpuLayers'] as int;
         var used = wanted;
         try {
-          llama = open(wanted);
+          llama = wanted == 0 ? openCpu() : open(wanted);
         } catch (error) {
           // Accelerator unavailable or out of memory: degrade to CPU instead
           // of failing the conversion.
           if (wanted == 0) rethrow;
           replies.send({'progress': 'GPU load failed ($error); falling back to CPU'});
           used = 0;
-          llama = open(0);
+          llama = openCpu();
         }
         replies.send({'progress': 'language model running on: ${used > 0 ? 'GPU (Vulkan/OpenCL, $used layers requested)' : 'CPU'}'});
         replies.send({'result': true, 'id': request['id']});
@@ -304,5 +326,5 @@ class OnDeviceCompilerException implements Exception {
   final String message;
   OnDeviceCompilerException(this.message);
   @override
-  String toString() => 'OnDeviceCompilerException: $message';
+  String toString() => message;
 }
