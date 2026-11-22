@@ -1,4 +1,4 @@
 Firebrat 1.8.2
-- Play, pause, and skip audiobook sections from the source PDF.
-- Crop a diagram from the PDF to use as the section image.
-- Improved local model download checks and recovery when a model fails to load.
+- Play, pause, and move between audiobook sections while viewing the source PDF.
+- Select a diagram directly from the PDF to show it in the reader. Your selection is saved for that section.
+- On-device conversion checks model downloads and retries loading on CPU if the first attempt fails. If the model still cannot start, Firebrat explains how to recover.
